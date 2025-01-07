@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from fastapi.responses import JSONResponse
 from typing import Annotated
 from pathlib import Path
-from datetime import datetime
 
 from fairscape_mds.models.user import UserLDAP
 from fairscape_mds.auth.oauth import getCurrentUser
@@ -21,16 +20,8 @@ mongoDB = mongoClient[fairscapeConfig.mongo.db]
 rocrateCollection = mongoDB[fairscapeConfig.mongo.rocrate_collection]
 minioClient = fairscapeConfig.CreateMinioClient()
 
-# Initialize publishing service
+# Initialize publishing service with dynamic publishers
 publishing_service = PublishingService()
-publishing_service.register_publisher(
-    "dataverse",
-    DataversePublisher(DEFAULT_DATAVERSE_URL, DEFAULT_DATAVERSE_DB)
-)
-publishing_service.register_publisher(
-    "zenodo",
-    ZenodoPublisher()
-)
 
 @router.post("/publish/create/ark:{NAAN}/{postfix}")
 async def create_dataset(
@@ -42,7 +33,6 @@ async def create_dataset(
     database: str | None = Query(default=None, description="Custom database name")
 ):
     """Create a dataset on the specified platform"""
-    
     rocrateGUID = f"ark:{NAAN}/{postfix}"
     rocrateMetadata = rocrateCollection.find_one({"@id": rocrateGUID}, projection={"_id": 0})
     
@@ -60,16 +50,20 @@ async def create_dataset(
     if rocrateGroup not in currentUser.memberOf and fairscapeConfig.ldap.adminDN not in currentUser.memberOf:
         raise HTTPException(status_code=401, detail="User not authorized to publish this ROCrate")
     
-    # Get the appropriate publisher
-    publisher, _ = publishing_service.get_publisher(platform_url)
+    # Get or create the appropriate publisher
+    if "dataverse" in platform_url.lower():
+        db = database or DEFAULT_DATAVERSE_DB
+        publisher = DataversePublisher(platform_url, db)
+        platform = "dataverse"
+    elif "zenodo" in platform_url.lower():
+        publisher = ZenodoPublisher(platform_url)
+        platform = "zenodo"
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported platform URL: {platform_url}")
     
     # Get platform-specific token
     tokens = getUserTokens(fairscapeConfig.ldap.connectAdmin(), currentUser.dn)
-    api_token = None
-    for token in tokens:
-        if token.endpointURL == platform_url:
-            api_token = token.tokenValue
-            break
+    api_token = next((token.tokenValue for token in tokens if token.endpointURL == platform_url), None)
     
     if not api_token:
         raise HTTPException(
@@ -78,13 +72,11 @@ async def create_dataset(
         )
     
     # Extract group CN for affiliation
-    group_affiliation = None
-    for group in currentUser.memberOf:
-        if group.startswith('cn='):
-            # Extract the CN value between 'cn=' and first comma
-            group_cn = group.split(',')[0].replace('cn=', '')
-            group_affiliation = group_cn
-            break
+    group_affiliation = next((
+        group.split(',')[0].replace('cn=', '')
+        for group in currentUser.memberOf
+        if group.startswith('cn=')
+    ), None)
     
     # Prepare metadata
     metadata = rocrateMetadata | userProvidedMetadata
@@ -94,31 +86,32 @@ async def create_dataset(
         "authorAffiliation": group_affiliation
     })
     
-    try:
-        # Create the dataset
-        dataset_info = await publisher.create_dataset(metadata, api_token)
-
-        # Update ROCrate with new identifier
-        rocrate = FairscapeBaseModel(
-            guid=rocrateGUID,
-            metadataType=rocrateMetadata.get("@type"),
-            name=rocrateMetadata.get("name"),
-            identifier=dataset_info["persistent_id"]
-        )
-        
-        update_result = rocrate.update(rocrateCollection)
-        if not update_result.success:
-            print(f"Failed to update ROCrate with identifier: {update_result.message}")
-        
-        return JSONResponse(
-            status_code=201,
-            content={
-                **dataset_info,
-                "rocrate_update": update_result.success
-            }
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # Create the dataset
+    dataset_info = await publisher.create_dataset(metadata, api_token)
+    
+    if platform == 'dataverse':
+        dataset_info['transaction_id'] = dataset_info["persistent_id"]
+    
+    # Update ROCrate with new identifier
+    rocrate = FairscapeBaseModel(
+        guid=rocrateGUID,
+        metadataType=rocrateMetadata.get("@type"),
+        name=rocrateMetadata.get("name"),
+        identifier=dataset_info.get("persistent_id"),
+        transaction_identifier=dataset_info.get("transaction_id","")
+    )
+    
+    update_result = rocrate.update(rocrateCollection)
+    if not update_result.success:
+        print(f"Failed to update ROCrate with identifier: {update_result.message}")
+    
+    return JSONResponse(
+        status_code=201,
+        content={
+            **dataset_info,
+            "rocrate_update": update_result.success
+        }
+    )
 
 @router.post("/publish/upload/ark:{NAAN}/{postfix}")
 async def upload_dataset(
@@ -128,7 +121,6 @@ async def upload_dataset(
     platform_url: str = Query(default=DEFAULT_DATAVERSE_URL, description="Platform URL")
 ):
     """Upload files to an existing dataset"""
-    
     rocrateGUID = f"ark:{NAAN}/{postfix}"
     rocrateMetadata = rocrateCollection.find_one({"@id": rocrateGUID}, projection={"_id": 0})
     
@@ -146,11 +138,18 @@ async def upload_dataset(
     if rocrateGroup not in currentUser.memberOf and fairscapeConfig.ldap.adminDN not in currentUser.memberOf:
         raise HTTPException(status_code=401, detail="User not authorized to publish this ROCrate")
     
-    # Get the appropriate publisher
-    publisher, platform = publishing_service.get_publisher(platform_url)
+    # Get or create the appropriate publisher
+    if "dataverse" in platform_url.lower():
+        publisher = DataversePublisher(platform_url, DEFAULT_DATAVERSE_DB)
+        platform = "dataverse"
+    elif "zenodo" in platform_url.lower():
+        publisher = ZenodoPublisher(platform_url)
+        platform = "zenodo"
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported platform URL: {platform_url}")
     
     # Check if the ROCrate has a platform identifier
-    persistent_id = rocrateMetadata.get("identifier")
+    persistent_id = rocrateMetadata.get("transaction_identifier")
     if not persistent_id:
         raise HTTPException(
             status_code=400,
@@ -159,11 +158,7 @@ async def upload_dataset(
     
     # Get platform-specific token
     tokens = getUserTokens(fairscapeConfig.ldap.connectAdmin(), currentUser.dn)
-    api_token = None
-    for token in tokens:
-        if token.endpointURL == platform_url:
-            api_token = token.tokenValue
-            break
+    api_token = next((token.tokenValue for token in tokens if token.endpointURL == platform_url), None)
     
     if not api_token:
         raise HTTPException(

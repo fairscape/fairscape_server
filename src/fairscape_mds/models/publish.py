@@ -184,13 +184,17 @@ class ZenodoPublisher(PublishingTarget):
     
     def transform_metadata(self, metadata: Dict) -> Dict:
         """Transform metadata into Zenodo format"""
+        authors = metadata.get("author", [])
+        if isinstance(authors, str):
+            authors = [author.strip() for author in authors.split(',')]
+        
         return {
             "metadata": {
                 "title": metadata.get("name"),
                 "description": metadata.get("description"),
-                "creators": [{"name": author.strip()} for author in metadata.get("author", "").split(',')],
+                "creators": [{"name": author} for author in authors],
                 "publication_date": metadata.get("datePublished", datetime.today().strftime("%Y-%m-%d")),
-                "keywords": [k.strip() for k in metadata.get("keywords", "").split(',')],
+                "keywords": metadata.get("keywords", "").split(',') if isinstance(metadata.get("keywords"), str) else metadata.get("keywords", []),
                 "access_right": "open",
                 "license": metadata.get("license", "cc-by-4.0")
             }
@@ -202,13 +206,15 @@ class ZenodoPublisher(PublishingTarget):
             "Content-Type": "application/json"
         }
         transformed_metadata = self.transform_metadata(metadata)
+        
         response = requests.post(f"{self.base_url}/deposit/depositions", headers=headers, json=transformed_metadata)
         
         if response.status_code != 201:
             raise HTTPException(status_code=response.status_code, detail=response.text)
             
         return {
-            "persistent_id": response.json()['id'],
+            "persistent_id":response.json()['metadata']['prereserve_doi']['doi'],
+            "transaction_id": response.json()['id'],
             "platform": "zenodo"
         }
     
