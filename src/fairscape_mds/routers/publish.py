@@ -1,59 +1,36 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from fastapi.responses import JSONResponse
-from typing import Annotated, Dict
+from typing import Annotated
+from pathlib import Path
+from datetime import datetime
+
 from fairscape_mds.models.user import UserLDAP
 from fairscape_mds.auth.oauth import getCurrentUser
 from fairscape_mds.config import get_fairscape_config
-from fairscape_mds.models.fairscape_base import FairscapeBaseModel 
+from fairscape_mds.models.fairscape_base import FairscapeBaseModel
 from fairscape_mds.auth.ldap import getUserTokens
-from pathlib import Path
-import requests
-from datetime import datetime
 
-# License mapping based on dataverse options
-LICENSE_MAP = {
-    "CC0 1.0": {
-        "name": "CC0 1.0",
-        "uri": "http://creativecommons.org/publicdomain/zero/1.0"
-    },
-    "CC BY 4.0": {
-        "name": "CC BY 4.0",
-        "uri": "https://creativecommons.org/licenses/by/4.0"
-    },
-    "CC BY-SA 4.0": {
-        "name": "CC BY-SA 4.0",
-        "uri": "https://creativecommons.org/licenses/by-sa/4.0"
-    },
-    "CC BY-NC 4.0": {
-        "name": "CC BY-NC 4.0",
-        "uri": "https://creativecommons.org/licenses/by-nc/4.0"
-    },
-    "CC BY-NC-SA 4.0": {
-        "name": "CC BY-NC-SA 4.0",
-        "uri": "https://creativecommons.org/licenses/by-nc-sa/4.0"
-    },
-    "CC BY-ND 4.0": {
-        "name": "CC BY-ND 4.0",
-        "uri": "https://creativecommons.org/licenses/by-nd/4.0"
-    },
-    "CC BY-NC-ND 4.0": {
-        "name": "CC BY-NC-ND 4.0",
-        "uri": "https://creativecommons.org/licenses/by-nc-nd/4.0"
-    }
-}
-
-DEFAULT_LICENSE = "CC BY 4.0"
-DEFAULT_DATAVERSE_URL = "https://dataversedev.internal.lib.virginia.edu/"
-DEFAULT_DATAVERSE_DB = "libradata"
+from fairscape_mds.models.publish import PublishingService, DataversePublisher, ZenodoPublisher, DEFAULT_DATAVERSE_URL, DEFAULT_DATAVERSE_DB
 
 router = APIRouter()
 
+# Initialize services
 fairscapeConfig = get_fairscape_config()
-
-minioClient = fairscapeConfig.CreateMinioClient()
 mongoClient = fairscapeConfig.CreateMongoClient()
 mongoDB = mongoClient[fairscapeConfig.mongo.db]
 rocrateCollection = mongoDB[fairscapeConfig.mongo.rocrate_collection]
+minioClient = fairscapeConfig.CreateMinioClient()
+
+# Initialize publishing service
+publishing_service = PublishingService()
+publishing_service.register_publisher(
+    "dataverse",
+    DataversePublisher(DEFAULT_DATAVERSE_URL, DEFAULT_DATAVERSE_DB)
+)
+publishing_service.register_publisher(
+    "zenodo",
+    ZenodoPublisher()
+)
 
 @router.post("/publish/create/ark:{NAAN}/{postfix}")
 async def create_dataset(
@@ -61,31 +38,13 @@ async def create_dataset(
     NAAN: str,
     postfix: str,
     userProvidedMetadata: dict = Body(default={}),
-    dataverse_url: str | None = Query(default=None, description="Custom Dataverse URL"),
+    platform_url: str = Query(default=DEFAULT_DATAVERSE_URL, description="Platform URL"),
     database: str | None = Query(default=None, description="Custom database name")
 ):
-    dataverse_url = dataverse_url or DEFAULT_DATAVERSE_URL
-    dataverse_db = database or DEFAULT_DATAVERSE_DB
-
-    # Get user's tokens and find matching Dataverse token
-    tokens = getUserTokens(fairscapeConfig.ldap.connectAdmin(), currentUser.dn)
-    api_token = None
-    for token in tokens:
-        if token.endpointURL == dataverse_url:
-            api_token = token.tokenValue
-            break
-    
-    if not api_token:
-        raise HTTPException(
-            status_code=401,
-            detail=f"No token found for Dataverse instance: {dataverse_url}. Please add your token first."
-        )
+    """Create a dataset on the specified platform"""
     
     rocrateGUID = f"ark:{NAAN}/{postfix}"
-    rocrateMetadata = rocrateCollection.find_one(
-        {"@id": rocrateGUID}, 
-        projection={"_id": 0}
-        )
+    rocrateMetadata = rocrateCollection.find_one({"@id": rocrateGUID}, projection={"_id": 0})
     
     if rocrateMetadata is None:
         return JSONResponse(
@@ -95,145 +54,83 @@ async def create_dataset(
                 "error": f"unable to find record for RO-Crate: {rocrateGUID}"
             }
         )
-
-    # AuthZ: check if user is allowed to download 
-    # if a user is a part of the group that uploaded the ROCrate OR user is an Admin
+    
+    # Authorization check
     rocrateGroup = rocrateMetadata.get("permissions", {}).get("group")
     if rocrateGroup not in currentUser.memberOf and fairscapeConfig.ldap.adminDN not in currentUser.memberOf:
         raise HTTPException(status_code=401, detail="User not authorized to publish this ROCrate")
-
-    # Get license from user metadata or use default
-    license_name = userProvidedMetadata.get("license", DEFAULT_LICENSE)
-    if license_name not in LICENSE_MAP:
+    
+    # Get the appropriate publisher
+    publisher, _ = publishing_service.get_publisher(platform_url)
+    
+    # Get platform-specific token
+    tokens = getUserTokens(fairscapeConfig.ldap.connectAdmin(), currentUser.dn)
+    api_token = None
+    for token in tokens:
+        if token.endpointURL == platform_url:
+            api_token = token.tokenValue
+            break
+    
+    if not api_token:
         raise HTTPException(
-            status_code=400,
-            detail=f"Invalid license. Please choose from: {', '.join(LICENSE_MAP.keys())}"
+            status_code=401,
+            detail=f"No token found for platform URL: {platform_url}. Please add your token first."
         )
     
-    license_info = LICENSE_MAP[license_name]
-    dataverseMetadata = rocrateMetadata | userProvidedMetadata
+    # Extract group CN for affiliation
+    group_affiliation = None
+    for group in currentUser.memberOf:
+        if group.startswith('cn='):
+            # Extract the CN value between 'cn=' and first comma
+            group_cn = group.split(',')[0].replace('cn=', '')
+            group_affiliation = group_cn
+            break
+    
+    # Prepare metadata
+    metadata = rocrateMetadata | userProvidedMetadata
+    metadata.update({
+        "contactName": currentUser.cn,
+        "contactEmail": currentUser.email,
+        "authorAffiliation": group_affiliation
+    })
+    
+    try:
+        # Create the dataset
+        dataset_info = await publisher.create_dataset(metadata, api_token)
 
-    # Prepare dataset metadata
-    metadata = {
-        "datasetVersion": {
-            "license": license_info,
-            "metadataBlocks": {
-                "citation": {
-                    "fields": [
-                        {"value": dataverseMetadata.get("name"), "typeClass": "primitive", "multiple": False, "typeName": "title"},
-                        {
-                            "value": [
-                                {
-                                    "authorName": {"value": author, "typeClass": "primitive", "multiple": False, "typeName": "authorName"},
-                                    "authorAffiliation": {"value": "CAMA", "typeClass": "primitive", "multiple": False, "typeName": "authorAffiliation"}
-                                } for author in dataverseMetadata.get("author").split(', ')
-                            ],
-                            "typeClass": "compound",
-                            "multiple": True,
-                            "typeName": "author"
-                        },
-                        {
-                            "value": [
-                                {
-                                    "datasetContactName": {"value": currentUser.cn, "typeClass": "primitive", "multiple": False, "typeName": "datasetContactName"},
-                                    "datasetContactEmail": {"value": currentUser.email, "typeClass": "primitive", "multiple": False, "typeName": "datasetContactEmail"}
-                                }
-                            ],
-                            "typeClass": "compound",
-                            "multiple": True,
-                            "typeName": "datasetContact"
-                        },
-                        {
-                            "value": [
-                                {
-                                    "dsDescriptionValue": {"value": dataverseMetadata.get("description"), "typeClass": "primitive", "multiple": False, "typeName": "dsDescriptionValue"}
-                                }
-                            ],
-                            "typeClass": "compound",
-                            "multiple": True,
-                            "typeName": "dsDescription"
-                        },
-                        {"value": ["Computer and Information Science"], "typeClass": "controlledVocabulary", "multiple": True, "typeName": "subject"},
-                        {
-                            "value": [
-                                {
-                                    "keywordValue": {"value": keyword, "typeClass": "primitive", "multiple": False, "typeName": "keywordValue"}
-                                } for keyword in dataverseMetadata.get("keywords").split(',')
-                            ],
-                            "typeClass": "compound",
-                            "multiple": True,
-                            "typeName": "keyword"
-                        },
-                        {"value": "This dataset is part of a ROCrate.", "typeClass": "primitive", "multiple": False, "typeName": "notesText"},
-                        {"typeName": "datasetPublicationDate", "multiple": False, "typeClass": "primitive", "value": dataverseMetadata.get("datePublished", datetime.today().strftime("%Y-%m-%d"))},
-                        {"typeName": "productionDate", "multiple": False, "typeClass": "primitive", "value": dataverseMetadata.get("datePublished", datetime.today().strftime("%Y-%m-%d"))}
-                    ]
-                }
-            }
-        }
-    }
-
-    # Create dataset in Dataverse
-    headers = {
-        "X-Dataverse-key": api_token,
-        "Content-Type": "application/json"
-    }
-    url = f"{dataverse_url}/api/dataverses/{dataverse_db}/datasets"
-    response = requests.post(url, headers=headers, json=metadata)
-
-    if response.status_code == 201:
-        dataset_info = response.json()
-        persistent_id = dataset_info['data']['persistentId']
-        
+        # Update ROCrate with new identifier
         rocrate = FairscapeBaseModel(
             guid=rocrateGUID,
             metadataType=rocrateMetadata.get("@type"),
             name=rocrateMetadata.get("name"),
-            identifier=persistent_id
+            identifier=dataset_info["persistent_id"]
         )
         
         update_result = rocrate.update(rocrateCollection)
         if not update_result.success:
             print(f"Failed to update ROCrate with identifier: {update_result.message}")
-            
+        
         return JSONResponse(
-            status_code=201, 
+            status_code=201,
             content={
-                "persistent_id": persistent_id,
+                **dataset_info,
                 "rocrate_update": update_result.success
             }
         )
-    else:
-        raise HTTPException(status_code=response.status_code, detail=response.text)
-    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/publish/upload/ark:{NAAN}/{postfix}")
 async def upload_dataset(
     currentUser: Annotated[UserLDAP, Depends(getCurrentUser)],
     NAAN: str,
     postfix: str,
-    dataverse_url: str | None = Query(default=None, description="Custom Dataverse URL")
+    platform_url: str = Query(default=DEFAULT_DATAVERSE_URL, description="Platform URL")
 ):
-    dataverse_url = dataverse_url or DEFAULT_DATAVERSE_URL
-
-    # Get user's tokens and find matching Dataverse token
-    tokens = getUserTokens(fairscapeConfig.ldap.connectAdmin(), currentUser.dn)
-    api_token = None
-    for token in tokens:
-        if token.endpointURL == dataverse_url:
-            api_token = token.tokenValue
-            break
-    
-    if not api_token:
-        raise HTTPException(
-            status_code=401,
-            detail=f"No token found for Dataverse instance: {dataverse_url}. Please add your token first."
-        )
+    """Upload files to an existing dataset"""
     
     rocrateGUID = f"ark:{NAAN}/{postfix}"
-    rocrateMetadata = rocrateCollection.find_one(
-        {"@id": rocrateGUID}, 
-        projection={"_id": 0}
-        )
+    rocrateMetadata = rocrateCollection.find_one({"@id": rocrateGUID}, projection={"_id": 0})
     
     if rocrateMetadata is None:
         return JSONResponse(
@@ -243,58 +140,61 @@ async def upload_dataset(
                 "error": f"unable to find record for RO-Crate: {rocrateGUID}"
             }
         )
-
-    # AuthZ: check if user is allowed to download 
+    
+    # Authorization check
     rocrateGroup = rocrateMetadata.get("permissions", {}).get("group")
     if rocrateGroup not in currentUser.memberOf and fairscapeConfig.ldap.adminDN not in currentUser.memberOf:
         raise HTTPException(status_code=401, detail="User not authorized to publish this ROCrate")
-
-    # Check if the ROCrate has a Dataverse identifier
+    
+    # Get the appropriate publisher
+    publisher, platform = publishing_service.get_publisher(platform_url)
+    
+    # Check if the ROCrate has a platform identifier
     persistent_id = rocrateMetadata.get("identifier")
     if not persistent_id:
         raise HTTPException(
             status_code=400,
-            detail="Dataset has not been created in Dataverse yet. Please create the dataset first using the create endpoint."
+            detail=f"Dataset has not been created yet. Please create the dataset first."
         )
-
-    # Get the file path from the ROCrate distribution
+    
+    # Get platform-specific token
+    tokens = getUserTokens(fairscapeConfig.ldap.connectAdmin(), currentUser.dn)
+    api_token = None
+    for token in tokens:
+        if token.endpointURL == platform_url:
+            api_token = token.tokenValue
+            break
+    
+    if not api_token:
+        raise HTTPException(
+            status_code=401,
+            detail=f"No token found for platform URL: {platform_url}. Please add your token first."
+        )
+    
+    # Get the file path and upload
     file_path = rocrateMetadata.get("distribution", {}).get("archivedObjectPath")
     if not file_path:
         raise HTTPException(status_code=404, detail="No file associated with this ROCrate")
-
-    # Retrieve the file from MinIO
+    
     try:
         file_data = minioClient.get_object(
             bucket_name=fairscapeConfig.minio.rocrate_bucket,
             object_name=file_path
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error retrieving file from MinIO: {str(e)}")
-
-    # Upload file to Dataverse using the persistent ID
-    url = f"{dataverse_url}api/datasets/:persistentId/add?persistentId={persistent_id}"
-    headers = {"X-Dataverse-key": api_token}
-    
-    try:
-        files = {'file': (Path(file_path).name, file_data.read(), 'application/zip')}
-        response = requests.post(url, headers=headers, files=files)
-
-        if response.status_code == 200:
-            file_info = response.json()
-            return JSONResponse(
-                status_code=200, 
-                content={
-                    "persistent_id": persistent_id,
-                    "file_id": file_info['data']['files'][0]['dataFile']['id']
-                }
-            )
-        else:
-            raise HTTPException(
-                status_code=response.status_code, 
-                detail=f"Error uploading file to Dataverse: {response.text}"
-            )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error during file upload: {str(e)}"
+        
+        upload_info = await publisher.upload_files(
+            persistent_id,
+            file_data.read(),
+            Path(file_path).name,
+            api_token
         )
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                **upload_info,
+                "persistent_id": persistent_id
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error during file upload: {str(e)}")
