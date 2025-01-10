@@ -9,7 +9,7 @@ from fairscape_mds.config import get_fairscape_config
 from fairscape_mds.models.fairscape_base import FairscapeBaseModel
 from fairscape_mds.auth.ldap import getUserTokens
 
-from fairscape_mds.models.publish import PublishingService, DataversePublisher, ZenodoPublisher, DEFAULT_DATAVERSE_URL, DEFAULT_DATAVERSE_DB
+from fairscape_mds.models.publish import PublishingService, DataversePublisher, ZenodoPublisher, FigsharePublisher, DEFAULT_DATAVERSE_URL, DEFAULT_DATAVERSE_DB
 
 router = APIRouter()
 
@@ -58,6 +58,9 @@ async def create_dataset(
     elif "zenodo" in platform_url.lower():
         publisher = ZenodoPublisher(platform_url)
         platform = "zenodo"
+    elif "figshare" in platform_url.lower():
+        publisher = FigsharePublisher(platform_url)
+        platform = "figshare"
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported platform URL: {platform_url}")
     
@@ -89,9 +92,15 @@ async def create_dataset(
     # Create the dataset
     dataset_info = await publisher.create_dataset(metadata, api_token)
     
+    # Handle platform-specific transaction IDs
     if platform == 'dataverse':
         dataset_info['transaction_id'] = dataset_info["persistent_id"]
+    elif platform in ['zenodo', 'figshare']:
+        # Both Zenodo and Figshare already provide transaction_id in dataset_info
+        pass
     
+    print("DATASET INFO")
+    print(dataset_info)
     # Update ROCrate with new identifier
     rocrate = FairscapeBaseModel(
         guid=rocrateGUID,
@@ -145,6 +154,9 @@ async def upload_dataset(
     elif "zenodo" in platform_url.lower():
         publisher = ZenodoPublisher(platform_url)
         platform = "zenodo"
+    elif "figshare" in platform_url.lower():
+        publisher = FigsharePublisher(platform_url)
+        platform = "figshare"
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported platform URL: {platform_url}")
     
@@ -155,7 +167,7 @@ async def upload_dataset(
             status_code=400,
             detail=f"Dataset has not been created yet. Please create the dataset first."
         )
-    
+
     # Get platform-specific token
     tokens = getUserTokens(fairscapeConfig.ldap.connectAdmin(), currentUser.dn)
     api_token = next((token.tokenValue for token in tokens if token.endpointURL == platform_url), None)

@@ -3,6 +3,7 @@ from typing import Dict, Any
 from fastapi import HTTPException
 import requests
 from datetime import datetime
+import hashlib
 
 LICENSE_MAP = {
     "CC0 1.0": {
@@ -206,7 +207,7 @@ class ZenodoPublisher(PublishingTarget):
             "Content-Type": "application/json"
         }
         transformed_metadata = self.transform_metadata(metadata)
-        
+
         response = requests.post(f"{self.base_url}/deposit/depositions", headers=headers, json=transformed_metadata)
         
         if response.status_code != 201:
@@ -232,7 +233,114 @@ class ZenodoPublisher(PublishingTarget):
             "file_id": response.json()['id'],
             "platform": "zenodo"
         }
+    
+class FigsharePublisher(PublishingTarget):
+    def __init__(self, base_url: str = "https://api.figshare.com/v2"):
+        self.base_url = base_url
 
+    def transform_metadata(self, metadata: Dict) -> Dict:
+        """Transform metadata into Figshare format"""
+        authors = metadata.get("author", [])
+        if isinstance(authors, str):
+            authors = [{"name": author.strip()} for author in authors.split(',')]
+
+        # Figshare license IDs from API
+        license_map = {
+            "CC BY 4.0": 1,      
+            "CC0 1.0": 2,       
+            "MIT": 3,            
+            "GPL": 4,          
+            "GPL 2.0+": 5,      
+            "GPL 3.0+": 6,       
+            "Apache 2.0": 7      
+        }
+
+        # For licenses that don't map directly, default to CC BY 4.0
+        input_license = metadata.get("license", "CC BY 4.0")
+        if input_license in license_map:
+            license_id = license_map[input_license]
+        else:
+            # Default to CC BY 4.0 for any unmatched license
+            license_id = 1
+
+        return {
+            "title": metadata.get("name"),
+            "description": metadata.get("description"),
+            "authors": authors,
+            "categories": metadata.get("subjects", [29872]),  # Using Biostats come back to this there's thousands
+            "keywords": metadata.get("keywords", "").split(',') if isinstance(metadata.get("keywords"), str) else metadata.get("keywords", []),
+            "license": license_id,
+            "defined_type": "dataset"
+        }
+
+    async def create_dataset(self, metadata: Dict, api_token: str) -> Dict:
+        """Create a new dataset on Figshare"""
+        headers = {
+            "Authorization": f"token {api_token}",
+            "Content-Type": "application/json"
+        }
+        
+        # Create new article
+        create_url = f"{self.base_url}/account/articles"
+        transformed_metadata = self.transform_metadata(metadata)
+        response = requests.post(create_url, headers=headers, json=transformed_metadata)
+        
+        if response.status_code != 201:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+        
+        article_id = response.json()['location'].split('/')[-1]
+
+        # Reserve DOI
+        #reserve_doi_url = f"{self.base_url}/account/articles/{article_id}/reserve_doi"
+        #doi_response = requests.post(reserve_doi_url, headers=headers)
+        
+        # if doi_response.status_code != 201:
+        #     raise HTTPException(status_code=doi_response.status_code, detail=doi_response.text)
+            
+        return {
+            "persistent_id": "test",#doi_response.json()['doi'],
+            "transaction_id": article_id,
+            "platform": "figshare"
+        }
+
+    async def upload_files(self, dataset_id: str, file_data: Any, filename: str, api_token: str) -> Dict:
+        """Upload files to Figshare dataset"""
+        headers = {
+            "Authorization": f"token {api_token}",
+            "Content-Type": "application/json"
+        }
+
+        # Calculate MD5 hash of the file data
+        md5_hash = hashlib.md5(file_data).hexdigest()
+        file_size = len(file_data)
+
+        # Initiate file upload with required metadata
+        init_url = f"{self.base_url}/account/articles/{dataset_id}/files"
+        file_metadata = {
+            "name": filename,
+            "size": file_size,
+            "md5": md5_hash
+        }
+        
+        init_response = requests.post(init_url, headers=headers, json=file_metadata)
+
+        if init_response.status_code != 201:
+            raise HTTPException(status_code=init_response.status_code, detail=init_response.text)
+        
+        file_info = init_response.json()
+        
+        # Upload file parts
+        upload_url = file_info['location']
+        files = {'file': (filename, file_data, 'application/zip')}
+        upload_response = requests.put(upload_url, files=files)
+        
+        if upload_response.status_code != 200:
+            raise HTTPException(status_code=upload_response.status_code, detail=upload_response.text)
+        
+        return {
+            "file_id": file_info['id'],
+            "platform": "figshare"
+        }
 class PublishingService:
     """Service class to manage different publishing targets"""
     
