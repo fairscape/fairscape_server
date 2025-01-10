@@ -237,6 +237,7 @@ class ZenodoPublisher(PublishingTarget):
 class FigsharePublisher(PublishingTarget):
     def __init__(self, base_url: str = "https://api.figshare.com/v2"):
         self.base_url = base_url
+        self.chunk_size = 10485760  # 10MB chunks
 
     def transform_metadata(self, metadata: Dict) -> Dict:
         """Transform metadata into Figshare format"""
@@ -257,17 +258,13 @@ class FigsharePublisher(PublishingTarget):
 
         # For licenses that don't map directly, default to CC BY 4.0
         input_license = metadata.get("license", "CC BY 4.0")
-        if input_license in license_map:
-            license_id = license_map[input_license]
-        else:
-            # Default to CC BY 4.0 for any unmatched license
-            license_id = 1
+        license_id = license_map.get(input_license, 1)  # Default to CC BY 4.0 (1)
 
         return {
             "title": metadata.get("name"),
             "description": metadata.get("description"),
             "authors": authors,
-            "categories": metadata.get("subjects", [29872]),  # Using Biostats come back to this there's thousands
+            "categories": metadata.get("subjects", [29872]),
             "keywords": metadata.get("keywords", "").split(',') if isinstance(metadata.get("keywords"), str) else metadata.get("keywords", []),
             "license": license_id,
             "defined_type": "dataset"
@@ -288,33 +285,51 @@ class FigsharePublisher(PublishingTarget):
         if response.status_code != 201:
             raise HTTPException(status_code=response.status_code, detail=response.text)
         
-        article_id = response.json()['location'].split('/')[-1]
+        article_id = response.json()['entity_id']
 
         # Reserve DOI
-        #reserve_doi_url = f"{self.base_url}/account/articles/{article_id}/reserve_doi"
-        #doi_response = requests.post(reserve_doi_url, headers=headers)
+        reserve_doi_url = f"{self.base_url}/account/articles/{article_id}/reserve_doi"
+        doi_response = requests.post(reserve_doi_url, headers=headers)
         
-        # if doi_response.status_code != 201:
-        #     raise HTTPException(status_code=doi_response.status_code, detail=doi_response.text)
+        if doi_response.status_code != 201:
+            raise HTTPException(status_code=doi_response.status_code, detail=doi_response.text)
             
         return {
-            "persistent_id": "test",#doi_response.json()['doi'],
+            "persistent_id": doi_response.json()['doi'],
             "transaction_id": article_id,
             "platform": "figshare"
         }
 
+    def _get_file_check_data(self, file_data: bytes) -> tuple[str, int]:
+        """Calculate MD5 and size of file data"""
+        md5 = hashlib.md5()
+        size = len(file_data)
+        
+        # Process in chunks to handle large files
+        for i in range(0, size, self.chunk_size):
+            chunk = file_data[i:i + self.chunk_size]
+            md5.update(chunk)
+            
+        return md5.hexdigest(), size
+
+    def _get_upload_parts(self, upload_url: str) -> Dict:
+        """Get the parts information for chunked upload"""
+        response = requests.get(upload_url)
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+        return response.json()
+
     async def upload_files(self, dataset_id: str, file_data: Any, filename: str, api_token: str) -> Dict:
-        """Upload files to Figshare dataset"""
+        """Upload files to Figshare dataset using chunked upload"""
         headers = {
             "Authorization": f"token {api_token}",
             "Content-Type": "application/json"
         }
 
-        # Calculate MD5 hash of the file data
-        md5_hash = hashlib.md5(file_data).hexdigest()
-        file_size = len(file_data)
+        # Calculate MD5 hash and size
+        md5_hash, file_size = self._get_file_check_data(file_data)
 
-        # Initiate file upload with required metadata
+        # Step 1: Initialize upload
         init_url = f"{self.base_url}/account/articles/{dataset_id}/files"
         file_metadata = {
             "name": filename,
@@ -323,19 +338,40 @@ class FigsharePublisher(PublishingTarget):
         }
         
         init_response = requests.post(init_url, headers=headers, json=file_metadata)
-
         if init_response.status_code != 201:
             raise HTTPException(status_code=init_response.status_code, detail=init_response.text)
         
         file_info = init_response.json()
         
-        # Upload file parts
-        upload_url = file_info['location']
-        files = {'file': (filename, file_data, 'application/zip')}
-        upload_response = requests.put(upload_url, files=files)
+        # Step 2: Get upload parts info
+        parts_info = self._get_upload_parts(file_info['location'])
         
-        if upload_response.status_code != 200:
-            raise HTTPException(status_code=upload_response.status_code, detail=upload_response.text)
+        # Step 3: Upload parts
+        for part in parts_info['parts']:
+            # Extract the chunk from file_data
+            start = part['startOffset']
+            end = part['endOffset'] + 1
+            chunk = file_data[start:end]
+            
+            # Upload the part
+            part_url = f"{file_info['location']}/{part['partNo']}"
+            upload_response = requests.put(part_url, data=chunk)
+            
+            if upload_response.status_code != 200:
+                raise HTTPException(
+                    status_code=upload_response.status_code,
+                    detail=f"Failed to upload part {part['partNo']}: {upload_response.text}"
+                )
+        
+        # Step 4: Complete the upload
+        complete_url = f"{self.base_url}/account/articles/{dataset_id}/files/{file_info['id']}"
+        complete_response = requests.post(complete_url, headers=headers)
+        
+        if complete_response.status_code != 202:
+            raise HTTPException(
+                status_code=complete_response.status_code,
+                detail=f"Failed to complete upload: {complete_response.text}"
+            )
         
         return {
             "file_id": file_info['id'],
