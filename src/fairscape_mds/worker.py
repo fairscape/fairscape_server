@@ -556,6 +556,13 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
         object_name=filePath
     )
 
+    # remove temp job files
+    transactionTempFiles = pathlib.Path('/tmp/jobs/') / transactionFolder 
+
+    for tmpFile in transactionTempFiles.rglob("*"):
+        # delete each extracted 
+        tmpFile.unlink()
+        
 
     return crateMetadata
 
