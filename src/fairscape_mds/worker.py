@@ -676,5 +676,12 @@ def OldExtract():
 
 if __name__ == '__main__':
     args = ['worker', '--loglevel=INFO']
+
+    # clear all transactions
+    transactionTempFiles = pathlib.Path('/tmp/jobs/') 
+    for tmpFile in transactionTempFiles.rglob("*"):
+        # delete each extracted 
+        tmpFile.unlink()
+
     celeryApp.worker_main(argv=args)
 
