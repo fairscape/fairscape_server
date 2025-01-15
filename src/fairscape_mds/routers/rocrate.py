@@ -95,21 +95,21 @@ def uploadAsync(
                 }
         )
 
-
-    # add to the dictionary of tasks
-    uploadTask = AsyncRegisterROCrate.apply_async(args=(
-        currentUser.cn,
-        str(transactionUUID),
-        str(zippedObjectName)
-        ))
-
-    # create the
+    # create a mongo record of the upload job
     uploadJob = createUploadJob(
         asyncCollection,
         userCN=currentUser.cn,
         transactionFolder=str(transactionUUID), 
         zippedCratePath=str(zippedObjectName)
         )
+
+    # start rocrate processing task 
+    AsyncRegisterROCrate.apply_async(args=(
+        currentUser.cn,
+        str(transactionUUID),
+        str(zippedObjectName)
+        ))
+
 
     uploadMetadata = uploadJob.model_dump()
     uploadMetadata['timeStarted'] = uploadMetadata['timeStarted'].timestamp()

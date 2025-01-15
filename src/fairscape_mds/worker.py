@@ -1,4 +1,6 @@
 from celery import Celery
+import shutil
+import pathlib
 import zipfile
 import json
 import logging
@@ -55,6 +57,11 @@ brokerURL = fairscapeConfig.redis.getBrokerURL()
 
 celeryApp = Celery()
 celeryApp.conf.broker_url = brokerURL
+
+celeryApp.conf.update(
+    task_concurrency=4,  # Use 4 threads for concurrency
+    worker_prefetch_multiplier=4  # Prefetch one task at a time
+)
 
 def serializeTimestamp(time):
     if time:
@@ -277,6 +284,7 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
     
     # TODO reassign identifiers if there is conflict
     crateGUID = parseArk(crateMetadata["@id"])
+    crateMetadata['@id'] = crateGUID
 
     # TODO add default project for a user
 
@@ -301,6 +309,7 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
         #if elementArk is None:
         #    pass
         elementArk = parseArk(crateElement["@id"])
+        crateElement['@id'] = elementArk
         crateElement['isPartOf'] = {"@id": crateGUID}
 
 
@@ -339,12 +348,12 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
         tmpFilePath = pathlib.Path('/tmp/jobs/') / transactionFolder / 'extracts' / relativePath
 
 
-        backgroundTaskLogger.info(                
-            f"transaction: {str(transactionFolder)}" +
-            f"\tuploadPath: {str(uploadPath)}" +
-            f"\ttmpFilePath: {str(tmpFilePath)}" +
-            "\tmessage: uploading dataset" 
-            )
+        #backgroundTaskLogger.info(                
+        #    f"transaction: {str(transactionFolder)}" +
+        #    f"\tuploadPath: {str(uploadPath)}" +
+        #    f"\ttmpFilePath: {str(tmpFilePath)}" +
+        #    "\tmessage: uploading dataset" 
+        #    )
 
 
         try:
@@ -559,12 +568,9 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
     # remove temp job files
     transactionTempFiles = pathlib.Path('/tmp/jobs/') / transactionFolder 
 
-    for tmpFile in transactionTempFiles.rglob("*"):
-        # delete each extracted 
-        tmpFile.unlink()
-        
+    shutil.rmtree(transactionTempFiles) 
 
-    return crateMetadata
+    return True
 
 
 
@@ -670,8 +676,6 @@ def OldExtract():
         return True
 
 
- 
-
 
 
 if __name__ == '__main__':
@@ -679,9 +683,8 @@ if __name__ == '__main__':
 
     # clear all transactions
     transactionTempFiles = pathlib.Path('/tmp/jobs/') 
-    for tmpFile in transactionTempFiles.rglob("*"):
-        # delete each extracted 
-        tmpFile.unlink()
+    for jobFolder in transactionTempFiles.glob("*"):
+        shutil.rmtree(jobFolder)
 
     celeryApp.worker_main(argv=args)
 

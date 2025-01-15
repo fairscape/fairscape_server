@@ -1,0 +1,177 @@
+{
+  "@id": "https://fairscape.net/ark:59852/rocrate-1.cm4ai_chromatin_mda-mb-468_untreated_apmsloader_initialrun0.1alpha",
+  "@context": {
+    "EVI": "https://w3id.org/EVI#",
+    "@vocab": "https://schema.org/"
+  },
+  "@type": "Dataset",
+  "name": "Initial integration run",
+  "description": "Ideker Lab CM4AI 0.1 alpha MDA-MB-468 untreated chromatin Initial integration run AP-MS Edgelist",
+  "keywords": [
+    "Ideker Lab",
+    "CM4AI",
+    "0.1 alpha",
+    "MDA-MB-468",
+    "untreated",
+    "chromatin",
+    "Initial integration run",
+    "AP-MS edgelist download"
+  ],
+  "isPartOf": [
+    { "@id": "ark:/Ideker_Lab", "@type": "Organization", "name": "Ideker Lab" },
+    { "@id": "ark:/Ideker_Lab/CM4AI", "@type": "Project", "name": "CM4AI" }
+  ],
+  "@graph": [
+    {
+      "@id": "https://fairscape.net/ark:59852/software-cellmaps_ppidownloader-58sGTge",
+      "@context": {
+        "@vocab": "https://schema.org/",
+        "evi": "https://w3id.org/EVI#"
+      },
+      "metadataType": "https://w3id.org/EVI#Software",
+      "url": "https://github.com/idekerlab/cellmaps_ppidownloader",
+      "name": "cellmaps_ppidownloader",
+      "keywords": [
+        "Ideker Lab",
+        "CM4AI",
+        "0.1 alpha",
+        "MDA-MB-468",
+        "untreated",
+        "chromatin",
+        "Initial integration run",
+        "AP-MS edgelist download",
+        "tools",
+        "cellmaps_ppidownloader"
+      ],
+      "description": "Ideker Lab CM4AI 0.1 alpha MDA-MB-468 untreated chromatin Initial integration run AP-MS Edgelist A tool to download AP-MS data for Cell Maps pipeline",
+      "author": "Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T.",
+      "dateModified": "2023-08-31",
+      "version": "0.5alpha",
+      "associatedPublication": "Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.",
+      "additionalDocumentation": null,
+      "format": "py",
+      "usedByComputation": [],
+      "contentUrl": "https://github.com/idekerlab/cellmaps_ppidownloader",
+      "@type": "EVI:Software",
+      "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California"
+    },
+    {
+      "@id": "https://fairscape.net/ark:59852/dataset-cellmaps_ppidownloader-output-file-58sGTge",
+      "@context": {
+        "@vocab": "https://schema.org/",
+        "evi": "https://w3id.org/EVI#"
+      },
+      "metadataType": "https://w3id.org/EVI#Dataset",
+      "url": null,
+      "name": "cellmaps_ppidownloader output file",
+      "keywords": [""],
+      "description": "Ideker Lab CM4AI 0.1 alpha MDA-MB-468 untreated chromatin Initial integration run AP-MS Edgelist AP-MS gene node attributes file",
+      "author": [
+        "Richa Tiwari",
+        "Atoshi Banerjee",
+        "Monita Muralidharan",
+        "Kristen Obernier",
+        "Antoine Forget",
+        "Nevan Krogan"
+      ],
+      "datePublished": "2023-08-31",
+      "version": "0.5alpha",
+      "associatedPublication": "Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.",
+      "additionalDocumentation": null,
+      "format": "tsv",
+      "schema": "https://fairscape.net/ark:59852/schema-cm4ai-apmsloader-gene-node-attributes",
+      "generatedBy": [],
+      "derivedFrom": [],
+      "usedBy": [],
+      "contentUrl": "file:///1.cm4ai_chromatin_mda-mb-468_untreated_apmsloader_initialrun0.1alpha/ppi_gene_node_attributes.tsv",
+      "@type": "EVI:Dataset",
+      "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
+      "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
+    },
+    {
+      "@id": "https://fairscape.net/ark:59852/computation-AP-MS-Loader-58sGTge",
+      "@context": {
+        "@vocab": "https://schema.org/",
+        "evi": "https://w3id.org/EVI#"
+      },
+      "metadataType": "https://w3id.org/EVI#Computation",
+      "url": null,
+      "name": "AP-MS Loader",
+      "keywords": [
+        "Ideker Lab",
+        "CM4AI",
+        "0.1 alpha",
+        "MDA-MB-468",
+        "untreated",
+        "chromatin",
+        "Initial integration run",
+        "AP-MS edgelist download",
+        "tools",
+        "cellmaps_ppidownloader",
+        "gene",
+        "attributes",
+        "file",
+        "computation",
+        "download"
+      ],
+      "description": "Ideker Lab CM4AI 0.1 alpha MDA-MB-468 untreated chromatin Initial integration run AP-MS Edgelist run of cellmaps_ppidownloader",
+      "runBy": "Chris Churas",
+      "dateCreated": "2023-08-31",
+      "associatedPublication": "Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.",
+      "additionalDocumentation": null,
+      "command": "{'outdir': '0.1pipeline/1.cm4ai_chromatin_mda-mb-468_untreated_apmsloader_initialrun0.1alpha', 'cm4ai_table': '0.1rocrates/cm4ai_chromatin_mda-mb-468_untreated_apms_0.1_alpha/apms.tsv', 'edgelist': None, 'edgelist_geneid_one_col': 'GeneID1', 'edgelist_symbol_one_col': 'Symbol1', 'edgelist_geneid_two_col': 'GeneID2', 'edgelist_symbol_two_col': 'Symbol2', 'baitlist': None, 'baitlist_symbol_col': 'GeneSymbol', 'baitlist_geneid_col': 'GeneID', 'baitlist_numinteractors_col': '# Interactors', 'provenance': 'ppiprovenance.json', 'logconf': None, 'skip_logging': False, 'verbose': 0, 'program': '/cellar/users/cchuras/miniconda3/envs/py38/bin/cellmaps_ppidownloadercmd.py', 'version': '0.1.0a6'}",
+      "usedSoftware": [
+        "https://fairscape.net/ark:59852/software-cellmaps_ppidownloader-58sGTge"
+      ],
+      "usedDataset": [],
+      "generated": [
+        "https://fairscape.net/ark:59852/dataset-cellmaps_ppidownloader-output-file-58sGTge"
+      ],
+      "@type": "EVI:Computation",
+      "version": "0.5alpha",
+      "author": "Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T.",
+      "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California"
+    }
+  ],
+  "version": "0.5alpha",
+  "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
+  "associatedPublication": "Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.",
+  "author": [
+    "Clark T",
+    "Schaffer L",
+    "Obernier K",
+    "Al Manir S",
+    "Churas CP",
+    "Dailamy A",
+    "Doctor Y",
+    "Forget A",
+    "Hansen JN",
+    "Hu M",
+    "Lenkiewicz J",
+    "Levinson MA",
+    "Marquez C",
+    "Mohan J",
+    "Nourreddine S",
+    "Niestroy J",
+    "Pratt D",
+    "Qian G",
+    "Thaker S",
+    "Belisle-Pipon J-C",
+    "Brandt C",
+    "Chen J",
+    "Ding Y",
+    "Fodeh S",
+    "Krogan N",
+    "Lundberg E",
+    "Mali P",
+    "Payne-Foster P",
+    "Ratcliffe S",
+    "Ravitsky V",
+    "Sali A",
+    "Schulz W",
+    "Ideker T."
+  ],
+  "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d",
+  "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California"
+}
