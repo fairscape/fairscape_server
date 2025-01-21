@@ -3,31 +3,31 @@ services:
   setup:
     build: "./deploy/setup/"
     env_file: "./deploy/setup/setup.env"
-    depends_on: 
-    - ldap
-    - minio
-    - fairscape-api
+    depends_on:
+      - ldap
+      - minio
+      - fairscape-api
   fairscape-worker:
     build: "./"
     env_file: "./deploy/docker.env"
     command:
-    - "python"
-    - "fairscape_mds/worker.py"
-    depends_on: 
-    - ldap
-    - mongo
-    - minio
+      - "python"
+      - "fairscape_mds/worker.py"
+    depends_on:
+      - ldap
+      - mongo
+      - minio
   fairscape-api:
     build: "./"
     env_file: "./deploy/docker.env"
     ports:
       - 8080:8080
-    depends_on: 
-    - ldap
-    - mongo
-    - minio
+    depends_on:
+      - ldap
+      - mongo
+      - minio
   fairscape-frontend:
-    image: ghcr.io/fairscape/fairscapefrontendlocal:RELEASE.2024-12-19
+    image: ghcr.io/fairscape/fairscapefrontendlocal:RELEASE.2025-01-07.v2
     ports:
       - "5173:5173"
     depends_on:
@@ -62,7 +62,7 @@ services:
       MONGO_INITDB_DATABASE: admin
     ports:
       - 27017:27017
-    command: [ "mongod", "--auth" ]
+    command: ["mongod", "--auth"]
   mongo-express:
     image: mongo-express
     restart: always

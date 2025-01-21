@@ -4,25 +4,29 @@ from pydantic import (
     ConfigDict,
     Field,
     constr,
+    BeforeValidator
 )
 from pydantic.networks import AnyUrl
 from typing import (
     List,
     Optional,
     Dict,
-    Union
+    Union,
+    Annotated
 )
+from typing_extensions import Annotated
 import pymongo
 from pymongo.collection import Collection
 from fairscape_mds.utilities.utils import validate_ark
 from fairscape_mds.utilities.operation_status import OperationStatus
+from enum import Enum
 
 
 IdentifierPattern = "^ark:[0-9]{5}\\/[a-zA-Z0-9_\\-]*.$"
 
 # TODO get from config
 DEFAULT_ARK_NAAN = "59852"
-DEFAULT_LICENSE = " https://creativecommons.org/licenses/by/4.0/"
+DEFAULT_LICENSE = "https://creativecommons.org/licenses/by/4.0/"
 defaultContext = {
     "@vocab": "https://schema.org/",
     "evi": "https://w3id.org/EVI#",
@@ -50,23 +54,53 @@ defaultContext = {
     }
 }
 
-from enum import Enum
-class ClassEnum(str, Enum):
-    dataset = 'Dataset'
-    software = 'Software'
-    computation = 'Computation'
-    schema = 'Schema'
-    evidenceGraph = 'EvidenceGraph'
-    rocrate = 'ROCrate'
+class ClassType(str, Enum):
+    DATASET = 'Dataset'
+    SOFTWARE = 'Software'
+    COMPUTATION = 'Computation'
+    SCHEMA = 'Schema'
+    EVIDENCE_GRAPH = 'EvidenceGraph'
+    ROCRATE = 'ROCrate'
 
+def normalize_class_type(value: Union[str, ClassType]) -> ClassType:
+    """Normalizes various formats of class type identifiers to standard form.
+    
+    Handles formats like:
+    - Plain name: "ROCrate"
+    - URL: "https://w3id.org/EVI#ROCrate"
+    - Prefixed: "EVI:ROCrate"
+    """
+    if isinstance(value, ClassType):
+        return value
+        
+    value_str = str(value).strip()
+    
+    # Handle URL format
+    if value_str.startswith('https://'):
+        value_str = value_str.split('#')[-1].split('/')[-1]
+    
+    # Handle prefixed format (e.g., EVI:ROCrate)
+    if ':' in value_str:
+        value_str = value_str.split(':')[-1]
 
-class Identifier(BaseModel, extra='allow'):
+    try:
+        return ClassType(value_str)
+    except ValueError:
+        for enum_value in ClassType:
+            if enum_value.value.lower() == value_str.lower():
+                return enum_value
+                
+        raise ValueError(f"Invalid class type: {value_str}")
+    
+ValidatedClassType = Annotated[ClassType, BeforeValidator(normalize_class_type)]
+
+class Identifier(BaseModel):
     model_config = ConfigDict(extra='allow')
     guid: str = Field(
         title="guid",
         alias="@id"
     )
-    metadataType: ClassEnum = Field(
+    metadataType: ValidatedClassType = Field(
         title="metadataType",
         alias="@type"
     )
@@ -92,12 +126,9 @@ class FairscapeBaseModel(Identifier):
     )
     url: Optional[AnyUrl] = Field(default=None)
 
-
     def generate_guid(self) -> str:
         # TODO url encode values
         # TODO add random hash digest
-
-        # if
         return f"ark:{DEFAULT_ARK_NAAN}/rocrate-{self.name.replace(' ', '')}"
 
     def create(self, MongoCollection: Collection, bson=None) -> OperationStatus:
@@ -144,9 +175,6 @@ class FairscapeBaseModel(Identifier):
         except pymongo.errors.CollectionInvalid as e:
             return OperationStatus(False, f"Mongo Connection Invalid Error: {str(e)}", 500)
 
-        # except pymongo.errors.ConnectionError as e:
-        #    return OperationStatus(False, f"Mongo Connection Error: {str(e)}", 500)
-
         except pymongo.errors.ConnectionFailure as e:
             return OperationStatus(False, f"Mongo Connection Failure Error: {str(e)}", 500)
 
@@ -161,7 +189,6 @@ class FairscapeBaseModel(Identifier):
 
         except pymongo.errors.OperationFailure as e:
             return OperationStatus(False, f"Mongo Error Operation Failure: {str(e)}", 500)
-
 
         # catch all exceptions
         except Exception as e:
@@ -202,8 +229,6 @@ class FairscapeBaseModel(Identifier):
                 # then after every setattr it trys to validate and fails
                 # so you need to update all at once which is what I changed it to
                 # update class with values from database
-                # for k, value in query.items():
-                #     setattr(self, k, value)
                 updated_instance = self.model_validate({**self.model_dump(), **query})
                 self.__dict__.update(updated_instance.model_dump())
                 return OperationStatus(True, "", 200)
@@ -213,9 +238,6 @@ class FairscapeBaseModel(Identifier):
         # default exceptions for all mongo operations
         except pymongo.errors.CollectionInvalid as e:
             return OperationStatus(False, f"Mongo Connection Invalid: {str(e)}", 500)
-
-        # except pymongo.errors.ConnectionError as e:
-        #    return OperationStatus(False, f"Mongo Connection Error: {str(e)}", 500)
 
         except pymongo.errors.ConnectionFailure as e:
             return OperationStatus(False, f"Mongo Connection Failure: {str(e)}", 500)
@@ -231,7 +253,6 @@ class FairscapeBaseModel(Identifier):
 
         except pymongo.errors.OperationFailure as e:
             return OperationStatus(False, f"Mongo Error Operation Failure: {str(e)}", 500)
-
 
         # catch all exceptions
         except Exception as e:
@@ -253,7 +274,6 @@ class FairscapeBaseModel(Identifier):
         """
 
         try:
-
             new_values = {
                 "$set":
                     {k: value for k, value in self.dict(by_alias=True).items() if value is not None}
@@ -267,10 +287,8 @@ class FairscapeBaseModel(Identifier):
             if update_result.matched_count == 0:
                 return OperationStatus(False, "object not found", 404)
 
-
             else:
                 return OperationStatus(False, "", 500)
-
 
         # update-specific mongo exceptions
         except pymongo.errors.DocumentTooLarge as e:
@@ -285,9 +303,6 @@ class FairscapeBaseModel(Identifier):
         # default exceptions for all mongo operations
         except pymongo.errors.CollectionInvalid as e:
             return OperationStatus(False, f"Mongo Connection Invalid: {str(e)}", 500)
-
-        # except pymongo.errors.ConnectionError as e:
-        #    return OperationStatus(False, f"Mongo Connection Error: {str(e)}", 500)
 
         except pymongo.errors.ConnectionFailure as e:
             return OperationStatus(False, f"Mongo Connection Failure: {str(e)}", 500)
@@ -336,13 +351,9 @@ class FairscapeBaseModel(Identifier):
             else:
                 return OperationStatus(False, f"delete error: str({delete_result})", 404)
 
-
         # default exceptions for all mongo operations
         except pymongo.errors.CollectionInvalid as e:
             return OperationStatus(False, f"Mongo Connection Invalid: {str(e)}", 500)
-
-        # except pymongo.errors.ConnectionError as e:
-        #    return OperationStatus(False, f"Mongo Connection Error: {str(e)}", 500)
 
         except pymongo.errors.ConnectionFailure as e:
             return OperationStatus(False, f"Mongo Connection Failure: {str(e)}", 500)
