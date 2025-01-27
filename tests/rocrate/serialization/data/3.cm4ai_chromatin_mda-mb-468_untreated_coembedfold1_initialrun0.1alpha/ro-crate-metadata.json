@@ -148,7 +148,9 @@
       "schema": [
         {"@id": "https://fairscape.net/ark:59852/schema-cm4ai-coembedding"}
       ],
-      "generatedBy": {"@id": "https://fairscape.net/ark:59852/computation-Merged-Embedding-EwjNeUm"},
+      "generatedBy": [
+        {"@id": "https://fairscape.net/ark:59852/computation-Merged-Embedding-EwjNeUm"}
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///3.cm4ai_chromatin_mda-mb-468_untreated_coembedfold1_initialrun0.1alpha/coembedding_emd.tsv",
