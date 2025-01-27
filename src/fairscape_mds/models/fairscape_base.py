@@ -60,6 +60,10 @@ class ClassEnum(str, Enum):
     rocrate = 'ROCrate'
 
 
+class IdentifierValue(BaseModel):
+    guid: str = Field(alias="@id")
+
+
 class Identifier(BaseModel, extra='allow'):
     model_config = ConfigDict(extra='allow')
     guid: str = Field(

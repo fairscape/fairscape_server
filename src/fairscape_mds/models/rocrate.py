@@ -41,7 +41,7 @@ from typing import (
     Tuple
 )
 
-from fairscape_mds.models.fairscape_base import FairscapeBaseModel, FairscapeEVIBaseModel
+from fairscape_mds.models.fairscape_base import FairscapeBaseModel, FairscapeEVIBaseModel, IdentifierValue
 from fairscape_mds.models.dataset import (
         DatasetDistribution, 
         MinioDistribution, 
@@ -70,11 +70,13 @@ SOFTWARE_TYPE = "Software"
 COMPUTATION_TYPE = "Computation"
 ROCRATE_TYPE = "ROCrate"
 
+
+
 class ROCrateDataset(FairscapeEVIBaseModel):
     guid: str = Field(alias="@id")
     metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Dataset")
     additionalType: Optional[str] = Field(default=DATASET_TYPE)
-    author: str = Field(max_length=64)
+    author: Union[str, List[str]]
     datePublished: str = Field(...)
     version: str = Field(default="0.1.0")
     description: str = Field(min_length=10)
@@ -82,10 +84,10 @@ class ROCrateDataset(FairscapeEVIBaseModel):
     associatedPublication: Optional[str] = Field(default=None)
     additionalDocumentation: Optional[str] = Field(default=None)
     fileFormat: str = Field(alias="format")
-    dataSchema: Optional[Union[str, dict]] = Field(alias="evi:Schema", default=None)
-    generatedBy: Optional[List[str]] = Field(default=[])
-    derivedFrom: Optional[List[str]] = Field(default=[])
-    usedByComputation: Optional[List[str]] = Field(default=[])
+    dataSchema: Optional[IdentifierValue] = Field(alias="evi:Schema", default=None)
+    generatedBy: Optional[Union[IdentifierValue, List[IdentifierValue]]] = Field(default=[])
+    derivedFrom: Optional[List[IdentifierValue]] = Field(default=[])
+    usedByComputation: Optional[List[IdentifierValue]] = Field(default=[])
     contentUrl: Optional[str] = Field(default=None)
 
 
@@ -122,14 +124,14 @@ class ROCrateSoftware(FairscapeBaseModel):
     guid: str = Field(alias="@id")
     metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Software")
     additionalType: Optional[str] = Field(default=SOFTWARE_TYPE)
-    author: str = Field(min_length=4, max_length=64)
+    author: str = Field(min_length=4)
     dateModified: str
     version: str = Field(default="0.1.0")
     description: str =  Field(min_length=10)
     associatedPublication: Optional[str] = Field(default=None)
     additionalDocumentation: Optional[str] = Field(default=None)
     fileFormat: str = Field(title="fileFormat", alias="format")
-    usedByComputation: Optional[List[str]] = Field(default=[])
+    usedByComputation: Optional[List[IdentifierValue]] = Field(default=[])
     contentUrl: Optional[str] = Field(default=None)
 
 
@@ -142,9 +144,9 @@ class ROCrateComputation(FairscapeBaseModel):
     associatedPublication: Optional[str] = Field(default=None)
     additionalDocumentation: Optional[str] = Field(default=None)
     command: Optional[Union[List[str], str]] = Field(default=None)
-    usedSoftware: Optional[List[str]] = Field(default=[])
-    usedDataset: Optional[List[str]] = Field(default=[])
-    generated: Optional[List[str]] = Field(default=[])
+    usedSoftware: Optional[List[IdentifierValue]] = Field(default=[])
+    usedDataset: Optional[List[IdentifierValue]] = Field(default=[])
+    generated: Optional[List[IdentifierValue]] = Field(default=[])
 
 
 class ROCrateDistribution(BaseModel):
@@ -164,7 +166,6 @@ class ROCrate(BaseModel):
         ROCrateDataset,
         ROCrateSoftware,
         ROCrateComputation,
-        ROCrateDatasetContainer
     ]] = Field(alias="@graph", 
                # TODO causes TypeError: list is not a valid discriminator
                #discriminator='additionalType'
@@ -320,6 +321,17 @@ class ROCrate(BaseModel):
                 f"exception validating objects in ROCrate: {str(e)}", 
                 500
                 )
+
+
+class ROCrateV1_1(BaseModel):
+    context: Optional[Dict] = Field(alias="@context")
+    metadataGraph: List[Union[
+        ROCrateDataset,
+        ROCrateSoftware,
+        ROCrateComputation,
+        Dict
+    ]] = Field(alias="@graph")
+    
 
 
 def UploadZippedCrate(
