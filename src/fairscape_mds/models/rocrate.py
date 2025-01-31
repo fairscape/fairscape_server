@@ -91,35 +91,6 @@ class ROCrateDataset(FairscapeEVIBaseModel):
     contentUrl: Optional[str] = Field(default=None)
 
 
-class ROCrateDatasetContainer(FairscapeBaseModel): 
-    guid: str = Field(alias="@id")
-    metadataType: Optional[str] = Field(
-        default="https://w3id.org/EVI#Dataset", 
-        alias="@type"
-        )
-    additionalType: Optional[str] = Field(default="DatasetContainer")
-    name: str
-    version: str = Field(default="0.1.0")
-    description: str = Field(min_length=10)
-    keywords: List[str] = Field(...)
-    generatedBy: Optional[List[str]] = Field(default=[])
-    derivedFrom: Optional[List[str]] = Field(default=[])
-    usedByComputation: Optional[List[str]] = Field(default=[])
-    hasPart: Optional[List[str]] = Field(default=[])
-    isPartOf: Optional[List[str]] = Field(default=[])
-
-
-    def validate_crate(self, PassedCrate)->None:
-        # for all linked IDs they must be
-
-        # hasPart/isPartOf must be inside the crate or a valid ark
-
-        # lookup ark if NAAN is local
-
-        # if remote, take as valid
-        pass
-
-
 class ROCrateSoftware(FairscapeBaseModel): 
     guid: str = Field(alias="@id")
     metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Software")
