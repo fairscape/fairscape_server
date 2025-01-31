@@ -37,11 +37,16 @@ from typing import (
     Union, 
     Dict, 
     List, 
+    Literal,
     Generator,
     Tuple
 )
 
-from fairscape_mds.models.fairscape_base import FairscapeBaseModel, FairscapeEVIBaseModel, IdentifierValue
+from fairscape_mds.models.fairscape_base import (
+    FairscapeBaseModel, 
+    FairscapeEVIBaseModel, 
+    IdentifierValue
+)
 from fairscape_mds.models.dataset import (
         DatasetDistribution, 
         MinioDistribution, 
@@ -294,15 +299,93 @@ class ROCrate(BaseModel):
                 )
 
 
-class ROCrateV1_1(BaseModel):
+class ROCrateOrganization(IdentifierValue):
+    metadataType: Literal['Organization'] = Field(alias="@type")
+    name: str
+
+class ROCrateProject(IdentifierValue):
+    metadataType: Literal['Project'] = Field(alias="@type")
+    name: str
+
+class ROCrateMetadataFileElem(BaseModel):
+    """Metadata Element of an ROCrate cooresponding to the `ro-crate-metadata.json` file itself
+
+    Example
+
+        ```
+        {
+            "@id": "ro-crate-metadata.json",
+            "@type": "CreativeWork",
+            "conformsTo": {
+                "@id": "https://w3id.org/ro/crate/1.2-DRAFT"
+            },
+            "about": {
+                "@id": "https://fairscape.net/ark:59852/rocrate-2.cm4ai_chromatin_mda-mb-468_untreated_apmsembed_initialrun0.1alpha"
+            }
+        }
+        ```
+    """
+    guid: str = Field(alias="@id")
+    metadataType: Literal["CreativeWork"] = Field(alias="@type")
+    conformsTo: IdentifierValue
+    about: IdentifierValue
+
+class ROCrateMetadataElem(BaseModel):
+    """Metadata Element of ROCrate that represents the crate as a whole
+
+    Example
+        ```
+        {
+            '@id': 'https://fairscape.net/ark:59852/rocrate-2.cm4ai_chromatin_mda-mb-468_untreated_imageembedfold1_initialrun0.1alpha',
+            '@type': ['Dataset', 'https://w3id.org/EVI#ROCrate'],
+            'name': 'Initial integration run',
+            'description': 'Ideker Lab CM4AI 0.1 alpha MDA-MB-468 untreated chromatin Initial integration run IF Image Embedding IF microscopy images embedding fold1',
+            'keywords': ['Ideker Lab', 'fold1'],
+            'isPartOf': [
+                {'@id': 'ark:/Ideker_Lab'}, 
+                {'@id': 'ark:/Ideker_Lab/CM4AI'}
+                ],
+            'version': '0.5alpha',
+            'license': 'https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en',
+            'associatedPublication': 'Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.',
+            'author': ['Test']
+            'conditionsOfAccess': 'This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”',
+            'copyrightNotice': 'Copyright (c) 2024 by The Regents of the University of California',
+            'hasPart': [
+                {'@id': 'https://fairscape.net/ark:59852/software-cellmaps_image_embedding-N2ux5jg'},
+                {'@id': 'https://fairscape.net/ark:59852/dataset-cellmaps_image_embedding-output-file-N2ux5jg'},
+                {'@id': 'https://fairscape.net/ark:59852/dataset-Densenet-model-file-N2ux5jg'},
+                {'@id': 'https://fairscape.net/ark:59852/computation-IF-Image-Embedding-N2ux5jg'}
+            ]
+        }
+        ```
+    """ 
+    guid: str = Field(alias="@id")
+    metadataType: List[str] = Field(alias="@type")
+    name: str
+    keywords: List[str]
+    isPartOf: List[IdentifierValue]
+    version: str
+    dataLicense: str = Field(alias="license")
+    associatedPublication: str
+    author: Union[str, List[str]]
+    conditionsOfAccess: str
+    copyrightNotice: str
+    hasPart: List[IdentifierValue]
+    
+
+class ROCrateV1_2(BaseModel):
     context: Optional[Dict] = Field(alias="@context")
     metadataGraph: List[Union[
         ROCrateDataset,
         ROCrateSoftware,
         ROCrateComputation,
-        Dict
+        ROCrateMetadataElem,
+        ROCrateMetadataFileElem,
+        ROCrateProject,
+        ROCrateOrganization
     ]] = Field(alias="@graph")
-    
+
 
 
 def UploadZippedCrate(
