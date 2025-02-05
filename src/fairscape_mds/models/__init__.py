@@ -25,7 +25,7 @@ from fairscape_mds.models.download import (
         getDownloadContent,
         deleteDownload
         )
-from fairscape_mds.models.evidencegraph import EvidenceGraph, list_evidencegraph
+from fairscape_mds.models.evidencegraph import EvidenceGraph, list_evidence_graphs
 from fairscape_mds.models.rocrate import ROCrate
 from fairscape_mds.models.schema import Schema
 from fairscape_mds.models.fairscape_base import IdentifierPattern
@@ -38,7 +38,7 @@ __all__ = [
     'Software', 'listSoftware', 'createSoftware', 'deleteSoftware',
     'Computation', 'listComputation', 'getComputation', 'deleteComputation', 'getComputation', 'updateComputation',
     'DownloadCreateModel', 'DownloadReadModel', 'listDownloads', 'createDownload', 'getDownloadMetadata', 'getDownloadContent', 'deleteDownload',
-    'EvidenceGraph', 'list_evidencegraph',
+    'EvidenceGraph', 'list_evidence_graphs',
     'ROCrate',
     'Schema',
     'IdentifierPattern',

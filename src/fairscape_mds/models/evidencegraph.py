@@ -1,125 +1,136 @@
+from pydantic import BaseModel, Field, constr, Extra
+from typing import Dict, List, Optional, Any
+from fairscape_mds.utilities.operation_status import OperationStatus
+import pymongo
 from bson import SON
-from pydantic import (
-    Extra,
-    Field,
-    constr
-)
-from typing import List, Union
-from fairscape_mds.models.fairscape_base import *
 
+class EvidenceNode:
+   def __init__(self, id: str, type: str):
+       self.id = id 
+       self.type = type
+       # For Computation nodes
+       self.usedSoftware: Optional[List[str]] = None 
+       self.usedDataset: Optional[List[str]] = None
+       # For Dataset nodes  
+       self.generatedBy: Optional[str] = None
 
-class EvidenceGraph(FairscapeEVIBaseModel, extra = Extra.allow):
+class EvidenceGraph(BaseModel, extra=Extra.allow):
     metadataType: str = Field(default="evi:EvidenceGraph", alias="@type")
-    owner: constr(pattern=IdentifierPattern)
+    guid: str = Field(alias="@id")
+    owner: str
+    description: str  
+    name: str = Field(default="Evidence Graph")
+    graph: Optional[Dict[str, Any]] = Field(default=None, alias="@graph")
+    
+    def build_graph(self, node_id: str, mongo_collection: pymongo.collection.Collection):
+       processed = set()
+       self.graph = self._build_graph_recursive(node_id, mongo_collection, processed)
 
-    # graph: str
+    def _build_graph_recursive(self, node_id: str, collection: pymongo.collection.Collection, processed: set) -> Dict:
+       if node_id in processed:
+           return {"@id": node_id}
+           
+       node = collection.find_one({"@id": node_id}, {"_id": 0})
+       if not node:
+           return {"@id": node_id}
+           
+       processed.add(node_id)
+       result = {"@id": node_id,
+                 "@type": node["@type"],
+                 "name": node.get("name"),
+                 "description": node.get("description")}
+       
+       if node.get("@type"):
+           result["@type"] = node["@type"]
+           
+       if "generatedBy" in node:
+           comp_id = node["generatedBy"]["@id"]
+           comp = collection.find_one({"@id": comp_id}, {"_id": 0})
+           
+           if comp:
+               nested_comp = {"@id": comp_id}
+               if comp.get("type"):
+                   nested_comp["type"] = comp["type"]
+                   
+               if "usedDataset" in comp:
+                   if isinstance(comp["usedDataset"], dict):
+                       nested_datasets = [self._build_graph_recursive(comp["usedDataset"]["@id"], collection, processed)]
+                   else:
+                       nested_datasets = [self._build_graph_recursive(dataset["@id"], collection, processed)
+                                        for dataset in comp["usedDataset"]]
+                   nested_comp["usedDataset"] = nested_datasets
+                   
+               if "usedSoftware" in comp:
+                   if isinstance(comp["usedSoftware"], list):
+                       nested_comp["usedSoftware"] = {"@id": comp["usedSoftware"][0]["@id"]}
+                   else:
+                       nested_comp["usedSoftware"] = {"@id": comp["usedSoftware"]["@id"]}
+                   
+               result["generatedBy"] = nested_comp
+               
+       return result
 
+    def create(self, mongo_collection: pymongo.collection.Collection) -> OperationStatus:
+       if mongo_collection.find_one({"@id": self.guid}):
+           return OperationStatus(False, "evidence graph already exists", 400)
 
-    def create(self, MongoCollection: pymongo.collection.Collection) -> OperationStatus:
+       graph_dict = self.dict(by_alias=True)
+       add_graph_update = {
+           "$push": {
+               "evidencegraphs": SON([
+                   ("@id", self.guid),
+                   ("@type", "evi:EvidenceGraph"), 
+                   ("name", self.name)
+               ])
+           }
+       }
 
-        # TODO initialize attributes of evidencegraph
-        # self.graph = str
+       bulk_write = [
+           pymongo.InsertOne(graph_dict),
+           pymongo.UpdateOne({"@id": self.owner}, add_graph_update)
+       ]
 
-        # check that evidencegraph does not already exist
-        if MongoCollection.find_one({"@id": self.guid}) is not None:
-            return OperationStatus(False, "evidencegraph already exists", 400)
+       try:
+           result = mongo_collection.bulk_write(bulk_write)
+           if result.inserted_count != 1:
+               return OperationStatus(False, "error creating evidence graph", 500)
+           return OperationStatus(True, "", 201)
+       except pymongo.errors.BulkWriteError as e:
+           return OperationStatus(False, f"bulk write error: {e}", 500)
 
-        # check that owner exists for now turn off
-        # if MongoCollection.find_one({"@id": self.owner}) is None:
-        #     return OperationStatus(False, "owner does not exist", 404)
+    def read(self, mongo_collection: pymongo.collection.Collection) -> OperationStatus:
+       return super().read(mongo_collection)
 
-        # embeded bson documents to enable Mongo queries
-        evidencegraph_dict = self.dict(by_alias=True)
+    def update(self, mongo_collection: pymongo.collection.Collection) -> OperationStatus:
+       return super().update(mongo_collection)
 
-        # embeded bson document for owner
-        # Owner is a str
-        #evidencegraph_dict["owner"] = SON([(key, value) for key, value in evidencegraph_dict["owner"].items()])
+    def delete(self, mongo_collection: pymongo.collection.Collection) -> OperationStatus:
+       read_status = self.read(mongo_collection)
+       if not read_status.success:
+           return OperationStatus(False, "graph not found", 404)
 
-        # update operations for the owner user of the evidencegraph
-        add_evidencegraph_update = {
-            "$push": {"evidencegraphs": SON([("@id", self.guid), ("@type", "evi:EvidenceGraph"), ("name", self.name)])}
-        }
+       pull_op = {"$pull": {"evidencegraphs": {"@id": self.guid}}}
+       bulk_edit = [
+           pymongo.UpdateOne({"@id": self.owner}, pull_op),
+           pymongo.DeleteOne({"@id": self.guid})
+       ]
 
-        evidencegraph_bulk_write = [
-            pymongo.InsertOne(evidencegraph_dict),
-            # update owner model to have listed the evidencegraph
-            pymongo.UpdateOne({"@id": self.owner}, add_evidencegraph_update)
-        ]
+       try:
+           result = mongo_collection.bulk_write(bulk_edit)
+           if result.deleted_count == 1:
+               return OperationStatus(True, "", 200)
+           return OperationStatus(False, f"error: {result.bulk_api_result}", 500)
+       except pymongo.errors.BulkWriteError as e:
+           return OperationStatus(False, f"delete error: {e}", 500)
 
-        # perform the bulk write
-        try:
-            bulk_write_result = MongoCollection.bulk_write(evidencegraph_bulk_write)
-        except pymongo.errors.BulkWriteError as bwe:
-            return OperationStatus(False, f"error performing bulk write operations: {bwe}", 500)
-
-        # check that one document was created
-        if bulk_write_result.inserted_count != 1:
-            return OperationStatus(False, f"create evidencegraph error: {bulk_write_result.bulk_api_result}", 500)
-
-        return OperationStatus(True, "", 201)
-
-    def read(self, MongoCollection: pymongo.collection.Collection) -> OperationStatus:
-        return super().read(MongoCollection)
-
-    def update(self, MongoCollection: pymongo.collection.Collection) -> OperationStatus:
-        # TODO e.g. when evidencegraph is updated, it should be reflected in its owners profile
-        return super().update(MongoCollection)
-
-    def delete(self, MongoCollection: pymongo.collection.Collection) -> OperationStatus:
-        """Delete the evidencegraph. Update each user who is an owner of the evidencegraph.
-
-        Args:
-            MongoCollection (pymongo.collection.Collection): _description_
-
-        Returns:
-            OperationStatus: _description_
-        """
-
-        # check that record exists
-        # also, if successfull, will unpack the data we need to build the update operation
-        read_status = self.read(MongoCollection)
-
-        if not read_status.success:
-            if read_status.status_code == 404:
-                return OperationStatus(False, "evidencegraph not found", 404)
-            else:
-                return read_status
-
-        # create a bulk write operation
-        # to remove a document from a list
-        pull_operation = {"$pull": {"evidencegraphs": {"@id": self.guid}}}
-
-        # for ever member, remove the evidencegraph from their list of evidencegraph
-        # bulk_edit = [pymongo.UpdateOne({"@id": member.id}, pull_operation) for member in self.members]
-
-        # operations to modify the owner
-        bulk_edit = [
-            pymongo.UpdateOne({"@id": self.owner.id}, pull_operation)
-        ]
-
-        # operations to delete the evidencegraph document
-        bulk_edit.append(
-            pymongo.DeleteOne({"@id": self.guid})
-        )
-
-        # run the transaction
-        try:
-            bulk_edit_result = MongoCollection.bulk_write(bulk_edit)
-        except pymongo.errors.BulkWriteError as bwe:
-            return OperationStatus(False, f"Delete EvidenceGraph Error: {bwe}", 500)
-
-        # check that the document was deleted
-        if bulk_edit_result.deleted_count == 1:
-            return OperationStatus(True, "", 200)
-        else:
-            return OperationStatus(False, f"{bulk_edit_result.bulk_api_result}", 500)
-
-
-def list_evidencegraph(mongo_collection: pymongo.collection.Collection):
-    cursor = mongo_collection.find(
-        filter={"@type": "evi:EvidenceGraph"},
-        projection={"_id": False}
-    )
-    return {"evidencegraphs": [
-        {"@id": evidencegraph.get("@id"), "@type": "evi:EvidenceGraph", "name": evidencegraph.get("name")} for
-        evidencegraph in cursor]}
+def list_evidence_graphs(mongo_collection: pymongo.collection.Collection):
+   cursor = mongo_collection.find({"@type": "evi:EvidenceGraph"}, {"_id": 0})
+   return {
+       "evidencegraphs": [
+           {
+               "@id": graph.get("@id"),
+               "@type": "evi:EvidenceGraph",
+               "name": graph.get("name")
+           } for graph in cursor
+       ]
+   }

@@ -1,42 +1,44 @@
-from celery import Celery
-import shutil
-import pathlib
-import zipfile
+# Standard library
+import datetime
+import io
 import json
 import logging
-import sys
 import pathlib
-import io
-import datetime
 import re
+import shutil
+import sys
+import zipfile
 from pathlib import Path
+from typing import Dict, List, Optional
+from uuid import UUID, uuid4
 
-logging.getLogger('pymongo').setLevel(logging.INFO)
+# Third party
+from celery import Celery
+from pydantic import BaseModel, Field, constr
 
-
-# temporary fix for importing module problems
-# TODO change background tasks to module
 pathRoot = pathlib.Path(__file__).parents[1]
 sys.path.append(str(pathRoot))
 
-from pydantic import BaseModel, Field
-from fairscape_mds.config import get_fairscape_config
-from fairscape_mds.utilities.utils import parseArk
-from fairscape_mds.models.user import UserLDAP
-from fairscape_mds.models.dataset import DatasetDistribution, MinioDistribution
-from fairscape_mds.models.rocrate import (
-    ExtractCrate,
-    DeleteExtractedCrate,
-    GetMetadataFromCrate,
-    StreamZippedROCrate,
-    ROCrate,
-    ROCrateDistribution
-)
+# Fairscape
 from fairscape_mds.auth.ldap import getUserByCN
+from fairscape_mds.config import get_fairscape_config
+from fairscape_mds.models.dataset import DatasetDistribution, MinioDistribution
+from fairscape_mds.models.evidencegraph import EvidenceGraph
+from fairscape_mds.models.fairscape_base import IdentifierPattern
+from fairscape_mds.models.rocrate import (
+   ExtractCrate,
+   DeleteExtractedCrate, 
+   GetMetadataFromCrate,
+   ROCrate,
+   ROCrateDistribution,
+   StreamZippedROCrate
+)
+from fairscape_mds.models.user import UserLDAP
+from fairscape_mds.utilities.operation_status import OperationStatus
+from fairscape_mds.utilities.utils import parseArk
 
-from typing import List, Dict, Optional
-from uuid import UUID, uuid4
-
+# Configure logging
+logging.getLogger('pymongo').setLevel(logging.INFO)
 
 # setup logging
 #logging.basicConfig(stream="", level=logging.INFO)
@@ -260,7 +262,7 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
     
     # find the ro-crate-metadata.json file and read it in
     metadataSearch = list(pathlib.Path(extractDir).rglob("*ro-crate-metadata.json"))
-    if len(metadataSearch) != 1:
+    if len(metadataSearch) < 1:
         raise Exception("ro-crate-metadata.json not found in crate")	
 
     crateMetadataPath = metadataSearch[0]
@@ -675,7 +677,148 @@ def OldExtract():
         )
         return True
 
-
+@celeryApp.task(name='async-build-evidence-graph', task_id=None)
+def AsyncBuildEvidenceGraph(userCN: str, NAAN: str, postfix: str, task_id: str):
+    # Get task id from current request
+    mongoClient = fairscapeConfig.mongo.CreateClient()
+    mongoDB = mongoClient[fairscapeConfig.mongo.db]
+    identifierCollection = mongoDB[fairscapeConfig.mongo.identifier_collection]
+    asyncCollection = mongoDB[fairscapeConfig.mongo.async_collection]
+    
+    node_id = f"ark:{NAAN}/{postfix}"
+    evidence_graph_id = f"ark:{NAAN}/evidence-graph-{postfix}"
+    
+    # Initial status document with task_id as primary key
+    status_doc = {
+        "task_id": task_id,
+        "node_id": node_id,
+        "evidence_graph_id": evidence_graph_id,
+        "owner": userCN,
+        "status": "Building graph",
+        "stage": "Started query",
+        "created_at": datetime.datetime.utcnow(),
+        "completed": False,
+        "success": False
+    }
+    
+    # Insert initial status
+    print(f"Creating new task status: {status_doc}")
+    asyncCollection.insert_one(status_doc)
+    
+    try:
+        # Check for existing evidence graph
+        existing_node = identifierCollection.find_one({"@id": node_id})
+        if existing_node and "hasEvidenceGraph" in existing_node:
+            existing_graph_id = existing_node["hasEvidenceGraph"]["@id"]
+            print(f"Found existing evidence graph: {existing_graph_id}")
+            
+            # Create temporary EvidenceGraph object for deletion
+            existing_graph = EvidenceGraph(
+                **{
+                    "@id": existing_graph_id,
+                    "name": "Temporary Graph Object",
+                    "description": "Temporary Graph Object for Deletion",
+                    "owner": userCN
+                }
+            )
+            
+            # Delete existing graph
+            print("Deleting existing evidence graph")
+            delete_status = existing_graph.delete(identifierCollection)
+            if not delete_status.success:
+                print(f"Warning: Failed to delete existing graph: {delete_status.message}")
+                # Update status to reflect warning
+                asyncCollection.update_one(
+                    {"task_id": task_id},
+                    {"$set": {
+                        "status": "Warning",
+                        "warning": f"Failed to delete existing graph: {delete_status.message}",
+                        "stage": "Deletion of existing graph failed",
+                        "updated_at": datetime.datetime.utcnow()
+                    }}
+                )
+        
+        # Create new evidence graph
+        evidence_graph = EvidenceGraph(
+            **{
+                "@id": evidence_graph_id,
+                "name": f"Evidence Graph for {node_id}",
+                "description": f"Evidence Graph for {node_id}",
+                "owner": userCN
+            }
+        )
+        
+        # Build graph
+        print(f"Building graph for node: {node_id}")
+        evidence_graph.build_graph(node_id, identifierCollection)
+        
+        # Update status - Graph built
+        print("Graph built successfully, updating status")
+        asyncCollection.update_one(
+            {"task_id": task_id},
+            {"$set": {
+                "status": "Graph built",
+                "stage": "Storing graph",
+                "updated_at": datetime.datetime.utcnow()
+            }}
+        )
+        
+        # Store graph
+        print("Attempting to store graph")
+        create_status = evidence_graph.create(identifierCollection)
+        if not create_status.success:
+            print(f"Failed to create graph: {create_status.message}")
+            asyncCollection.update_one(
+                {"task_id": task_id},
+                {"$set": {
+                    "status": "Failed",
+                    "error": create_status.message,
+                    "stage": "Graph creation failed",
+                    "completed": True,
+                    "success": False,
+                    "updated_at": datetime.datetime.utcnow()
+                }}
+            )
+            return False
+            
+        # Update original node reference
+        print("Updating node reference")
+        identifierCollection.update_one(
+            {"@id": node_id},
+            {"$set": {"hasEvidenceGraph": {"@id": evidence_graph.guid}}}
+        )
+        
+        # Update final success status
+        print("Updating final success status")
+        asyncCollection.update_one(
+            {"task_id": task_id},
+            {"$set": {
+                "status": "Completed",
+                "stage": "Graph stored successfully",
+                "completed": True,
+                "success": True,
+                "updated_at": datetime.datetime.utcnow()
+            }}
+        )
+        return True
+        
+    except Exception as e:
+        print(f"Error in task {task_id}: {str(e)}")
+        asyncCollection.update_one(
+            {"task_id": task_id},
+            {"$set": {
+                "status": "Failed",
+                "error": str(e),
+                "stage": "Exception occurred",
+                "completed": True,
+                "success": False,
+                "updated_at": datetime.datetime.utcnow()
+            }}
+        )
+        return False
+        
+    finally:
+        mongoClient.close()
 
 
 if __name__ == '__main__':

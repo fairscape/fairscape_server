@@ -57,6 +57,7 @@ def resolve(
     # Process @graph section if it exists
     if "@graph" in arkMetadata:
         for item in arkMetadata["@graph"]:
-            item.pop("_id", None)
+            if isinstance(item, dict):
+                item.pop("_id", None)
     
     return JSONResponse(content=arkMetadata)
