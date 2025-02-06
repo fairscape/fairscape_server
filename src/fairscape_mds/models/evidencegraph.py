@@ -37,8 +37,12 @@ class EvidenceGraph(BaseModel, extra=Extra.allow):
         processed.add(node_id)
         result = self._build_base_node(node)
         
-        node_type = node.get("@type", "").split(":")[-1]  # Handle EVI:Dataset or https://w3.org/EVI:Dataset
-        
+        node_type = node.get("@type", "")
+        if "Dataset" in node_type:
+            node_type = "Dataset"
+        elif "Computation" in node_type:
+            node_type = "Computation"
+    
         if node_type == "Dataset":
             if "generatedBy" in node:
                 result["generatedBy"] = self._build_computation_node(node, collection, processed)
