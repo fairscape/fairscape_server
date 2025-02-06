@@ -41,8 +41,11 @@ def resolve(
         
     arkGUID = f"ark:{NAAN}/{postfix}"
     arkMetadata = identifierCollection.find_one(
+    {"$or": [
         {"@id": arkGUID},
-        projection={"_id": False}
+        {"@id": f"{arkGUID}/"}
+    ]},
+    projection={"_id": False}
     )
     
     if arkMetadata is None:

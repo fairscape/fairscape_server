@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, constr, Extra
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from fairscape_mds.utilities.operation_status import OperationStatus
 import pymongo
 from bson import SON
@@ -27,49 +27,60 @@ class EvidenceGraph(BaseModel, extra=Extra.allow):
        self.graph = self._build_graph_recursive(node_id, mongo_collection, processed)
 
     def _build_graph_recursive(self, node_id: str, collection: pymongo.collection.Collection, processed: set) -> Dict:
-       if node_id in processed:
-           return {"@id": node_id}
-           
-       node = collection.find_one({"@id": node_id}, {"_id": 0})
-       if not node:
-           return {"@id": node_id}
-           
-       processed.add(node_id)
-       result = {"@id": node_id,
-                 "@type": node["@type"],
-                 "name": node.get("name"),
-                 "description": node.get("description")}
-       
-       if node.get("@type"):
-           result["@type"] = node["@type"]
-           
-       if "generatedBy" in node:
-           comp_id = node["generatedBy"]["@id"]
-           comp = collection.find_one({"@id": comp_id}, {"_id": 0})
-           
-           if comp:
-               nested_comp = {"@id": comp_id}
-               if comp.get("type"):
-                   nested_comp["type"] = comp["type"]
-                   
-               if "usedDataset" in comp:
-                   if isinstance(comp["usedDataset"], dict):
-                       nested_datasets = [self._build_graph_recursive(comp["usedDataset"]["@id"], collection, processed)]
-                   else:
-                       nested_datasets = [self._build_graph_recursive(dataset["@id"], collection, processed)
-                                        for dataset in comp["usedDataset"]]
-                   nested_comp["usedDataset"] = nested_datasets
-                   
-               if "usedSoftware" in comp:
-                   if isinstance(comp["usedSoftware"], list):
-                       nested_comp["usedSoftware"] = {"@id": comp["usedSoftware"][0]["@id"]}
-                   else:
-                       nested_comp["usedSoftware"] = {"@id": comp["usedSoftware"]["@id"]}
-                   
-               result["generatedBy"] = nested_comp
-               
-       return result
+        if node_id in processed:
+            return {"@id": node_id}
+            
+        node = collection.find_one({"@id": node_id}, {"_id": 0})
+        if not node:
+            return {"@id": node_id}
+            
+        processed.add(node_id)
+        result = self._build_base_node(node)
+        
+        node_type = node.get("@type", "").split(":")[-1]  # Handle EVI:Dataset or https://w3.org/EVI:Dataset
+        
+        if node_type == "Dataset":
+            if "generatedBy" in node:
+                result["generatedBy"] = self._build_computation_node(node, collection, processed)
+        elif node_type == "Computation":
+            if "usedDataset" in node:
+                result["usedDataset"] = self._build_used_datasets(node["usedDataset"], collection, processed)
+            if "usedSoftware" in node:
+                result["usedSoftware"] = self._build_software_reference(node["usedSoftware"], collection)
+                
+        return result
 
+    def _build_base_node(self, node: Dict) -> Dict:
+        return {
+            "@id": node["@id"],
+            "@type": node.get("@type"),
+            "name": node.get("name"),
+            "description": node.get("description")
+        }
+
+    def _build_computation_node(self, dataset_node: Dict, collection: pymongo.collection.Collection, processed: set) -> Dict:
+        comp_id = (dataset_node["generatedBy"][0]["@id"] 
+                    if isinstance(dataset_node["generatedBy"], list) 
+                    else dataset_node["generatedBy"]["@id"])
+        
+        comp = collection.find_one({"@id": comp_id}, {"_id": 0})
+        if not comp:
+            return {"@id": comp_id}
+        return self._build_graph_recursive(comp_id, collection, processed)
+
+    def _build_used_datasets(self, used_dataset: Union[Dict, List], collection: pymongo.collection.Collection, processed: set) -> List:
+        if isinstance(used_dataset, dict):
+            return [self._build_graph_recursive(used_dataset["@id"], collection, processed)]
+        return [self._build_graph_recursive(dataset["@id"], collection, processed) for dataset in used_dataset]
+
+    def _build_software_reference(self, used_software: Union[Dict, List], collection: pymongo.collection.Collection) -> Dict:
+        software_id = used_software[0]["@id"] if isinstance(used_software, list) else used_software["@id"]
+        
+        software = collection.find_one({"@id": software_id}, {"_id": 0})
+        if software:
+            return self._build_base_node(software)
+        return {"@id": software_id}
+    
     def create(self, mongo_collection: pymongo.collection.Collection) -> OperationStatus:
        if mongo_collection.find_one({"@id": self.guid}):
            return OperationStatus(False, "evidence graph already exists", 400)
