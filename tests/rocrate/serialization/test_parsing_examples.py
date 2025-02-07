@@ -4,7 +4,7 @@ import sys
 
 #sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 #os.path.join(os.path.dirname(__file__), '../')
-srcPath = os.path.abspath('C:\\Users\\Max\\Documents\\GitHub\\mds_python\\src\\' )
+srcPath = os.path.abspath('../../../src' )
 sys.path.insert(0, srcPath)
 
 import pathlib
