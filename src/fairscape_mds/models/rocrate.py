@@ -387,6 +387,82 @@ class ROCrateV1_2(BaseModel):
     ]] = Field(alias="@graph")
 
 
+    def getCrateMetadata(self)-> ROCrateMetadataElem:
+        """ Filter the Metadata Graph for the Metadata Element Describing the Toplevel ROCrate
+
+        :param self
+        :return: The RO Crate Metadata Elem describing the toplevel ROCrate
+        :rtype fairscape_mds.models.rocrate.ROCrateMetadataElem
+        """
+        filterResults = list(filter(
+            lambda x: isinstance(x, ROCrateMetadataElem),
+            self.metadataGraph
+        ))
+
+        # TODO support for nested crates 
+        # must find the ROCrateMetadataElem with '@id' == 'ro-crate-metadata.json'
+        if len(filterResults) != 1:
+            # TODO more detailed exception
+            raise Exception
+        else:
+            return filterResults[0]
+
+
+    def getDatasets(self) -> List[ROCrateDataset]:
+        """ Filter the Metadata Graph for Dataset Elements
+
+        :param self
+        :return: All dataset metadata records within the ROCrate
+        :rtype List[fairscape_mds.models.rocrate.ROCrateDataset]
+        """
+        filterResults = list(filter(
+            lambda x: isinstance(x, ROCrateDataset), 
+            self.metadataGraph
+        ))
+
+        if len(filterResults) == 0:
+            raise Exception
+        else:
+            return filterResults
+
+
+    def getSoftware(self) -> List[ROCrateSoftware]:
+        """ Filter the Metadata Graph for Software Elements
+
+        :param self
+        :return: All Software metadata records within the ROCrate
+        :rtype List[fairscape_mds.models.rocrate.ROCrateSoftware]
+        """
+        filterResults = list(filter(
+            lambda x: isinstance(x, ROCrateSoftware), 
+            self.metadataGraph
+        ))
+
+        if len(filterResults) == 0:
+            raise Exception
+        else:
+            return filterResults
+
+
+    def getComputations(self) -> List[ROCrateComputation]:
+        """ Filter the Metadata Graph for Computation Elements
+
+        :param self
+        :return: All Computation metadata records within the ROCrate
+        :rtype List[fairscape_mds.models.rocrate.ROCrateComputation]
+        """
+        filterResults = list(filter(
+            lambda x: isinstance(x, ROCrateComputation), 
+            self.metadataGraph
+        ))
+
+        if len(filterResults) == 0:
+            raise Exception
+        else:
+            return filterResults
+
+
+
 
 def UploadZippedCrate(
         MinioClient: minio.api.Minio, 
