@@ -77,7 +77,7 @@ ROCRATE_TYPE = "ROCrate"
 
 
 
-class ROCrateDataset(FairscapeEVIBaseModel):
+class ROCrateDataset(BaseModel):
     guid: str = Field(alias="@id")
     metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Dataset")
     additionalType: Optional[str] = Field(default=DATASET_TYPE)
@@ -96,7 +96,7 @@ class ROCrateDataset(FairscapeEVIBaseModel):
     contentUrl: Optional[str] = Field(default=None)
 
 
-class ROCrateSoftware(FairscapeBaseModel): 
+class ROCrateSoftware(BaseModel): 
     guid: str = Field(alias="@id")
     metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Software")
     additionalType: Optional[str] = Field(default=SOFTWARE_TYPE)
@@ -111,7 +111,7 @@ class ROCrateSoftware(FairscapeBaseModel):
     contentUrl: Optional[str] = Field(default=None)
 
 
-class ROCrateComputation(FairscapeBaseModel):
+class ROCrateComputation(BaseModel):
     guid: str = Field(alias="@id")
     metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Computation")
     additionalType: Optional[str] = Field(default=COMPUTATION_TYPE)
@@ -461,7 +461,8 @@ class ROCrateV1_2(BaseModel):
         else:
             return filterResults
 
-
+    def getEVIElements(self) -> List[Union[ROCrateComputation, ROCrateDataset, ROCrateSoftware]]:
+        return self.getDatasets() + self.getSoftware() + self.getComputations()
 
 
 def UploadZippedCrate(
@@ -498,7 +499,7 @@ def ExtractCrate(
         transactionFolder: str,
         userCN: str,
         objectPath: str
-) -> dict:
+    ) -> dict:
     """
     Extract the ro-crate-metadata.json file from a zipped ROCrate
 
