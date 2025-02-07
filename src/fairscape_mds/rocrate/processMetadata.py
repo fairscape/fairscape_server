@@ -13,7 +13,7 @@ class ROCrateFilterException(Exception):
 		super().__init__(self.message)
 
 
-def filterOneMetadataGraph(metadataGraph: List[Dict], filterFunc: Callable) -> Dict | None:
+def filterOneMetadataGraph(metadataGraph: List[Dict], filterFunc: Callable) -> Dict:
 	""" Given a metadataGraph filter the elements using a passed callable and return one element 
 
 	:param metadataGraph: input metadata graph
@@ -24,14 +24,15 @@ def filterOneMetadataGraph(metadataGraph: List[Dict], filterFunc: Callable) -> D
 	"""
 	metadataSearch = list(filter(filterFunc, metadataGraph))
 
-	if len(metadataSearch) < 1:
-		# raise error if more than one elem
-		raise ROCrateFilterException('More than one element found', metadataSearch)
-	elif len(metadataSearch) == 0:
-		return None
-	else:	
+	if len(metadataSearch) == 1:
 		metadataElem = metadataSearch[0]
 		return metadataElem
+	else:
+		if len(metadataSearch)>1:
+			# raise error if more than one elem
+			raise ROCrateFilterException('More than one element found', metadataSearch)
+		else: 
+			raise ROCrateFilterException('No matching element found', metadataSearch)
 
 
 def findRootElem(crateMetadata: Dict)->dict:
@@ -46,9 +47,15 @@ def findRootElem(crateMetadata: Dict)->dict:
 
 	# find the ro-crate-metadata.json elem
 	roCrateMetadataElem = filterOneMetadataGraph(crateMetadata['@graph'], crateMetadataFilter)
+	if roCrateMetadataElem is None:
+		raise Exception("root elem not found")
+		
 	rootMetadataGUID = roCrateMetadataElem.get('about', {}).get('@id')
-	crateGUIDFilter = lambda elem: elem.get('@id') == rootMetadataGUID
 
+	if rootMetadataGUID is None:
+		raise Exception("root elem not found")
+
+	crateGUIDFilter = lambda elem: elem.get('@id') == rootMetadataGUID
 	rootMetadataElem = filterOneMetadataGraph(crateMetadata['@graph'], crateGUIDFilter)
 	return rootMetadataElem
 
