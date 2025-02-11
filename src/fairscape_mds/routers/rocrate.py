@@ -76,21 +76,27 @@ def publishMetadata(
         currentUser.cn
     )
 
-    try:
-        published = mintRequest.publish()
-
-        return JSONResponse(
-            content={"published": published}, 
-            status_code=202
-            )
-    except:
-
-        return JSONResponse(
-            content={
-                "error": "error minting rocrate identifiers"
-                }, 
-            status_code=400
-            )
+    published = mintRequest.publish()
+    return JSONResponse(
+        content={"published": published}, 
+        status_code=202
+        )
+#    try:
+#        published = mintRequest.publish()
+#
+#        return JSONResponse(
+#            content={"published": published}, 
+#            status_code=202
+#            )
+#    except Exception as e:
+#
+#        return JSONResponse(
+#            content={
+#                "message": "error minting rocrate identifiers",
+#                "error": str(e)
+#                }, 
+#            status_code=500
+#            )
 
 @router.post(
         "/rocrate/upload-async",

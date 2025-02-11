@@ -3,8 +3,9 @@ class ROCrateException(Exception):
 	""" Exception class for all ROCrate Exceptions
 	"""
 	def __init__(self, message, errors):
-		super().__init__(message) 
 		self.errors = errors
+		self.message = message
+		super().__init__(message) 
 
 	def __str__(self):
 		return self.message
