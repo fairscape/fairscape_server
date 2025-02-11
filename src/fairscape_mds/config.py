@@ -31,6 +31,87 @@ def cached_dotenv(env_path: str = '.env'):
     }
     return config
 
+def create_fairscape_config(config_values):
+    server_mongo_config = MongoConfig.model_validate(
+        {
+            'host': config_values.get('FAIRSCAPE_MONGO_HOST'), 
+            'port': config_values.get("FAIRSCAPE_MONGO_PORT", "27017"),
+            'user': config_values.get('FAIRSCAPE_MONGO_ACCESS_KEY'),
+            'password': config_values.get('FAIRSCAPE_MONGO_SECRET_KEY'),
+            'db': config_values.get('FAIRSCAPE_MONGO_DATABASE'),
+            'identifier_collection': config_values.get('FAIRSCAPE_MONGO_IDENTIFIER_COLLECTION'),
+            'user_collection': config_values.get('FAIRSCAPE_MONGO_USER_COLLECTION'),
+            'rocrate_collection': config_values.get('FAIRSCAPE_MONGO_ROCRATE_COLLECTION'),
+            'async_collection': config_values.get('FAIRSCAPE_MONGO_ASYNC_COLLECTION', 'async')
+        }
+        )
+
+    if config_values.get("FAIRSCAPE_MINIO_CERT_CHECK"):
+        checkCert = bool(config_values.get("FAIRSCAPE_MINIO_CERT_CHECK")=="True")
+    else:
+        checkCert = False
+
+    if config_values.get("FAIRSCAPE_MINIO_SECURE"):
+        secure = bool(config_values.get("FAIRSCAPE_MINIO_SECURE")=="True")
+    else:
+        secure = False
+
+    server_minio_config = MinioConfig(
+        host= config_values.get("FAIRSCAPE_MINIO_URI"),
+        port=config_values.get("FAIRSCAPE_MINIO_PORT"),
+        access_key = config_values.get("FAIRSCAPE_MINIO_ACCESS_KEY"),
+        secret_key = config_values.get("FAIRSCAPE_MINIO_SECRET_KEY"),
+        default_bucket= config_values.get("FAIRSCAPE_MINIO_DEFAULT_BUCKET"), 
+        default_bucket_path = config_values.get("FAIRSCAPE_MINIO_DEFAULT_BUCKET_PATH"),
+        rocrate_bucket=config_values.get("FAIRSCAPE_MINIO_ROCRATE_BUCKET"),
+        rocrate_bucket_path = config_values.get("FAIRSCAPE_MINIO_ROCRATE_BUCKET_PATH"),
+        secure= secure,
+        check_cert= checkCert
+    )
+
+    # defaulting several redis DB values
+    redisDB=int(config_values.get("FAIRSCAPE_REDIS_DATABASE", 0))
+    redisResultDB=int(config_values.get("FAIRSCAPE_REDIS_RESULT_DATABASE", 1))
+    redisPort= int(config_values.get("FAIRSCAPE_REDIS_PORT", 6379))
+
+    server_redis_config = RedisConfig(
+        port= redisPort,
+        hostname = config_values.get("FAIRSCAPE_REDIS_HOST", 'localhost'),
+        username= config_values.get("FAIRSCAPE_REDIS_USERNAME"),
+        password= config_values.get("FAIRSCAPE_REDIS_PASSWORD"),
+        database= redisDB,
+        result_database = redisResultDB
+    )
+
+    # setup LDAP Config
+    server_ldap_config = LDAPConfig.model_validate(
+        {
+            "hostname": config_values.get("FAIRSCAPE_LDAP_HOST"), 
+            "port": config_values.get("FAIRSCAPE_LDAP_PORT"),
+            "baseDN": config_values.get("FAIRSCAPE_LDAP_BASE_DN"),
+            "usersDN": config_values.get("FAIRSCAPE_LDAP_USERS_DN"),
+            "groupsDN": config_values.get("FAIRSCAPE_LDAP_GROUPS_DN"),
+            "adminDN": config_values.get("FAIRSCAPE_LDAP_ADMIN_DN"),
+            "adminPassword": config_values.get("FAIRSCAPE_LDAP_ADMIN_PASSWORD"),
+            }
+        )
+
+    # TODO support multiple NAANs
+    
+    return FairscapeConfig(
+            host = config_values.get('FAIRSCAPE_HOST'),
+            port = config_values.get('FAIRSCAPE_PORT'),
+            jwtSecret = config_values.get('FAIRSCAPE_JWT_SECRET', 'testjwtsecret'),
+            passwordSalt = config_values.get('FAIRSCAPE_PASSWORD_SALT', 'testsalt'),
+            NAAN = config_values.get('FAIRSCAPE_NAAN', '59852'),
+            url = config_values.get("FAIRSCAPE_URL"),
+            mongo = server_mongo_config,
+            minio = server_minio_config,
+            redis = server_redis_config,
+            ldap = server_ldap_config
+            )
+    pass
+
 
 @lru_cache()
 def get_fairscape_config(env_path: str = '/fairscape/.env'):    

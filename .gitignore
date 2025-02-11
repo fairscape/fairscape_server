@@ -161,3 +161,4 @@ dmypy.json
 .vscode/settings.json
 *.swp
 *.zip
+/tests/rocrate/worker/jobs

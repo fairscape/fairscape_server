@@ -142,7 +142,9 @@
       "associatedPublication": "Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.",
       "additionalDocumentation": null,
       "format": "tsv",
-      "schema": "https://fairscape.net/ark:59852/schema-cm4ai-apmsloader-gene-node-attributes",
+      "schema": {
+        "@id": "https://fairscape.net/ark:59852/schema-cm4ai-apmsloader-gene-node-attributes"
+      },
       "generatedBy": [],
       "derivedFrom": [],
       "usedBy": [],
@@ -180,11 +182,11 @@
       "additionalDocumentation": null,
       "command": "{'outdir': '0.1pipeline/1.cm4ai_chromatin_mda-mb-468_untreated_apmsloader_initialrun0.1alpha', 'cm4ai_table': '0.1rocrates/cm4ai_chromatin_mda-mb-468_untreated_apms_0.1_alpha/apms.tsv', 'edgelist': None, 'edgelist_geneid_one_col': 'GeneID1', 'edgelist_symbol_one_col': 'Symbol1', 'edgelist_geneid_two_col': 'GeneID2', 'edgelist_symbol_two_col': 'Symbol2', 'baitlist': None, 'baitlist_symbol_col': 'GeneSymbol', 'baitlist_geneid_col': 'GeneID', 'baitlist_numinteractors_col': '# Interactors', 'provenance': 'ppiprovenance.json', 'logconf': None, 'skip_logging': False, 'verbose': 0, 'program': '/cellar/users/cchuras/miniconda3/envs/py38/bin/cellmaps_ppidownloadercmd.py', 'version': '0.1.0a6'}",
       "usedSoftware": [
-        "https://fairscape.net/ark:59852/software-cellmaps_ppidownloader-58sGTge"
+        {"@id": "https://fairscape.net/ark:59852/software-cellmaps_ppidownloader-58sGTge"}
       ],
       "usedDataset": [],
       "generated": [
-        "https://fairscape.net/ark:59852/dataset-cellmaps_ppidownloader-output-file-58sGTge"
+        {"@id": "https://fairscape.net/ark:59852/dataset-cellmaps_ppidownloader-output-file-58sGTge"}
       ],
       "version": "0.5alpha",
       "author": "Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T.",

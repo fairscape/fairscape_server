@@ -33,6 +33,9 @@ from fairscape_mds.models.rocrate import (
    ROCrateDistribution,
    StreamZippedROCrate
 )
+from fairscape_mds.rocrate.errors import (
+    ROCrateException
+)
 from fairscape_mds.models.user import UserLDAP
 from fairscape_mds.utilities.operation_status import OperationStatus
 from fairscape_mds.utilities.utils import parseArk
@@ -472,7 +475,7 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
             )
 
     if rocrateFound:
-        raise ROCrateMetadataExistsException(
+        raise ROCrateException(
             f"ROCrate with @id == {crateMetadata['@id']} found", None)
     
 

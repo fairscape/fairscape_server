@@ -79,7 +79,7 @@
         "Schulz W",
         "Ideker T."
       ],
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”",
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "hasPart": [
         {
@@ -257,13 +257,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.001.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-002-cx-PPI-network-file-YjBPRU9",
@@ -293,13 +297,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.002.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-003-cx-PPI-network-file-YjBPRU9",
@@ -330,13 +338,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.003.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-004-cx-PPI-network-file-YjBPRU9",
@@ -368,13 +380,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.004.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-005-cx-PPI-network-file-YjBPRU9",
@@ -407,13 +423,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.005.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-006-cx-PPI-network-file-YjBPRU9",
@@ -447,13 +467,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.006.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-007-cx-PPI-network-file-YjBPRU9",
@@ -488,13 +512,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.007.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-008-cx-PPI-network-file-YjBPRU9",
@@ -530,13 +558,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.008.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-009-cx-PPI-network-file-YjBPRU9",
@@ -573,13 +605,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.009.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-01-cx-PPI-network-file-YjBPRU9",
@@ -617,13 +653,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.01.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-02-cx-PPI-network-file-YjBPRU9",
@@ -662,13 +702,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.02.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-03-cx-PPI-network-file-YjBPRU9",
@@ -708,13 +752,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.03.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-04-cx-PPI-network-file-YjBPRU9",
@@ -755,13 +803,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.04.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-05-cx-PPI-network-file-YjBPRU9",
@@ -803,13 +855,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.05.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-1-cx-PPI-network-file-YjBPRU9",
@@ -852,13 +908,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.1.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-001-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -876,13 +936,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.001.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-002-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -900,13 +964,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.002.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-003-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -924,13 +992,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.003.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-004-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -948,13 +1020,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.004.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-005-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -972,13 +1048,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.005.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-006-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -996,13 +1076,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.006.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-007-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -1020,13 +1104,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.007.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-008-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -1044,13 +1132,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.008.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-009-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -1068,13 +1160,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.009.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-01-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -1092,13 +1188,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.01.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-02-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -1116,13 +1216,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.02.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-03-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -1140,13 +1244,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.03.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-04-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -1164,13 +1272,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.04.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-05-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -1188,13 +1300,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.05.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-1-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
@@ -1212,13 +1328,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/ppi_cutoff_0.1.id.edgelist.tsv",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-hidef_output-nodes-HiDeF-output-nodes-file-YjBPRU9",
@@ -1236,13 +1356,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/hidef_output.nodes",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-hidef_output-edges-HiDeF-output-edges-file-YjBPRU9",
@@ -1260,13 +1384,17 @@
       "additionalDocumentation": null,
       "format": "tsv",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/hidef_output.edges",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-hidef_output-weaver-HiDeF-output-weaver-file-YjBPRU9",
@@ -1284,13 +1412,17 @@
       "additionalDocumentation": null,
       "format": "npy",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/hidef_output.weaver",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-hidef_output-pruned-nodes-Pruned-HiDeF-output-n-file-YjBPRU9",
@@ -1314,7 +1446,7 @@
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/hidef_output.pruned.nodes",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-hidef_output-pruned-edges-Pruned-HiDeF-output-e-file-YjBPRU9",
@@ -1338,7 +1470,7 @@
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/hidef_output.pruned.edges",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-cdaps-json-CDAPS-output-JSON-file-YjBPRU9",
@@ -1356,13 +1488,17 @@
       "additionalDocumentation": null,
       "format": "json",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/cdaps.json",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/dataset-Output-Dataset-YjBPRU9",
@@ -1407,13 +1543,17 @@
       "additionalDocumentation": null,
       "format": "CX",
       "schema": {},
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
+      "generatedBy": [
+        {
+          "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9"
+        }
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha/hierarchy.cx",
       "copyrightNotice": "Copyright (c) 2024 by The Regents of the University of California",
       "license": "https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en",
-      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”"
+      "conditionsOfAccess": "This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.\u201d"
     },
     {
       "@id": "https://fairscape.net/ark:59852/computation-Hierarchy-YjBPRU9",
@@ -1440,48 +1580,124 @@
       "additionalDocumentation": null,
       "command": "{'outdir': '0.1pipeline/4.cm4ai_chromatin_mda-mb-468_untreated_hierarchy_initialrun0.1alpha', 'coembedding_dirs': ['0.1pipeline/3.cm4ai_chromatin_mda-mb-468_untreated_coembedfold1_initialrun0.1alpha', '0.1pipeline/3.cm4ai_chromatin_mda-mb-468_untreated_coembedfold2_initialrun0.1alpha'], 'name': None, 'organization_name': None, 'project_name': None, 'containment_threshold': 0.75, 'jaccard_threshold': 0.9, 'min_diff': 1, 'min_system_size': 4, 'ppi_cutoffs': [0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009, 0.01, 0.02, 0.03, 0.04, 0.05, 0.1], 'skip_layout': False, 'logconf': None, 'verbose': 4, 'program': '/cellar/users/cchuras/miniconda3/envs/py38/bin/cellmaps_generate_hierarchycmd.py', 'version': '0.1.0a10'}",
       "usedSoftware": [
-        "https://fairscape.net/ark:59852/software-cellmaps_generate_hierarchy-YjBPRU9"
+        {
+          "@id": "https://fairscape.net/ark:59852/software-cellmaps_generate_hierarchy-YjBPRU9"
+        }
       ],
       "usedDataset": [
-        "https://fairscape.net/ark:59852/dataset-coembedding_emd-tsv-coembedding-output-file-EwjNeUm",
-        "https://fairscape.net/ark:59852/dataset-coembedding_emd-tsv-coembedding-output-file-Oyt0uvn"
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-coembedding_emd-tsv-coembedding-output-file-EwjNeUm"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-coembedding_emd-tsv-coembedding-output-file-Oyt0uvn"
+        }
       ],
       "generated": [
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-001-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-002-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-003-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-004-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-005-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-006-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-007-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-008-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-009-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-01-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-02-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-03-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-04-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-05-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-1-cx-PPI-network-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-Output-Dataset-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-001-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-002-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-003-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-004-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-005-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-006-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-007-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-008-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-009-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-01-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-02-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-03-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-04-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-05-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-1-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-hidef_output-nodes-HiDeF-output-nodes-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-hidef_output-edges-HiDeF-output-edges-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-hidef_output-weaver-HiDeF-output-weaver-file-YjBPRU9",
-        "https://fairscape.net/ark:59852/dataset-cdaps-json-CDAPS-output-JSON-file-YjBPRU9"
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-001-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-002-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-003-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-004-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-005-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-006-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-007-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-008-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-009-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-01-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-02-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-03-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-04-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-05-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-1-cx-PPI-network-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-Output-Dataset-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-001-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-002-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-003-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-004-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-005-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-006-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-007-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-008-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-009-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-01-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-02-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-03-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-04-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-05-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-ppi_cutoff_0-1-id-edgelist-tsv-PPI-id-edgelist-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-hidef_output-nodes-HiDeF-output-nodes-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-hidef_output-edges-HiDeF-output-edges-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-hidef_output-weaver-HiDeF-output-weaver-file-YjBPRU9"
+        },
+        {
+          "@id": "https://fairscape.net/ark:59852/dataset-cdaps-json-CDAPS-output-JSON-file-YjBPRU9"
+        }
       ],
       "version": "0.5alpha",
       "author": "Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T.",

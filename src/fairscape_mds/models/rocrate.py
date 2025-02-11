@@ -1,13 +1,10 @@
 from fastapi.responses import StreamingResponse
-import hashlib
 import json
-import re
-import tempfile
 import pathlib
+from pathlib import Path
 
 import io
 import os
-from pathlib import Path
 from io import BytesIO
 import zipfile
 from zipfile import ZipFile
@@ -21,7 +18,7 @@ import sys
 import logging
 
 import uuid
-import zipfile
+import urllib
 import re
 import hashlib
 from pydantic import (
@@ -31,17 +28,22 @@ from pydantic import (
     ValidationError, 
     computed_field
 )
-
 from typing import (
     Optional, 
     Union, 
     Dict, 
     List, 
+    Literal,
     Generator,
     Tuple
 )
 
-from fairscape_mds.models.fairscape_base import FairscapeBaseModel, FairscapeEVIBaseModel
+from fairscape_mds.models.schema import Schema
+from fairscape_mds.models.fairscape_base import (
+    FairscapeBaseModel, 
+    FairscapeEVIBaseModel, 
+    IdentifierValue
+)
 from fairscape_mds.models.dataset import (
         DatasetDistribution, 
         MinioDistribution, 
@@ -70,11 +72,13 @@ SOFTWARE_TYPE = "Software"
 COMPUTATION_TYPE = "Computation"
 ROCRATE_TYPE = "ROCrate"
 
-class ROCrateDataset(FairscapeEVIBaseModel):
+
+
+class ROCrateDataset(BaseModel):
     guid: str = Field(alias="@id")
     metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Dataset")
     additionalType: Optional[str] = Field(default=DATASET_TYPE)
-    author: str = Field(max_length=64)
+    author: Union[str, List[str]]
     datePublished: str = Field(...)
     version: str = Field(default="0.1.0")
     description: str = Field(min_length=10)
@@ -82,58 +86,29 @@ class ROCrateDataset(FairscapeEVIBaseModel):
     associatedPublication: Optional[str] = Field(default=None)
     additionalDocumentation: Optional[str] = Field(default=None)
     fileFormat: str = Field(alias="format")
-    dataSchema: Optional[Union[str, dict]] = Field(alias="evi:Schema", default=None)
-    generatedBy: Optional[List[str]] = Field(default=[])
-    derivedFrom: Optional[List[str]] = Field(default=[])
-    usedByComputation: Optional[List[str]] = Field(default=[])
+    dataSchema: Optional[IdentifierValue] = Field(alias="evi:Schema", default=None)
+    generatedBy: Optional[Union[IdentifierValue, List[IdentifierValue]]] = Field(default=[])
+    derivedFrom: Optional[List[IdentifierValue]] = Field(default=[])
+    usedByComputation: Optional[List[IdentifierValue]] = Field(default=[])
     contentUrl: Optional[str] = Field(default=None)
 
 
-class ROCrateDatasetContainer(FairscapeBaseModel): 
-    guid: str = Field(alias="@id")
-    metadataType: Optional[str] = Field(
-        default="https://w3id.org/EVI#Dataset", 
-        alias="@type"
-        )
-    additionalType: Optional[str] = Field(default="DatasetContainer")
-    name: str
-    version: str = Field(default="0.1.0")
-    description: str = Field(min_length=10)
-    keywords: List[str] = Field(...)
-    generatedBy: Optional[List[str]] = Field(default=[])
-    derivedFrom: Optional[List[str]] = Field(default=[])
-    usedByComputation: Optional[List[str]] = Field(default=[])
-    hasPart: Optional[List[str]] = Field(default=[])
-    isPartOf: Optional[List[str]] = Field(default=[])
-
-
-    def validate_crate(self, PassedCrate)->None:
-        # for all linked IDs they must be
-
-        # hasPart/isPartOf must be inside the crate or a valid ark
-
-        # lookup ark if NAAN is local
-
-        # if remote, take as valid
-        pass
-
-
-class ROCrateSoftware(FairscapeBaseModel): 
+class ROCrateSoftware(BaseModel): 
     guid: str = Field(alias="@id")
     metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Software")
     additionalType: Optional[str] = Field(default=SOFTWARE_TYPE)
-    author: str = Field(min_length=4, max_length=64)
+    author: str = Field(min_length=4)
     dateModified: str
     version: str = Field(default="0.1.0")
     description: str =  Field(min_length=10)
     associatedPublication: Optional[str] = Field(default=None)
     additionalDocumentation: Optional[str] = Field(default=None)
     fileFormat: str = Field(title="fileFormat", alias="format")
-    usedByComputation: Optional[List[str]] = Field(default=[])
+    usedByComputation: Optional[List[IdentifierValue]] = Field(default=[])
     contentUrl: Optional[str] = Field(default=None)
 
 
-class ROCrateComputation(FairscapeBaseModel):
+class ROCrateComputation(BaseModel):
     guid: str = Field(alias="@id")
     metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Computation")
     additionalType: Optional[str] = Field(default=COMPUTATION_TYPE)
@@ -142,9 +117,9 @@ class ROCrateComputation(FairscapeBaseModel):
     associatedPublication: Optional[str] = Field(default=None)
     additionalDocumentation: Optional[str] = Field(default=None)
     command: Optional[Union[List[str], str]] = Field(default=None)
-    usedSoftware: Optional[List[str]] = Field(default=[])
-    usedDataset: Optional[List[str]] = Field(default=[])
-    generated: Optional[List[str]] = Field(default=[])
+    usedSoftware: Optional[List[IdentifierValue]] = Field(default=[])
+    usedDataset: Optional[List[IdentifierValue]] = Field(default=[])
+    generated: Optional[List[IdentifierValue]] = Field(default=[])
 
 
 class ROCrateDistribution(BaseModel):
@@ -164,7 +139,6 @@ class ROCrate(BaseModel):
         ROCrateDataset,
         ROCrateSoftware,
         ROCrateComputation,
-        ROCrateDatasetContainer
     ]] = Field(alias="@graph", 
                # TODO causes TypeError: list is not a valid discriminator
                #discriminator='additionalType'
@@ -322,6 +296,218 @@ class ROCrate(BaseModel):
                 )
 
 
+class ROCrateOrganization(IdentifierValue):
+    metadataType: Literal['Organization'] = Field(alias="@type")
+    name: str
+
+
+class ROCrateProject(IdentifierValue):
+    metadataType: Literal['Project'] = Field(alias="@type")
+    name: str
+
+
+class ROCrateMetadataFileElem(BaseModel):
+    """Metadata Element of an ROCrate cooresponding to the `ro-crate-metadata.json` file itself
+
+    Example
+
+        ```
+        {
+            "@id": "ro-crate-metadata.json",
+            "@type": "CreativeWork",
+            "conformsTo": {
+                "@id": "https://w3id.org/ro/crate/1.2-DRAFT"
+            },
+            "about": {
+                "@id": "https://fairscape.net/ark:59852/rocrate-2.cm4ai_chromatin_mda-mb-468_untreated_apmsembed_initialrun0.1alpha"
+            }
+        }
+        ```
+    """
+    guid: str = Field(alias="@id")
+    metadataType: Literal["CreativeWork"] = Field(alias="@type")
+    conformsTo: IdentifierValue
+    about: IdentifierValue
+
+
+class ROCrateMetadataElem(BaseModel):
+    """Metadata Element of ROCrate that represents the crate as a whole
+
+    Example
+        ```
+        {
+            '@id': 'https://fairscape.net/ark:59852/rocrate-2.cm4ai_chromatin_mda-mb-468_untreated_imageembedfold1_initialrun0.1alpha',
+            '@type': ['Dataset', 'https://w3id.org/EVI#ROCrate'],
+            'name': 'Initial integration run',
+            'description': 'Ideker Lab CM4AI 0.1 alpha MDA-MB-468 untreated chromatin Initial integration run IF Image Embedding IF microscopy images embedding fold1',
+            'keywords': ['Ideker Lab', 'fold1'],
+            'isPartOf': [
+                {'@id': 'ark:/Ideker_Lab'}, 
+                {'@id': 'ark:/Ideker_Lab/CM4AI'}
+                ],
+            'version': '0.5alpha',
+            'license': 'https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en',
+            'associatedPublication': 'Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.',
+            'author': ['Test']
+            'conditionsOfAccess': 'This dataset was created by investigators and staff of the Cell Maps for Artificial Intelligence project (CM4AI - https://cm4ai.org), a Data Generation Project of the NIH Bridge2AI program, and is copyright (c) 2024 by The Regents of the University of California and, for cellular imaging data, by The Board of Trustees of the Leland Stanford Junior University. It is licensed for reuse under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC-BY-NC-SA 4.0) license, whose terms are summarized here: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en.  Proper attribution credit as required by the license includes citation of the copyright holders and of the attribution parties, which includes citation of the following article: Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.”',
+            'copyrightNotice': 'Copyright (c) 2024 by The Regents of the University of California',
+            'hasPart': [
+                {'@id': 'https://fairscape.net/ark:59852/software-cellmaps_image_embedding-N2ux5jg'},
+                {'@id': 'https://fairscape.net/ark:59852/dataset-cellmaps_image_embedding-output-file-N2ux5jg'},
+                {'@id': 'https://fairscape.net/ark:59852/dataset-Densenet-model-file-N2ux5jg'},
+                {'@id': 'https://fairscape.net/ark:59852/computation-IF-Image-Embedding-N2ux5jg'}
+            ]
+        }
+        ```
+    """ 
+    guid: str = Field(alias="@id")
+    metadataType: List[str] = Field(alias="@type")
+    name: str
+    keywords: List[str]
+    isPartOf: List[IdentifierValue]
+    version: str
+    dataLicense: str = Field(alias="license")
+    associatedPublication: str
+    author: Union[str, List[str]]
+    conditionsOfAccess: str
+    copyrightNotice: str
+    hasPart: List[IdentifierValue]
+    
+
+class ROCrateV1_2(BaseModel):
+    context: Optional[Dict] = Field(alias="@context")
+    metadataGraph: List[Union[
+        ROCrateDataset,
+        ROCrateSoftware,
+        ROCrateComputation,
+        ROCrateMetadataElem,
+        ROCrateMetadataFileElem,
+        ROCrateProject,
+        ROCrateOrganization,
+        Schema
+    ]] = Field(alias="@graph")
+
+
+    def cleanIdentifiers(self):
+        """ Clean metadata guid property from full urls to ark:{NAAN}/{postfix} 
+        """
+
+        def cleanGUID(metadata):
+            """ Clean metadata guid property from full urls to ark:{NAAN}/{postfix} 
+            """
+            if "http" in metadata.guid:
+                metadata.guid = urllib.parse.urlparse(metadata.guid).path.lstrip('/')
+ 
+        #clean ROCrate metadata identifier
+        rocrateMetadata = self.getCrateMetadata()
+        cleanGUID(rocrateMetadata)
+        
+        # clean identifiers and evi properties
+        for elem in self.getEVIElements():
+            cleanGUID(elem)
+
+            if isinstance(elem, ROCrateDataset):
+                # usedByComputation
+                for usedByComputation in elem.usedByComputation:
+                    cleanGUID(usedByComputation)
+                
+                # generatedBy
+                for generatedBy in elem.generatedBy:
+                    cleanGUID(generatedBy)
+
+            if isinstance(elem, ROCrateSoftware):
+                for usedByElem in elem.usedByComputation:
+                    cleanGUID(usedByElem)
+
+            if isinstance(elem, ROCrateComputation):
+                #elem.usedDataset
+                for usedDataset in elem.usedDataset:
+                    cleanGUID(usedDataset)
+                #elem.generated
+                for generated in elem.generated:
+                    cleanGUID(generated)
+                #elem.usedSoftware
+                for usedSoftware in elem.usedSoftware:
+                    cleanGUID(usedSoftware)
+
+
+    def getCrateMetadata(self)-> ROCrateMetadataElem:
+        """ Filter the Metadata Graph for the Metadata Element Describing the Toplevel ROCrate
+
+        :param self
+        :return: The RO Crate Metadata Elem describing the toplevel ROCrate
+        :rtype fairscape_mds.models.rocrate.ROCrateMetadataElem
+        """
+        filterResults = list(filter(
+            lambda x: isinstance(x, ROCrateMetadataElem),
+            self.metadataGraph
+        ))
+
+        # TODO support for nested crates 
+        # must find the ROCrateMetadataElem with '@id' == 'ro-crate-metadata.json'
+        if len(filterResults) != 1:
+            # TODO more detailed exception
+            raise Exception
+        else:
+            return filterResults[0]
+
+    def getSchemas(self) -> List[Schema]:
+        # TODO filter schemas
+        filterResults = list(filter(
+            lambda x: isinstance(x, Schema), 
+            self.metadataGraph
+        ))
+
+        return filterResults
+
+    def getDatasets(self) -> List[ROCrateDataset]:
+        """ Filter the Metadata Graph for Dataset Elements
+
+        :param self
+        :return: All dataset metadata records within the ROCrate
+        :rtype List[fairscape_mds.models.rocrate.ROCrateDataset]
+        """
+        filterResults = list(filter(
+            lambda x: isinstance(x, ROCrateDataset), 
+            self.metadataGraph
+        ))
+
+        return filterResults
+
+
+    def getSoftware(self) -> List[ROCrateSoftware]:
+        """ Filter the Metadata Graph for Software Elements
+
+        :param self
+        :return: All Software metadata records within the ROCrate
+        :rtype List[fairscape_mds.models.rocrate.ROCrateSoftware]
+        """
+        filterResults = list(filter(
+            lambda x: isinstance(x, ROCrateSoftware), 
+            self.metadataGraph
+        ))
+
+        return filterResults
+
+
+    def getComputations(self) -> List[ROCrateComputation]:
+        """ Filter the Metadata Graph for Computation Elements
+
+        :param self
+        :return: All Computation metadata records within the ROCrate
+        :rtype List[fairscape_mds.models.rocrate.ROCrateComputation]
+        """
+        filterResults = list(filter(
+            lambda x: isinstance(x, ROCrateComputation), 
+            self.metadataGraph
+        ))
+
+        return filterResults
+
+    def getEVIElements(self) -> List[Union[ROCrateComputation, ROCrateDataset, ROCrateSoftware, Schema]]:
+        return self.getDatasets() + self.getSoftware() + self.getComputations() + self.getSchemas()
+
+
 def UploadZippedCrate(
         MinioClient: minio.api.Minio, 
         BucketName: str, 
@@ -356,7 +542,7 @@ def ExtractCrate(
         transactionFolder: str,
         userCN: str,
         objectPath: str
-) -> dict:
+    ) -> dict:
     """
     Extract the ro-crate-metadata.json file from a zipped ROCrate
 
@@ -546,10 +732,6 @@ def ExtractCrate(
     return roCrateMetadata
 
 
-
-
-
-
 def UploadExtractedCrate(
         MinioClient, 
         BucketName: str, 
@@ -625,7 +807,6 @@ def UploadExtractedCrate(
                 )
 
     return (OperationStatus(True, "", 200), extractedPaths)
-
 
 
 def DeleteExtractedCrate(
@@ -763,7 +944,6 @@ def GetMetadataFromCrate(
 
     except Exception as e:
         raise Exception(f"ROCRATE ERROR: ro-crate-metadata.json not found exception={str(e)}")
-
 
 
 def zip_extracted_rocrate(bucket_name: str, object_loc_in_bucket, minio_client):
