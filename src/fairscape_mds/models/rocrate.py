@@ -1,13 +1,10 @@
 from fastapi.responses import StreamingResponse
-import hashlib
 import json
-import re
-import tempfile
 import pathlib
+from pathlib import Path
 
 import io
 import os
-from pathlib import Path
 from io import BytesIO
 import zipfile
 from zipfile import ZipFile
@@ -21,7 +18,7 @@ import sys
 import logging
 
 import uuid
-import zipfile
+import urllib
 import re
 import hashlib
 from pydantic import (
@@ -31,7 +28,6 @@ from pydantic import (
     ValidationError, 
     computed_field
 )
-
 from typing import (
     Optional, 
     Union, 
@@ -42,6 +38,7 @@ from typing import (
     Tuple
 )
 
+from fairscape_mds.models.schema import Schema
 from fairscape_mds.models.fairscape_base import (
     FairscapeBaseModel, 
     FairscapeEVIBaseModel, 
@@ -303,9 +300,11 @@ class ROCrateOrganization(IdentifierValue):
     metadataType: Literal['Organization'] = Field(alias="@type")
     name: str
 
+
 class ROCrateProject(IdentifierValue):
     metadataType: Literal['Project'] = Field(alias="@type")
     name: str
+
 
 class ROCrateMetadataFileElem(BaseModel):
     """Metadata Element of an ROCrate cooresponding to the `ro-crate-metadata.json` file itself
@@ -329,6 +328,7 @@ class ROCrateMetadataFileElem(BaseModel):
     metadataType: Literal["CreativeWork"] = Field(alias="@type")
     conformsTo: IdentifierValue
     about: IdentifierValue
+
 
 class ROCrateMetadataElem(BaseModel):
     """Metadata Element of ROCrate that represents the crate as a whole
@@ -383,8 +383,52 @@ class ROCrateV1_2(BaseModel):
         ROCrateMetadataElem,
         ROCrateMetadataFileElem,
         ROCrateProject,
-        ROCrateOrganization
+        ROCrateOrganization,
+        Schema
     ]] = Field(alias="@graph")
+
+
+    def cleanIdentifiers(self):
+        """ Clean metadata guid property from full urls to ark:{NAAN}/{postfix} 
+        """
+
+        def cleanGUID(metadata):
+            """ Clean metadata guid property from full urls to ark:{NAAN}/{postfix} 
+            """
+            if "http" in metadata.guid:
+                metadata.guid = urllib.parse.urlparse(metadata.guid).path.lstrip('/')
+ 
+        #clean ROCrate metadata identifier
+        rocrateMetadata = self.getCrateMetadata()
+        cleanGUID(rocrateMetadata)
+        
+        # clean identifiers and evi properties
+        for elem in self.getEVIElements():
+            cleanGUID(elem)
+
+            if isinstance(elem, ROCrateDataset):
+                # usedByComputation
+                for usedByComputation in elem.usedByComputation:
+                    cleanGUID(usedByComputation)
+                
+                # generatedBy
+                for generatedBy in elem.generatedBy:
+                    cleanGUID(generatedBy)
+
+            if isinstance(elem, ROCrateSoftware):
+                for usedByElem in elem.usedByComputation:
+                    cleanGUID(usedByElem)
+
+            if isinstance(elem, ROCrateComputation):
+                #elem.usedDataset
+                for usedDataset in elem.usedDataset:
+                    cleanGUID(usedDataset)
+                #elem.generated
+                for generated in elem.generated:
+                    cleanGUID(generated)
+                #elem.usedSoftware
+                for usedSoftware in elem.usedSoftware:
+                    cleanGUID(usedSoftware)
 
 
     def getCrateMetadata(self)-> ROCrateMetadataElem:
@@ -407,6 +451,14 @@ class ROCrateV1_2(BaseModel):
         else:
             return filterResults[0]
 
+    def getSchemas(self) -> List[Schema]:
+        # TODO filter schemas
+        filterResults = list(filter(
+            lambda x: isinstance(x, Schema), 
+            self.metadataGraph
+        ))
+
+        return filterResults
 
     def getDatasets(self) -> List[ROCrateDataset]:
         """ Filter the Metadata Graph for Dataset Elements
@@ -420,10 +472,7 @@ class ROCrateV1_2(BaseModel):
             self.metadataGraph
         ))
 
-        if len(filterResults) == 0:
-            raise Exception
-        else:
-            return filterResults
+        return filterResults
 
 
     def getSoftware(self) -> List[ROCrateSoftware]:
@@ -438,10 +487,7 @@ class ROCrateV1_2(BaseModel):
             self.metadataGraph
         ))
 
-        if len(filterResults) == 0:
-            raise Exception
-        else:
-            return filterResults
+        return filterResults
 
 
     def getComputations(self) -> List[ROCrateComputation]:
@@ -456,13 +502,10 @@ class ROCrateV1_2(BaseModel):
             self.metadataGraph
         ))
 
-        if len(filterResults) == 0:
-            raise Exception
-        else:
-            return filterResults
+        return filterResults
 
-    def getEVIElements(self) -> List[Union[ROCrateComputation, ROCrateDataset, ROCrateSoftware]]:
-        return self.getDatasets() + self.getSoftware() + self.getComputations()
+    def getEVIElements(self) -> List[Union[ROCrateComputation, ROCrateDataset, ROCrateSoftware, Schema]]:
+        return self.getDatasets() + self.getSoftware() + self.getComputations() + self.getSchemas()
 
 
 def UploadZippedCrate(
@@ -689,10 +732,6 @@ def ExtractCrate(
     return roCrateMetadata
 
 
-
-
-
-
 def UploadExtractedCrate(
         MinioClient, 
         BucketName: str, 
@@ -768,7 +807,6 @@ def UploadExtractedCrate(
                 )
 
     return (OperationStatus(True, "", 200), extractedPaths)
-
 
 
 def DeleteExtractedCrate(
@@ -906,7 +944,6 @@ def GetMetadataFromCrate(
 
     except Exception as e:
         raise Exception(f"ROCRATE ERROR: ro-crate-metadata.json not found exception={str(e)}")
-
 
 
 def zip_extracted_rocrate(bucket_name: str, object_loc_in_bucket, minio_client):

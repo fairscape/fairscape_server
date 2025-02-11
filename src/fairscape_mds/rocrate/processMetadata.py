@@ -1,21 +1,25 @@
+import urllib
 import json
 from typing import (
 	List,
 	Dict,
 	Callable
 )
-from fairscape_mds.models.rocrate import ROCrate
+from fairscape_mds.models.rocrate import (
+	ROCrate,
+	ROCrateV1_2,
+	ROCrateDataset,
+	ROCrateComputation,
+	ROCrateSoftware
+)
 
-class ROCrateFilterException(Exception):
-	def __init__(self, message, results):
-		self.results = results
-		self.message = message
-		super().__init__(self.message)
+from fairscape_mds.rocrate.errors import (
+	ROCrateFilterException
+)
 
 
-def filterOneMetadataGraph(metadataGraph: List[Dict], filterFunc: Callable) -> Dict:
+def filterOneMetadataGraph(metadataGraph: List[Dict], filterFunc: Callable) -> Dict:	
 	""" Given a metadataGraph filter the elements using a passed callable and return one element 
-
 	:param metadataGraph: input metadata graph
 	:type metadataGraph: List[Dict]
 	:param filterFunc: filter function to preform on the graph

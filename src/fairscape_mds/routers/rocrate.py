@@ -20,7 +20,11 @@ from fairscape_mds.models.rocrate import (
     PublishROCrateMetadata,
     PublishProvMetadata,
     ROCrate,
-    ROCrateDistribution
+    ROCrateDistribution,
+    ROCrateV1_2
+)
+from fairscape_mds.rocrate.publish import (
+    MintROCrateMetadataRequest
 )
 
 from fairscape_mds.worker import (
@@ -56,7 +60,37 @@ minioConfig= fairscapeConfig.minio
 minioClient = fairscapeConfig.CreateMinioClient()
 
 
+@router.post(
+    "/rocrate/metadata",
+    summary="Upload an ROCrate metadata record",
+    status_code=201
+    )
+def publishMetadata(
+    currentUser: Annotated[UserLDAP, Depends(getCurrentUser)],
+    crateMetadata: ROCrateV1_2
+):
+    mintRequest = MintROCrateMetadataRequest(
+        rocrateCollection,
+        identifierCollection,
+        crateMetadata,
+        currentUser.cn
+    )
 
+    try:
+        published = mintRequest.publish()
+
+        return JSONResponse(
+            content={"published": published}, 
+            status_code=202
+            )
+    except:
+
+        return JSONResponse(
+            content={
+                "error": "error minting rocrate identifiers"
+                }, 
+            status_code=400
+            )
 
 @router.post(
         "/rocrate/upload-async",
