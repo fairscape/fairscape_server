@@ -32,6 +32,9 @@ from fairscape_mds.models.rocrate import (
     ROCrate,
     ROCrateDistribution
 )
+from fairscape_mds.rocrate.errors import (
+    ROCrateException
+)
 from fairscape_mds.auth.ldap import getUserByCN
 
 from typing import List, Dict, Optional
@@ -470,7 +473,7 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
             )
 
     if rocrateFound:
-        raise ROCrateMetadataExistsException(
+        raise ROCrateException(
             f"ROCrate with @id == {crateMetadata['@id']} found", None)
     
 
