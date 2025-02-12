@@ -26,6 +26,22 @@ class EvidenceGraph(BaseModel, extra=Extra.allow):
        processed = set()
        self.graph = self._build_graph_recursive(node_id, mongo_collection, processed)
 
+    def _flatten_metadata(self, node: Dict) -> Dict:
+        """Flatten metadata field if it exists, preserving top-level fields."""
+        if "metadata" not in node:
+            return node
+            
+        # Create a copy of the node without metadata
+        flattened = {k: v for k, v in node.items() if k != "metadata"}
+        
+        # Update with metadata contents, preserving any existing top-level fields
+        metadata = node["metadata"]
+        for key, value in metadata.items():
+            if key not in flattened:  # Don't overwrite existing top-level fields
+                flattened[key] = value
+                
+        return flattened
+
     def _build_graph_recursive(self, node_id: str, collection: pymongo.collection.Collection, processed: set) -> Dict:
         if node_id in processed:
             return {"@id": node_id}
@@ -33,6 +49,8 @@ class EvidenceGraph(BaseModel, extra=Extra.allow):
         node = collection.find_one({"@id": node_id}, {"_id": 0})
         if not node:
             return {"@id": node_id}
+        
+        node = self._flatten_metadata(node)
             
         processed.add(node_id)
         result = self._build_base_node(node)
