@@ -113,6 +113,7 @@ class ROCrateSoftware(BaseModel):
 class ROCrateComputation(BaseModel):
     guid: str = Field(alias="@id")
     name: str
+    author: str
     metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Computation")
     additionalType: Optional[str] = Field(default=COMPUTATION_TYPE)
     runBy: str
