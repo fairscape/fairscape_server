@@ -409,32 +409,40 @@ class ROCrateV1_2(BaseModel):
         
         # clean identifiers and evi properties
         for elem in self.getEVIElements():
-            cleanGUID(elem)
-
+            if "ark:" in elem.guid:  # Only clean if contains "ark:"
+                cleanGUID(elem)
+                
             if isinstance(elem, ROCrateDataset):
                 # usedByComputation
                 for usedByComputation in elem.usedByComputation:
-                    cleanGUID(usedByComputation)
-                
+                    if "ark:" in usedByComputation.guid:
+                        cleanGUID(usedByComputation)
+                        
                 # generatedBy
                 for generatedBy in elem.generatedBy:
-                    cleanGUID(generatedBy)
-
+                    if "ark:" in generatedBy.guid:
+                        cleanGUID(generatedBy)
+                        
             if isinstance(elem, ROCrateSoftware):
                 for usedByElem in elem.usedByComputation:
-                    cleanGUID(usedByElem)
-
+                    if "ark:" in usedByElem.guid:
+                        cleanGUID(usedByElem)
+                        
             if isinstance(elem, ROCrateComputation):
-                #elem.usedDataset
+                # elem.usedDataset
                 for usedDataset in elem.usedDataset:
-                    cleanGUID(usedDataset)
-                #elem.generated
+                    if "ark:" in usedDataset.guid:
+                        cleanGUID(usedDataset)
+                        
+                # elem.generated
                 for generated in elem.generated:
-                    cleanGUID(generated)
-                #elem.usedSoftware
+                    if "ark:" in generated.guid:
+                        cleanGUID(generated)
+                        
+                # elem.usedSoftware
                 for usedSoftware in elem.usedSoftware:
-                    cleanGUID(usedSoftware)
-
+                    if "ark:" in usedSoftware.guid:
+                        cleanGUID(usedSoftware)
 
     def getCrateMetadata(self)-> ROCrateMetadataElem:
         """ Filter the Metadata Graph for the Metadata Element Describing the Toplevel ROCrate
