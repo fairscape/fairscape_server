@@ -94,6 +94,8 @@ def normalize_class_type(value: Union[str, ClassType]) -> ClassType:
     
 ValidatedClassType = Annotated[ClassType, BeforeValidator(normalize_class_type)]
 
+class IdentifierValue(BaseModel):
+    guid: str = Field(alias="@id")
 class Identifier(BaseModel):
     model_config = ConfigDict(extra='allow')
     guid: str = Field(

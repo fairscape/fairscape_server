@@ -76,6 +76,7 @@ ROCRATE_TYPE = "ROCrate"
 
 class ROCrateDataset(BaseModel):
     guid: str = Field(alias="@id")
+    name: str
     metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Dataset")
     additionalType: Optional[str] = Field(default=DATASET_TYPE)
     author: Union[str, List[str]]
@@ -90,11 +91,12 @@ class ROCrateDataset(BaseModel):
     generatedBy: Optional[Union[IdentifierValue, List[IdentifierValue]]] = Field(default=[])
     derivedFrom: Optional[List[IdentifierValue]] = Field(default=[])
     usedByComputation: Optional[List[IdentifierValue]] = Field(default=[])
-    contentUrl: Optional[str] = Field(default=None)
+    contentUrl: Optional[Union[str, List[str]]] = Field(default=None)
 
 
 class ROCrateSoftware(BaseModel): 
     guid: str = Field(alias="@id")
+    name: str
     metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Software")
     additionalType: Optional[str] = Field(default=SOFTWARE_TYPE)
     author: str = Field(min_length=4)
@@ -110,9 +112,11 @@ class ROCrateSoftware(BaseModel):
 
 class ROCrateComputation(BaseModel):
     guid: str = Field(alias="@id")
+    name: str
     metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Computation")
     additionalType: Optional[str] = Field(default=COMPUTATION_TYPE)
     runBy: str
+    description: str = Field(min_length=10)
     dateCreated: str
     associatedPublication: Optional[str] = Field(default=None)
     additionalDocumentation: Optional[str] = Field(default=None)
@@ -133,7 +137,7 @@ class ROCrate(BaseModel):
     guid: str = Field(alias="@id")
     metadataType: Optional[str] = Field(default="https://schema.org/Dataset", alias="@type")
     additionalType: Optional[str] = Field(default=ROCRATE_TYPE)
-    name: str = constr(max_length=100)
+    name: str
     sourceOrganization: Optional[str] = Field(default=None)
     metadataGraph: List[Union[
         ROCrateDataset,
@@ -363,6 +367,7 @@ class ROCrateMetadataElem(BaseModel):
     guid: str = Field(alias="@id")
     metadataType: List[str] = Field(alias="@type")
     name: str
+    description: str
     keywords: List[str]
     isPartOf: List[IdentifierValue]
     version: str
