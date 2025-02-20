@@ -42,7 +42,8 @@ from fairscape_mds.models.schema import Schema
 from fairscape_mds.models.fairscape_base import (
     FairscapeBaseModel, 
     FairscapeEVIBaseModel, 
-    IdentifierValue
+    IdentifierValue,
+    IdentifierPropertyValue
 )
 from fairscape_mds.models.dataset import (
         DatasetDistribution, 
@@ -309,6 +310,33 @@ class ROCrateProject(IdentifierValue):
     metadataType: Literal['Project'] = Field(alias="@type")
     name: str
 
+class BioChemEntity(BaseModel):
+    """ Pydantic model for the Schema.org BioChemEntity datatype
+
+    This class can apply to Protiens, Genes, Chemical Entities, or Biological Samples
+    """
+    guid: str = Field(alias="@id")
+    metadataType: Optional[str] = Field(default="BioChemEntity", alias="@type")
+    name: str
+    identifier: Optional[List[IdentifierPropertyValue]] = Field(default=[])
+    associatedDisease: IdentifierValue
+    usedBy: Optional[List[IdentifierValue]] = Field(default=[])
+    description: str
+
+
+class MedicalCondition(BaseModel):
+    """ Pydantic model for the Schema.org MedicalCondition datatype
+
+    This class represents any condition of the human body that affects the normal functioning of a person, whether physically or mentally. Includes diseases, injuries, disabilities, disorders, syndromes, etc.
+    """
+    guid: str = Field(alias="@id")
+    metadataType: Optional[str] = Field(default="MedicalCondition", alias="@type")
+    name: str
+    identifier: Optional[List[IdentifierPropertyValue]] = Field(default=[])
+    drug: Optional[List[IdentifierValue]] = Field(default=[])
+    usedBy: Optional[List[IdentifierValue]] = Field(default=[])
+    description: str
+
 
 class ROCrateMetadataFileElem(BaseModel):
     """Metadata Element of an ROCrate cooresponding to the `ro-crate-metadata.json` file itself
@@ -389,7 +417,9 @@ class ROCrateV1_2(BaseModel):
         ROCrateMetadataFileElem,
         ROCrateProject,
         ROCrateOrganization,
-        Schema
+        Schema,
+        BioChemEntity,
+        MedicalCondition
     ]] = Field(alias="@graph")
 
 
@@ -517,7 +547,47 @@ class ROCrateV1_2(BaseModel):
 
         return filterResults
 
-    def getEVIElements(self) -> List[Union[ROCrateComputation, ROCrateDataset, ROCrateSoftware, Schema]]:
+
+    def getBioChemEntities(self) -> List[BioChemEntity]:
+        """ Filter the Metadata Graph for BioChemEntity Elements
+
+        :param self
+        :return: All BioChemEntity metadata records within the ROCrate
+        :rtype List[fairscape_mds.models.rocrate.BioChemEntity]
+        """
+        filterResults = list(filter(
+            lambda x: isinstance(x, BioChemEntity), 
+            self.metadataGraph
+        ))
+
+        return filterResults
+
+
+    def getMedicalConditions(self) -> List[MedicalCondition]:
+        """ Filter the Metadata Graph for MedicalCondition Elements
+
+        :param self
+        :return: All MedicalCondition metadata records within the ROCrate
+        :rtype List[fairscape_mds.models.rocrate.MedicalCondition]
+        """
+        filterResults = list(filter(
+            lambda x: isinstance(x, MedicalCondition), 
+            self.metadataGraph
+        ))
+
+        return filterResults
+
+
+    def getEVIElements(self) -> List[Union[
+        ROCrateComputation, 
+        ROCrateDataset, 
+        ROCrateSoftware, 
+        Schema,
+        BioChemEntity,
+        MedicalCondition
+        ]]:
+        """ Query the metadata graph for elements which require minting identifiers
+        """
         return self.getDatasets() + self.getSoftware() + self.getComputations() + self.getSchemas()
 
 
@@ -618,7 +688,7 @@ def ExtractCrate(
             # get the json ld
             metadataSearch = list(pathlib.Path(extractTempDir).glob("*ro-crate-metadata.json"))
             if len(metadataSearch) != 1:
-                raise Exception("ro-crate-metadata.json not found in crate")	
+                raise Exception("ro-crate-metadata.json not found in crate")
 
             crateMetadataPath = metadataSearch[0]
 

@@ -97,6 +97,11 @@ ValidatedClassType = Annotated[ClassType, BeforeValidator(normalize_class_type)]
 class IdentifierValue(BaseModel):
     guid: str = Field(alias="@id")
 
+class IdentifierPropertyValue(BaseModel):
+    metadataType: str = Field(default="PropertyValue")
+    value: str
+    name: str
+
 
 class Identifier(BaseModel):
     model_config = ConfigDict(extra='allow')
