@@ -98,7 +98,7 @@ class IdentifierValue(BaseModel):
     guid: str = Field(alias="@id")
 
 class IdentifierPropertyValue(BaseModel):
-    metadataType: str = Field(default="PropertyValue")
+    metadataType: str = Field(default="PropertyValue", alias="@type")
     value: str
     name: str
 

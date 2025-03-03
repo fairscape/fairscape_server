@@ -319,9 +319,9 @@ class BioChemEntity(BaseModel):
     metadataType: Optional[str] = Field(default="BioChemEntity", alias="@type")
     name: str
     identifier: Optional[List[IdentifierPropertyValue]] = Field(default=[])
-    associatedDisease: IdentifierValue
+    associatedDisease: Optional[IdentifierValue] = Field(default=None)
     usedBy: Optional[List[IdentifierValue]] = Field(default=[])
-    description: str
+    description: Optional[str] = Field(default=None)
 
 
 class MedicalCondition(BaseModel):
@@ -399,11 +399,11 @@ class ROCrateMetadataElem(BaseModel):
     keywords: List[str]
     isPartOf: List[IdentifierValue]
     version: str
-    dataLicense: str = Field(alias="license")
-    associatedPublication: str
+    dataLicense: Optional[str] = Field(alias="license")
+    associatedPublication: Optional[str]
     author: Union[str, List[str]]
-    conditionsOfAccess: str
-    copyrightNotice: str
+    conditionsOfAccess: Optional[str]
+    copyrightNotice: Optional[str]
     hasPart: List[IdentifierValue]
     
 
