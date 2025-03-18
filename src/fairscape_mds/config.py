@@ -14,6 +14,8 @@ import ldap3
 import minio
 from functools import lru_cache
 import uvicorn
+import boto3
+from botocore.client import Config
 
 from dotenv import dotenv_values
 import urllib3
@@ -241,6 +243,27 @@ class MinioConfig(BaseModel):
     secure: Optional[bool] = Field(default=False)
     cert_check: Optional[bool] = Field(default=False)
 
+    def CreateBotoClient(self):
+        if self.secure:
+            endpointURL = 'https://' + self.host + ':' + self.port
+        else:
+            endpointURL = 'http://' + self.host + ':' + self.port
+
+        s3 = boto3.client('s3',
+            endpoint_url=endpointURL,
+            aws_access_key_id=self.access_key,
+            aws_secret_access_key=self.secret_key,
+            config=Config(signature_version='s3v4'),
+            region_name='us-east-1'
+        )
+
+        def _add_header(request, **kwargs):
+            request.headers.add_header('x-minio-extract', 'true')
+
+        event_system = s3.meta.events
+        event_system.register_first('before-sign.s3.*', _add_header)
+
+        return s3
 
     def CreateClient(self):
 

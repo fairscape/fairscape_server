@@ -57,7 +57,7 @@ userCollection = mongoDB[fairscapeConfig.mongo.user_collection]
 asyncCollection = mongoDB[fairscapeConfig.mongo.async_collection]
 
 minioConfig= fairscapeConfig.minio
-minioClient = fairscapeConfig.CreateMinioClient()
+minioClient = fairscapeConfig.minio.CreateBotoClient()
 
 
 @router.post(
@@ -111,7 +111,7 @@ def uploadAsync(
     zipFilename = str(Path(crate.filename).name)
 
     # set the key for uploading the object to minio
-    zippedObjectName = Path(fairscapeConfig.minio.default_bucket_path) / currentUser.cn / 'transactions' / transactionFolder / zipFilename
+    zippedObjectName = Path(fairscapeConfig.minio.default_bucket_path) / currentUser.cn / 'rocrates' / zipFilename
 
     # upload the zipped ROCrate 
     zipped_upload_status= UploadZippedCrate(

@@ -413,4 +413,4 @@ if __name__ =="__main__":
 	setupMinio()
 
 	# seed data
-	uploadCrates()
+	#uploadCrates()

@@ -592,30 +592,26 @@ class ROCrateV1_2(BaseModel):
 
 
 def UploadZippedCrate(
-        MinioClient: minio.api.Minio, 
+        MinioClient, 
         BucketName: str, 
         ObjectName: str,
         ZippedObject, 
         Filename: str,
         ) -> OperationStatus:
-    """ Upload A Zipped ROCrate
+    """ Upload A Zipped ROCrate using the Boto3 Library
     """
     
-    upload_result = MinioClient.put_object(
-        bucket_name= BucketName, 
-        object_name= ObjectName,
-        data= ZippedObject, 
-        length= -1,
-        part_size= 5 * 1024 * 1024 ,
-        content_type= "application/zip"
+    upload_result = MinioClient.upload_fileobj(
+        Bucket= BucketName, 
+        Key= ObjectName,
+        Fileobj= ZippedObject, 
+        ExtraArgs={'ContentType': 'application/zip'}
         )                
 
     # log upload of zipped rocrate
     rocrate_logger.info(
         "UploadZippedCrate\t" +
-        "message='Uploaded Zipped Crate Minio'\t" +
-        f"object_name='{upload_result.object_name}\t' " +
-        f"object_etag='{upload_result.etag}'"
+        "message='Uploaded Zipped Crate Minio'\t" 
         )
 
     return OperationStatus(True, "", 200)
