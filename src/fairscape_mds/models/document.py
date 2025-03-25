@@ -1,11 +1,11 @@
 # pydantic model for Distributions
 from pydantic import BaseModel, Field
 from typing import Union, Optional, List
-from fairscape_mds.models.rocrate import (
+from fairscape_models import (
 	ROCrateV1_2,
-	ROCrateDataset,
-	ROCrateSoftware,
-	ROCrateComputation,
+	Dataset,
+	Software,
+	Computation,
 	ROCrateMetadataElem
 )
 from fairscape_mds.models.schema import Schema
@@ -23,9 +23,9 @@ class MongoDocument(BaseModel):
 	metadata: Union[
 		ROCrateV1_2, 
 		ROCrateMetadataElem, 
-		ROCrateDataset, 
-		ROCrateSoftware, 
-		ROCrateComputation, 
+		Dataset, 
+		Software, 
+		Computation, 
 		Schema
 		]
 	distribution: Optional[FairscapeDataDistribution] = Field(default=None)

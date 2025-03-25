@@ -7,6 +7,9 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 
+from fairscape_models.rocrate import ROCrateV1_2
+
+
 from fairscape_mds.config import get_fairscape_config
 
 from fairscape_mds.models.utils import remove_ids
@@ -20,8 +23,6 @@ from fairscape_mds.models.rocrate import (
     PublishROCrateMetadata,
     PublishProvMetadata,
     ROCrate,
-    ROCrateDistribution,
-    ROCrateV1_2
 )
 from fairscape_mds.rocrate.publish import (
     MintROCrateMetadataRequest

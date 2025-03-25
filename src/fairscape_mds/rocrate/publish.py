@@ -1,6 +1,6 @@
 import pymongo
 from pydantic_core import ValidationError
-from fairscape_mds.models.rocrate import (
+from fairscape_models.rocrate import (
 	ROCrateV1_2,
 	ROCrateMetadataElem,
 )
