@@ -7,6 +7,9 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse
 
+from fairscape_models.rocrate import ROCrateV1_2
+
+
 from fairscape_mds.config import get_fairscape_config
 
 from fairscape_mds.models.utils import remove_ids
@@ -20,7 +23,9 @@ from fairscape_mds.models.rocrate import (
     PublishROCrateMetadata,
     PublishProvMetadata,
     ROCrate,
-    ROCrateDistribution
+)
+from fairscape_mds.rocrate.publish import (
+    MintROCrateMetadataRequest
 )
 
 from fairscape_mds.worker import (
@@ -53,10 +58,41 @@ userCollection = mongoDB[fairscapeConfig.mongo.user_collection]
 asyncCollection = mongoDB[fairscapeConfig.mongo.async_collection]
 
 minioConfig= fairscapeConfig.minio
-minioClient = fairscapeConfig.CreateMinioClient()
+minioClient = fairscapeConfig.minio.CreateBotoClient()
 
 
+@router.post(
+    "/rocrate/metadata",
+    summary="Upload an ROCrate metadata record",
+    status_code=201
+    )
+def publishMetadata(
+    currentUser: Annotated[UserLDAP, Depends(getCurrentUser)],
+    crateMetadata: ROCrateV1_2
+):
+    mintRequest = MintROCrateMetadataRequest(
+        rocrateCollection,
+        identifierCollection,
+        crateMetadata,
+        currentUser.cn
+    )
 
+    try:
+        published = mintRequest.publish()
+
+        return JSONResponse(
+            content={"published": published}, 
+            status_code=202
+            )
+    except Exception as e:
+
+        return JSONResponse(
+            content={
+                "message": "error minting rocrate identifiers",
+                "error": str(e)
+                }, 
+            status_code=500
+            )
 
 @router.post(
         "/rocrate/upload-async",
@@ -76,7 +112,7 @@ def uploadAsync(
     zipFilename = str(Path(crate.filename).name)
 
     # set the key for uploading the object to minio
-    zippedObjectName = Path(fairscapeConfig.minio.default_bucket_path) / currentUser.cn / 'transactions' / transactionFolder / zipFilename
+    zippedObjectName = Path(fairscapeConfig.minio.default_bucket_path) / currentUser.cn / 'rocrates' / zipFilename
 
     # upload the zipped ROCrate 
     zipped_upload_status= UploadZippedCrate(
@@ -181,29 +217,26 @@ def rocrate_list(
     else:
         # filter by group ownership
         cursor = rocrateCollection.find(
-            {"permissions.group": currentUser.memberOf[0]} , 
-            projection={ "_id": 0}
-            )
-
-    responseJSON = { 
-        "rocrates": [
             {
-                "@id": f"{fairscapeConfig.url}/{crate.get('@id')}",
-                "name": crate.get("name"),
-                "description": crate.get("description"),
-                "keywords": crate.get("keywords"),
-                "sourceOrganization": crate.get("sourceOrganization"),
-                "contentURL": f"{fairscapeConfig.url}/rocrate/download/{crate.get('@id')}",
-                "@graph": [
-                    {
-                        "@id": f"{fairscapeConfig.url}/{crateElem.get('@id')}",
-                        "@type": crateElem.get("@type"),
-                        "name": crateElem.get("name"),
-                        "contentURL": f"{fairscapeConfig.url}/dataset/download/{crateElem.get('@id')}"
-                     }
-                     for crateElem in crate.get("@graph")
+                "$or": [
+                    {"permissions.group": currentUser.memberOf[0]},
+                    {"owner": currentUser.cn}
                 ]
-            } for crate in list(cursor)
+            },
+            projection={"_id": 0}
+        )
+
+    responseJSON = {
+        "rocrates": [
+        {
+            "@id": f"{fairscapeConfig.url}/{crate['metadata']['@graph'][1].get('@id')}",
+            "name": crate['metadata']['@graph'][1].get("name"),
+            "description": crate['metadata']['@graph'][1].get("description"),
+            "keywords": crate['metadata']['@graph'][1].get("keywords"),
+            "sourceOrganization": crate['metadata']['@graph'][1].get("sourceOrganization"),
+            "contentURL": f"{fairscapeConfig.url}/rocrate/download/{crate['metadata']['@graph'][1].get('@id')}",
+            "@graph":crate['metadata']['@graph'][2:]
+        } for crate in list(cursor)
         ]
     }
     
@@ -233,7 +266,10 @@ def dataset_get(NAAN: str, postfix: str):
 
     rocrateGUID = f"ark:{NAAN}/{postfix}"
     rocrateMetadata = rocrateCollection.find_one(
-        {"@id": rocrateGUID}, 
+            {"$or": [
+        {"@id": rocrateGUID},
+        {"@id": f"{rocrateGUID}/"}
+    ]}, 
         projection={"_id":0}
         ) 
 
@@ -242,22 +278,6 @@ def dataset_get(NAAN: str, postfix: str):
             status_code=404,
             content={"@id": rocrateGUID, "error": "ROCrate not found"}
         )
-
-    # format json-ld with absolute URIs
-    rocrateMetadata['@id'] = f"{fairscapeConfig.url}/{rocrateGUID}"
-
-    # remove permissions from top level metadata
-    rocrateMetadata.pop("permissions", None)
-    
-
-    # process every crate elem in @graph of ROCrate 
-    for crateElem in rocrateMetadata.get("@graph", []):
-        crateElem['@id'] = f"{fairscapeConfig.url}/{crateElem['@id']}"
-        crateElem.pop("_id", None)
-        crateElem.pop("permissions", None)
-        
-        if 'file' in crateElem.get('contentURL',''):
-            crateElem["contentURL"] = f"{fairscapeConfig.url}/dataset/download/{crateElem.get('@id')}"
 
 
     return JSONResponse(

@@ -188,13 +188,13 @@
       "additionalDocumentation": null,
       "command": "{'outdir': '0.1pipeline/2.cm4ai_chromatin_mda-mb-468_untreated_apmsembed_initialrun0.1alpha', 'inputdir': '0.1pipeline/1.cm4ai_chromatin_mda-mb-468_untreated_apmsloader_initialrun0.1alpha', 'dimensions': 1024, 'walk_length': 80, 'num_walks': 10, 'workers': 8, 'p': 2, 'q': 1, 'fake_embedder': False, 'skip_logging': False, 'logconf': None, 'verbose': 4, 'program': '/cellar/users/cchuras/miniconda3/envs/py38/bin/cellmaps_ppi_embeddingcmd.py', 'version': '0.1.0a7'}",
       "usedSoftware": [
-        "https://fairscape.net/ark:59852/software-cellmaps_ppi_embedding-gbXAtqF"
+        {"@id": "https://fairscape.net/ark:59852/software-cellmaps_ppi_embedding-gbXAtqF"}
       ],
       "usedDataset": [
-        "https://fairscape.net/ark:59852/dataset-cellmaps_ppidownloader-output-file-58sGTge"
+        {"@id": "https://fairscape.net/ark:59852/dataset-cellmaps_ppidownloader-output-file-58sGTge"}
       ],
       "generated": [
-        "https://fairscape.net/ark:59852/dataset-cellmaps_ppi_embedding-output-file-gbXAtqF"
+        {"@id": "https://fairscape.net/ark:59852/dataset-cellmaps_ppi_embedding-output-file-gbXAtqF"}
       ],
       "version": "0.5alpha",
       "author": "Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T.",

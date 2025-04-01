@@ -1,13 +1,10 @@
 from fastapi.responses import StreamingResponse
-import hashlib
 import json
-import re
-import tempfile
 import pathlib
+from pathlib import Path
 
 import io
 import os
-from pathlib import Path
 from io import BytesIO
 import zipfile
 from zipfile import ZipFile
@@ -21,7 +18,7 @@ import sys
 import logging
 
 import uuid
-import zipfile
+import urllib
 import re
 import hashlib
 from pydantic import (
@@ -31,25 +28,32 @@ from pydantic import (
     ValidationError, 
     computed_field
 )
-
 from typing import (
     Optional, 
     Union, 
     Dict, 
     List, 
+    Literal,
     Generator,
     Tuple
 )
 
-from fairscape_mds.models.fairscape_base import FairscapeBaseModel, FairscapeEVIBaseModel
+from fairscape_models.fairscape_base import IdentifierValue
+from fairscape_models.dataset import Dataset
+from fairscape_models.computation import Computation
+from fairscape_models.software import Software
+from fairscape_models.rocrate import (
+    ROCrateDistribution,
+    ROCrateV1_2
+)
+from fairscape_models.utilities import OperationStatus
+
 from fairscape_mds.models.dataset import (
         DatasetDistribution, 
         MinioDistribution, 
         DistributionTypeEnum,
-        URLDistribution
         )
 
-from fairscape_mds.utilities.operation_status import OperationStatus
 from fairscape_mds.models.user import UserLDAP
 
 
@@ -70,101 +74,16 @@ SOFTWARE_TYPE = "Software"
 COMPUTATION_TYPE = "Computation"
 ROCRATE_TYPE = "ROCrate"
 
-class ROCrateDataset(FairscapeEVIBaseModel):
-    guid: str = Field(alias="@id")
-    metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Dataset")
-    additionalType: Optional[str] = Field(default=DATASET_TYPE)
-    author: str = Field(max_length=64)
-    datePublished: str = Field(...)
-    version: str = Field(default="0.1.0")
-    description: str = Field(min_length=10)
-    keywords: List[str] = Field(...)
-    associatedPublication: Optional[str] = Field(default=None)
-    additionalDocumentation: Optional[str] = Field(default=None)
-    fileFormat: str = Field(alias="format")
-    dataSchema: Optional[Union[str, dict]] = Field(alias="evi:Schema", default=None)
-    generatedBy: Optional[List[str]] = Field(default=[])
-    derivedFrom: Optional[List[str]] = Field(default=[])
-    usedByComputation: Optional[List[str]] = Field(default=[])
-    contentUrl: Optional[str] = Field(default=None)
-
-
-class ROCrateDatasetContainer(FairscapeBaseModel): 
-    guid: str = Field(alias="@id")
-    metadataType: Optional[str] = Field(
-        default="https://w3id.org/EVI#Dataset", 
-        alias="@type"
-        )
-    additionalType: Optional[str] = Field(default="DatasetContainer")
-    name: str
-    version: str = Field(default="0.1.0")
-    description: str = Field(min_length=10)
-    keywords: List[str] = Field(...)
-    generatedBy: Optional[List[str]] = Field(default=[])
-    derivedFrom: Optional[List[str]] = Field(default=[])
-    usedByComputation: Optional[List[str]] = Field(default=[])
-    hasPart: Optional[List[str]] = Field(default=[])
-    isPartOf: Optional[List[str]] = Field(default=[])
-
-
-    def validate_crate(self, PassedCrate)->None:
-        # for all linked IDs they must be
-
-        # hasPart/isPartOf must be inside the crate or a valid ark
-
-        # lookup ark if NAAN is local
-
-        # if remote, take as valid
-        pass
-
-
-class ROCrateSoftware(FairscapeBaseModel): 
-    guid: str = Field(alias="@id")
-    metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Software")
-    additionalType: Optional[str] = Field(default=SOFTWARE_TYPE)
-    author: str = Field(min_length=4, max_length=64)
-    dateModified: str
-    version: str = Field(default="0.1.0")
-    description: str =  Field(min_length=10)
-    associatedPublication: Optional[str] = Field(default=None)
-    additionalDocumentation: Optional[str] = Field(default=None)
-    fileFormat: str = Field(title="fileFormat", alias="format")
-    usedByComputation: Optional[List[str]] = Field(default=[])
-    contentUrl: Optional[str] = Field(default=None)
-
-
-class ROCrateComputation(FairscapeBaseModel):
-    guid: str = Field(alias="@id")
-    metadataType: Optional[str] = Field(default="https://w3id.org/EVI#Computation")
-    additionalType: Optional[str] = Field(default=COMPUTATION_TYPE)
-    runBy: str
-    dateCreated: str
-    associatedPublication: Optional[str] = Field(default=None)
-    additionalDocumentation: Optional[str] = Field(default=None)
-    command: Optional[Union[List[str], str]] = Field(default=None)
-    usedSoftware: Optional[List[str]] = Field(default=[])
-    usedDataset: Optional[List[str]] = Field(default=[])
-    generated: Optional[List[str]] = Field(default=[])
-
-
-class ROCrateDistribution(BaseModel):
-    extractedROCrateBucket: Optional[str] = Field(default=None)
-    archivedROCrateBucket: Optional[str] = Field(default=None)
-    extractedObjectPath: Optional[List[str]] = Field(default=[])
-    archivedObjectPath: Optional[str] = Field(default=None)
-
-
 class ROCrate(BaseModel):
     guid: str = Field(alias="@id")
     metadataType: Optional[str] = Field(default="https://schema.org/Dataset", alias="@type")
     additionalType: Optional[str] = Field(default=ROCRATE_TYPE)
-    name: str = constr(max_length=100)
+    name: str
     sourceOrganization: Optional[str] = Field(default=None)
     metadataGraph: List[Union[
-        ROCrateDataset,
-        ROCrateSoftware,
-        ROCrateComputation,
-        ROCrateDatasetContainer
+        Dataset,
+        Software,
+        Computation,
     ]] = Field(alias="@graph", 
                # TODO causes TypeError: list is not a valid discriminator
                #discriminator='additionalType'
@@ -322,31 +241,36 @@ class ROCrate(BaseModel):
                 )
 
 
+class ROCrateOrganization(IdentifierValue):
+    metadataType: Literal['Organization'] = Field(alias="@type")
+    name: str
+
+
+class ROCrateProject(IdentifierValue):
+    metadataType: Literal['Project'] = Field(alias="@type")
+    name: str
+
 def UploadZippedCrate(
-        MinioClient: minio.api.Minio, 
+        MinioClient, 
         BucketName: str, 
         ObjectName: str,
         ZippedObject, 
         Filename: str,
         ) -> OperationStatus:
-    """ Upload A Zipped ROCrate
+    """ Upload A Zipped ROCrate using the Boto3 Library
     """
     
-    upload_result = MinioClient.put_object(
-        bucket_name= BucketName, 
-        object_name= ObjectName,
-        data= ZippedObject, 
-        length= -1,
-        part_size= 5 * 1024 * 1024 ,
-        content_type= "application/zip"
+    upload_result = MinioClient.upload_fileobj(
+        Bucket= BucketName, 
+        Key= ObjectName,
+        Fileobj= ZippedObject, 
+        ExtraArgs={'ContentType': 'application/zip'}
         )                
 
     # log upload of zipped rocrate
     rocrate_logger.info(
         "UploadZippedCrate\t" +
-        "message='Uploaded Zipped Crate Minio'\t" +
-        f"object_name='{upload_result.object_name}\t' " +
-        f"object_etag='{upload_result.etag}'"
+        "message='Uploaded Zipped Crate Minio'\t" 
         )
 
     return OperationStatus(True, "", 200)
@@ -356,7 +280,7 @@ def ExtractCrate(
         transactionFolder: str,
         userCN: str,
         objectPath: str
-) -> dict:
+    ) -> dict:
     """
     Extract the ro-crate-metadata.json file from a zipped ROCrate
 
@@ -419,7 +343,7 @@ def ExtractCrate(
             # get the json ld
             metadataSearch = list(pathlib.Path(extractTempDir).glob("*ro-crate-metadata.json"))
             if len(metadataSearch) != 1:
-                raise Exception("ro-crate-metadata.json not found in crate")	
+                raise Exception("ro-crate-metadata.json not found in crate")
 
             crateMetadataPath = metadataSearch[0]
 
@@ -546,10 +470,6 @@ def ExtractCrate(
     return roCrateMetadata
 
 
-
-
-
-
 def UploadExtractedCrate(
         MinioClient, 
         BucketName: str, 
@@ -625,7 +545,6 @@ def UploadExtractedCrate(
                 )
 
     return (OperationStatus(True, "", 200), extractedPaths)
-
 
 
 def DeleteExtractedCrate(
@@ -763,7 +682,6 @@ def GetMetadataFromCrate(
 
     except Exception as e:
         raise Exception(f"ROCRATE ERROR: ro-crate-metadata.json not found exception={str(e)}")
-
 
 
 def zip_extracted_rocrate(bucket_name: str, object_loc_in_bucket, minio_client):

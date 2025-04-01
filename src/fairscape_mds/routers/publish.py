@@ -6,7 +6,7 @@ from pathlib import Path
 from fairscape_mds.models.user import UserLDAP
 from fairscape_mds.auth.oauth import getCurrentUser
 from fairscape_mds.config import get_fairscape_config
-from fairscape_mds.models.fairscape_base import FairscapeBaseModel
+from fairscape_models.fairscape_base import FairscapeBaseModel
 from fairscape_mds.auth.ldap import getUserTokens
 
 from fairscape_mds.models.publish import PublishingService, DataversePublisher, ZenodoPublisher, FigsharePublisher, DEFAULT_DATAVERSE_URL, DEFAULT_DATAVERSE_DB

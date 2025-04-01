@@ -145,8 +145,10 @@
       "associatedPublication": "Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T. Cell Maps for Artificial Intelligence: AI-Ready Maps of Human Cell Architecture from Disease-Relevant Cell Lines. BioRXiv 2024.",
       "additionalDocumentation": null,
       "format": "tsv",
-      "schema": "https://fairscape.net/ark:59852/schema-cm4ai-coembedding",
-      "generatedBy": "https://fairscape.net/ark:59852/computation-Merged-Embedding-Oyt0uvn",
+      "schema": {"@id": "https://fairscape.net/ark:59852/schema-cm4ai-coembedding"},
+      "generatedBy": [
+        {"@id": "https://fairscape.net/ark:59852/computation-Merged-Embedding-Oyt0uvn"}
+      ],
       "derivedFrom": [],
       "usedBy": [],
       "contentUrl": "file:///3.cm4ai_chromatin_mda-mb-468_untreated_coembedfold1_initialrun0.1alpha/coembedding_emd.tsv",
@@ -180,15 +182,15 @@
       "additionalDocumentation": null,
       "command": "{'outdir': '0.1pipeline/3.cm4ai_chromatin_mda-mb-468_untreated_coembedfold1_initialrun0.1alpha', 'ppi_embeddingdir': '0.1pipeline/2.cm4ai_chromatin_mda-mb-468_untreated_apmsembed_initialrun0.1alpha', 'image_embeddingdir': '0.1pipeline/2.cm4ai_chromatin_mda-mb-468_untreated_imageembedfold1_initialrun0.1alpha', 'latent_dimension': 128, 'n_epochs_init': 200, 'n_epochs': 500, 'jackknife_percent': 0.0, 'fake_embedding': False, 'logconf': None, 'verbose': 4, 'program': '/cellar/users/cchuras/miniconda3/envs/py38/bin/cellmaps_coembeddingcmd.py', 'version': '0.1.0a7'}",
       "usedSoftware": [
-        "https://fairscape.net/ark:59852/software-cellmaps_coembedding-Oyt0uvn"
+        {"@id": "https://fairscape.net/ark:59852/software-cellmaps_coembedding-Oyt0uvn"}
       ],
       "usedDataset": [
-        "https://fairscape.net/ark:59852/dataset-cellmaps_ppi_embedding-output-file-gbXAtqF",
-        "https://fairscape.net/ark:59852/dataset-cellmaps_image_embedding-output-file-SxmJwPA",
-        "https://fairscape.net/ark:59852/dataset-Densenet-model-file-SxmJwPA"
+        {"@id": "https://fairscape.net/ark:59852/dataset-cellmaps_ppi_embedding-output-file-gbXAtqF"},
+        {"@id": "https://fairscape.net/ark:59852/dataset-cellmaps_image_embedding-output-file-SxmJwPA"},
+        {"@id": "https://fairscape.net/ark:59852/dataset-Densenet-model-file-SxmJwPA"}
       ],
       "generated": [
-        "https://fairscape.net/ark:59852/dataset-coembedding_emd-tsv-coembedding-output-file-Oyt0uvn"
+        {"@id": "https://fairscape.net/ark:59852/dataset-coembedding_emd-tsv-coembedding-output-file-Oyt0uvn"}
       ],
       "version": "0.5alpha",
       "author": "Clark T, Schaffer L, Obernier K, Al Manir S, Churas CP, Dailamy A, Doctor Y, Forget A, Hansen JN, Hu M, Lenkiewicz J, Levinson MA, Marquez C, Mohan J, Nourreddine S, Niestroy J, Pratt D, Qian G, Thaker S, Belisle-Pipon J-C, Brandt C, Chen J, Ding Y, Fodeh S, Krogan N, Lundberg E, Mali P, Payne-Foster P, Ratcliffe S, Ravitsky V, Sali A, Schulz W, Ideker T.",

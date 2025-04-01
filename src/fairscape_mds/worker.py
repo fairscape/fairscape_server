@@ -1,42 +1,39 @@
-from celery import Celery
-import shutil
-import pathlib
-import zipfile
+# Standard library
+import datetime
+import io
 import json
 import logging
-import sys
 import pathlib
-import io
-import datetime
 import re
+import shutil
+import sys
+import zipfile
 from pathlib import Path
+from typing import Dict, List, Optional
+from uuid import UUID, uuid4
 
-logging.getLogger('pymongo').setLevel(logging.INFO)
+# Third party
+from celery import Celery
+from pydantic import BaseModel, Field, constr
+import boto3
+from botocore.client import Config
 
-
-# temporary fix for importing module problems
-# TODO change background tasks to module
 pathRoot = pathlib.Path(__file__).parents[1]
 sys.path.append(str(pathRoot))
 
-from pydantic import BaseModel, Field
-from fairscape_mds.config import get_fairscape_config
-from fairscape_mds.utilities.utils import parseArk
-from fairscape_mds.models.user import UserLDAP
-from fairscape_mds.models.dataset import DatasetDistribution, MinioDistribution
-from fairscape_mds.models.rocrate import (
-    ExtractCrate,
-    DeleteExtractedCrate,
-    GetMetadataFromCrate,
-    StreamZippedROCrate,
-    ROCrate,
-    ROCrateDistribution
-)
+# Fairscape
+from fairscape_models.fairscape_base import IdentifierPattern
+from fairscape_models.rocrate import ROCrateV1_2
+
 from fairscape_mds.auth.ldap import getUserByCN
+from fairscape_mds.config import get_fairscape_config
+from fairscape_mds.models.evidencegraph import EvidenceGraph
 
-from typing import List, Dict, Optional
-from uuid import UUID, uuid4
+from fairscape_mds.utilities.utils import parseArk
 
+
+# Configure logging
+logging.getLogger('pymongo').setLevel(logging.INFO)
 
 # setup logging
 #logging.basicConfig(stream="", level=logging.INFO)
@@ -54,6 +51,28 @@ backgroundTaskLogger.addHandler(workerLogHandler)
 # setup clients
 fairscapeConfig = get_fairscape_config()
 brokerURL = fairscapeConfig.redis.getBrokerURL()
+    
+minioClient = fairscapeConfig.minio.CreateClient()
+mongoClient = fairscapeConfig.mongo.CreateClient()
+
+mongoDB = mongoClient[fairscapeConfig.mongo.db]
+asyncCollection = mongoDB[fairscapeConfig.mongo.async_collection]
+identifierCollection = mongoDB[fairscapeConfig.mongo.identifier_collection]
+rocrateCollection = mongoDB[fairscapeConfig.mongo.rocrate_collection]
+
+s3 = boto3.client('s3',
+    endpoint_url='http://' + fairscapeConfig.minio.host + ":" + fairscapeConfig.minio.port,
+    aws_access_key_id=fairscapeConfig.minio.access_key,
+    aws_secret_access_key=fairscapeConfig.minio.secret_key,
+    config=Config(signature_version='s3v4'),
+    region_name='us-east-1'
+)
+
+def _add_header(request, **kwargs):
+	request.headers.add_header('x-minio-extract', 'true')
+
+event_system = s3.meta.events
+event_system.register_first('before-sign.s3.*', _add_header)
 
 celeryApp = Celery()
 celeryApp.conf.broker_url = brokerURL
@@ -169,6 +188,68 @@ def ProcessMetadata(roCrateMetadata, userCN: str, zipname: str):
             crateElement["@id"] = elementArk
 
 
+def extractMetadata(transactionFolder, zippedMetadataKey):
+    try:
+        metadataResponse = s3.get_object(
+            Bucket=fairscapeConfig.minio.default_bucket,
+            Key=str(zippedMetadataKey),
+        )
+
+    # handle no such key error
+    except s3.exceptions.NoSuchKey as err:
+        backgroundTaskLogger.error(
+            f"transaction: {str(transactionFolder)}" +
+            "\tmessage: failed to read ro-crate-metadata.json from zipped ROCrate" + f"\terror: {str(minioException)}"
+        )
+
+        asyncCollection.update_one(
+            {"transactionFolder": str(transactionFolder)},
+            {"$set": 
+                {
+                    "completed": True,
+                    "success": False,
+                    "error": f"failed to read ro-crate-metadata.json from path {str(zippedMetadataKey)}",
+                    "status": "Failed"
+                }
+            }
+        )
+
+    try:
+        metadataContent = metadataResponse['Body'].read()
+        metadataJSON = json.loads(metadataContent)
+
+    # TODO more specific exceptions
+    except:
+        backgroundTaskLogger.error(
+            f"transaction: {str(transactionFolder)}" +
+            "\tmessage: failed to parse ro-crate-metadata.json from zipped ROCrate" + f"\terror: {str(minioException)}"
+        )
+        
+        asyncCollection.update_one(
+            {"transactionFolder": str(transactionFolder)},
+            {"$set": 
+                {
+                    "completed": True,
+                    "success": False,
+                    "error": f"failed to parse ro-crate json",
+                    "status": "Failed"
+                }
+            }
+        )
+
+        raise Exception
+
+    asyncCollection.update_one(
+        {"transactionFolder": str(transactionFolder)},
+        {"$set": 
+            {
+                "stage": "extracting ro crate"
+            }
+        }
+    )
+
+    return metadataJSON
+
 
 @celeryApp.task(name='async-register-ro-crate')
 def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
@@ -184,89 +265,17 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
     currentUserLDAP = getUserByCN(ldapConnection, userCN)
     ldapConnection.unbind()
 
-    minioClient = fairscapeConfig.minio.CreateClient()
-    mongoClient = fairscapeConfig.mongo.CreateClient()
 
-    mongoDB = mongoClient[fairscapeConfig.mongo.db]
-    asyncCollection = mongoDB[fairscapeConfig.mongo.async_collection]
-    identifierCollection = mongoDB[fairscapeConfig.mongo.identifier_collection]
-    rocrateCollection = mongoDB[fairscapeConfig.mongo.rocrate_collection]
-
-    # download crate from minio and store in a temporary file
-    # write zip to temporary file and alter metadata
-    jobDir = pathlib.Path(f"/tmp/jobs/{transactionFolder}")
-    jobDir.mkdir(exist_ok=True)
-    tmpZipFilepath = jobDir / pathlib.Path(filePath).name
-    crateStem = pathlib.Path(filePath).stem
-
-    backgroundTaskLogger.info(
-        f"transaction: {str(transactionFolder)}" +
-        "\tmessage: extracting rocrate" +
-        f"\tcrateStem: {str(crateStem)}" +
-        f"\tzipFilepath: {str(tmpZipFilepath)}"
-    )
-
-    try:
-        objectResponse = minioClient.fget_object(
-            bucket_name=fairscapeConfig.minio.rocrate_bucket, 
-            object_name=filePath,
-            file_path=str(tmpZipFilepath)
-        )
-    except Exception as minioException:
-        backgroundTaskLogger.error(
-            f"transaction: {str(transactionFolder)}" +
-            "\tmessage: failed to read minio object" + f"\terror: {str(minioException)}"
-        )
-
-        asyncCollection.update_one(
-            {"transactionFolder": str(transactionFolder)},
-            {"$set": 
-                {
-                    "completed": True,
-                    "success": False,
-                    "error": f"Failed to read minio Object \terror: {str(minioException)}",
-                    "status": "Failed"
-                }
-            }
-        )
-
-        return False
-    #finally:
-    #    objectResponse.close()
-    #    objectResponse.release_conn()
-
-    asyncCollection.update_one(
-        {"transactionFolder": str(transactionFolder)},
-        {"$set": 
-            {
-                "stage": "extracting ro crate"
-            }
-        }
-    )
-
-    jobDir = pathlib.Path(f"/tmp/jobs/{transactionFolder}")
-    extractDir = jobDir / 'extracts'
-    extractDir.mkdir(exist_ok=True)
-
-    # try reading the tmp zip filepath
-    with tmpZipFilepath.open("rb") as tmpZipFileObj:
-        zipCrate = zipfile.ZipFile(tmpZipFileObj)
-        zipCrate.extractall(path=extractDir)
-
-        backgroundTaskLogger.info(
-            f"transaction: {str(transactionFolder)}" +
-            "\tmessage: extracted files"  
-        )
+    # extract metadata from the zipped ROCrate 
+    # construct the upload path
+    uploadPath = pathlib.PurePosixPath(filePath) 
     
-    # find the ro-crate-metadata.json file and read it in
-    metadataSearch = list(pathlib.Path(extractDir).rglob("*ro-crate-metadata.json"))
-    if len(metadataSearch) != 1:
-        raise Exception("ro-crate-metadata.json not found in crate")	
+    zippedMetadataKey = uploadPath / uploadPath.stem / 'ro-crate-metadata.json'
 
-    crateMetadataPath = metadataSearch[0]
-
-    with crateMetadataPath.open("r") as crateMetadataFileObj:
-        crateMetadata = json.load(crateMetadataFileObj)
+    crateMetadata = extractMetadata(
+        transactionFolder,
+        zippedMetadataKey
+    )
 
     # ------------------------------------
     #         Process Metadata 
@@ -280,25 +289,37 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
             }
         }
     )
- 
+
+    metadata = ROCrateV1_2.model_validate(crateMetadata)
+
+
+    #TODO: handle pydantic validation errors
+    #except pydantic.ValidationError as err:
+    #TODO: update transaction with metadata validation failure
+        #validationErrors = err.errors() 
     
     # TODO reassign identifiers if there is conflict
-    crateGUID = parseArk(crateMetadata["@id"])
-    crateMetadata['@id'] = crateGUID
 
     # TODO add default project for a user
 
     # TODO if no ROCrate ARK is assigned 
     # if crateMetadata.get("@id") is None:
     #    pass
+    
+    # clean identifiers
+    metadata.cleanIdentifiers()
+    crateElem = metadata.getCrateMetadata()
+    crateGUID = crateElem.guid
 
     # Add distribution information if not present
     if crateMetadata.get('distribution') is None:
-        zipUploadPath = pathlib.Path(fairscapeConfig.minio.rocrate_bucket_path) / userCN / 'rocrates' / pathlib.Path(filePath).name
+        zipUploadPath = uploadPath 
         crateMetadata['distribution'] = {
             "archivedROCrateBucket": fairscapeConfig.minio.rocrate_bucket,
             "archivedObjectPath": str(zipUploadPath)
         }
+
+        # TODO set content URL
         # set download link to https download link
         crateMetadata['contentUrl'] = f"{fairscapeConfig.url}/rocrate/download/{crateGUID}" 
 
@@ -327,7 +348,6 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
         sourcePath = pathlib.Path(contentURL.lstrip('file:///'))
 
 
-
         # compute relative crate path
         # this will give elements a path in minio preserving the structure of the rocrate
         # files will have relative path similar to
@@ -340,12 +360,10 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
 
         for nested in folderNames[1::]:
             relativePath = nested / relativePath
-            if nested == crateStem:
+            if nested == uploadPath.stem:
                 break
 
-        
-        uploadPath = pathlib.Path(fairscapeConfig.minio.default_bucket_path) / currentUserLDAP.cn / 'datasets' / relativePath
-        tmpFilePath = pathlib.Path('/tmp/jobs/') / transactionFolder / 'extracts' / relativePath
+        zippedFilePath = uploadPath / relativePath
 
 
         #backgroundTaskLogger.info(                
@@ -355,101 +373,18 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
         #    "\tmessage: uploading dataset" 
         #    )
 
-
-        try:
-            uploadResult = minioClient.fput_object(
-                    bucket_name=fairscapeConfig.minio.default_bucket,
-                    object_name=str(uploadPath),
-                    file_path=str(tmpFilePath),
-                    metadata={
-                        "guid": datasetElem.get("@id"),
-                        "owner": userCN
-                        }
-                    )
-        except Exception as e:
-            backgroundTaskLogger.error(                
-            f"transaction: {str(transactionFolder)}" +
-            f"\tuploadPath: {str(uploadPath)}" +
-            f"\ttmpFilePath: {str(tmpFilePath)}" +
-            "\tmessage: error uploading processed crate DATASETS" +
-            f"\texception: {str(e)}"
-            )
-
-            asyncCollection.update_one(
-                {"transactionFolder": transactionFolder},
-                { 
-                    "$set": {
-                        "complete": True,
-                        "success": False,
-                        "errors": {
-                            "message": "error uploading processed crate datasets",
-                            "exception": str(e)
-                        }
-                    }
-                }
-            )
-
-            return False
-
-
         # add distribution to metadata to enable download enpoints
         datasetElem['distribution'] = {
             'distributionType': 'minio',
             'location': {
-                'path': str(uploadPath)
+                'path': str(zippedFilePath)
             }
         }
 
         # TODO check that dataset enpoint works and is accurate
         # set download link relative to fairscape
         datasetElem['contentUrl']=f"{fairscapeConfig.url}/dataset/download/{datasetElem['@id']}"
-        
-    # persist changes to extract dir 
-    with crateMetadataPath.open("w") as crateMetadataFileObj:
-        json.dump(crateMetadata, crateMetadataFileObj, indent=2)
-    
 
-    asyncCollection.update_one(
-        {"transactionFolder": str(transactionFolder)},
-        {"$set": 
-            {
-                "stage": "zipping rocrate with processed metadata"
-            }
-        }
-    )
-
-    # overwrite zipfile    
-    with zipfile.ZipFile(tmpZipFilepath, mode="w") as zipCrate:
-        
-        crateName = pathlib.Path(filePath).name
-        contentDir = extractDir / crateStem
-
-        for crateElement in contentDir.rglob("*"):
-            keyName = crateElement.relative_to(
-                f'/tmp/jobs/{transactionFolder}/extracts/{crateStem}'
-            )
-            zipCrate.write(filename=crateElement, arcname=keyName)
-
-    # write final rocrate into archive at the path   
-    # / default / {userCN} / rocrates / crateName
-    try:
-        objectResponse = minioClient.fput_object(
-            bucket_name=fairscapeConfig.minio.rocrate_bucket, 
-            object_name=str(zipUploadPath),
-            file_path=str(tmpZipFilepath)
-        )
-        
-        backgroundTaskLogger.info(
-            f"transaction: {str(transactionFolder)}" +
-            "\tmessage: uploaded new zip" 
-            )
-
-    except Exception as e:
-        backgroundTaskLogger.error(
-            f"transaction: {str(transactionFolder)}" +
-            "\tmessage: error uploading processed ROCrate Archive" +
-            f"\texception: {str(e)}"
-            )
 
     # --------------------------- 
     #    PUBLISH METADATA
@@ -465,13 +400,13 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
     )
 
     # Check if @id already exsists
-    rocrateFound = rocrateCollection.find_one(
-            {"@id": crateMetadata['@id']}
-            )
+    #rocrateFound = rocrateCollection.find_one(
+    #        {"@id": crateMetadata['@id']}
+    #        )
 
-    if rocrateFound:
-        raise ROCrateMetadataExistsException(
-            f"ROCrate with @id == {crateMetadata['@id']} found", None)
+    #if rocrateFound:
+    #    raise ROCrateException(
+    #        f"ROCrate with @id == {crateMetadata['@id']} found", None)
     
 
     # set default permissions for uploaded crate
@@ -514,7 +449,7 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
         backgroundTaskLogger.info(
             f"transaction: {str(transactionFolder)}" +
             "\tmessage: minted provenance identifiers" +
-            f"\tcrateGUID: {crateMetadata['@id']}" +
+            f"\tcrateGUID: {crateGUID}" +
             f"\tnumberOfIdentifiers: {len(insertResult.inserted_ids)}"
         )
 
@@ -525,7 +460,7 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
         backgroundTaskLogger.error(
             f"transaction: {str(transactionFolder)}" +
             "\tmessage: error uploading rocrate identifier"  +
-            f"\tcrateGUID: {crateMetadata['@id']}"
+            f"\tcrateGUID: {crateGUID}"
         )
         raise Exception(f"Error Minting Provenance Identifiers")
 
@@ -533,7 +468,7 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
         backgroundTaskLogger.info(
             f"transaction: {str(transactionFolder)}" +
             "\tmessage: minted rocrate identifiers" +
-            f"\tcrateGUID: {crateMetadata['@id']}" 
+            f"\tcrateGUID: {crateGUID}" 
         )
 
     # update the job as success 
@@ -554,137 +489,158 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
         upsert=True
     )
 
-    # close clients
-    mongoClient.close()
-
     # ---------------------
     # Delete Transaction
     # ---------------------
-    minioClient.remove_object(
-        bucket_name=fairscapeConfig.minio.rocrate_bucket,
-        object_name=filePath
-    )
-
-    # remove temp job files
-    transactionTempFiles = pathlib.Path('/tmp/jobs/') / transactionFolder 
-
-    shutil.rmtree(transactionTempFiles) 
-
     return True
 
 
-
-def OldExtract():
-    # extracting crate from path
-    try:
-        #roCrateMetadata = ExtractCrate(
-        #    fairscapeConfig=fairscapeConfig,
-        #    userCN=userCN,
-        #    transactionFolder=transactionFolder,
-        #    objectPath=filePath
-        #)
-        pass
-
-        # update the uploadJob record
-        #if roCrateMetadata is None:
-        #    updateUploadJob(
-        #        transactionFolder,
-        #        {
-        #            "completed": True,
-        #            "success": False,
-        #            "error": "error reading ro-crate-metadata",
-        #            "status": "Failed"
-        #        }
-        #    )
-        # return False
-    except:
-        updateUploadJob(
-            transactionFolder,
-            {
-                "completed": True,
-                "success": False,
-                "error": "No ro-crate-metadata.json in zip file",
-                "status": "Failed"
-            }
-        )
-        return False
-
-
-    # Process rocrate metadata
-    updateUploadJob(
-        transactionFolder,
-        {"status": "minting identifiers"}
-    )
-
-    # TODO reason the rocrate metadata locally 
-    # TODO reason over the rocrate metadata globally
+@celeryApp.task(name='async-build-evidence-graph', task_id=None)
+def AsyncBuildEvidenceGraph(userCN: str, NAAN: str, postfix: str, task_id: str):
+    # Get task id from current request
+    mongoClient = fairscapeConfig.mongo.CreateClient()
+    mongoDB = mongoClient[fairscapeConfig.mongo.db]
+    identifierCollection = mongoDB[fairscapeConfig.mongo.identifier_collection]
+    asyncCollection = mongoDB[fairscapeConfig.mongo.async_collection]
     
-    # TODO overwrite the rocrate metadata
-    # overwriteZippedCrateMetadata(
-    #    crateMetadata = rocrateMetadata,
-    #    transactionFolder= transactionFolder,
-    #)
-
-
+    node_id = f"ark:{NAAN}/{postfix}"
+    evidence_graph_id = f"ark:{NAAN}/evidence-graph-{postfix}"
+    
+    # Initial status document with task_id as primary key
+    status_doc = {
+        "task_id": task_id,
+        "node_id": node_id,
+        "evidence_graph_id": evidence_graph_id,
+        "owner": userCN,
+        "status": "Building graph",
+        "stage": "Started query",
+        "created_at": datetime.datetime.utcnow(),
+        "completed": False,
+        "success": False
+    }
+    
+    # Insert initial status
+    print(f"Creating new task status: {status_doc}")
+    asyncCollection.insert_one(status_doc)
+    
     try:
-        publishMetadata = PublishMetadata(
-            currentUser=currentUser,
-            rocrateJSON=roCrateMetadata,
-            transactionFolder=transactionFolder,
-            rocrateCollection=rocrateCollection,
-            identifierCollection=identifierCollection,
-        )
-    except:
-        updateUploadJob(
-            transactionFolder,
-            {
-                "status": "Failed",
-                "timeFinished": datetime.datetime.now(tz=datetime.timezone.utc),
-                "completed": True,
-                "success": False,
-                "error": "Crate already exists on Fairscape."
+        # Check for existing evidence graph
+        existing_node = identifierCollection.find_one({"@id": node_id})
+        if existing_node and "hasEvidenceGraph" in existing_node:
+            existing_graph_id = existing_node["hasEvidenceGraph"]["@id"]
+            print(f"Found existing evidence graph: {existing_graph_id}")
+            
+            # Create temporary EvidenceGraph object for deletion
+            existing_graph = EvidenceGraph(
+                **{
+                    "@id": existing_graph_id,
+                    "name": "Temporary Graph Object",
+                    "description": "Temporary Graph Object for Deletion",
+                    "owner": userCN
+                }
+            )
+            
+            # Delete existing graph
+            print("Deleting existing evidence graph")
+            delete_status = existing_graph.delete(identifierCollection)
+            if not delete_status.success:
+                print(f"Warning: Failed to delete existing graph: {delete_status.message}")
+                # Update status to reflect warning
+                asyncCollection.update_one(
+                    {"task_id": task_id},
+                    {"$set": {
+                        "status": "Warning",
+                        "warning": f"Failed to delete existing graph: {delete_status.message}",
+                        "stage": "Deletion of existing graph failed",
+                        "updated_at": datetime.datetime.utcnow()
+                    }}
+                )
+        
+        # Create new evidence graph
+        evidence_graph = EvidenceGraph(
+            **{
+                "@id": evidence_graph_id,
+                "name": f"Evidence Graph for {node_id}",
+                "description": f"Evidence Graph for {node_id}",
+                "owner": userCN
             }
         )
-        return False
-
-    if publishMetadata is None:
-        updateUploadJob(
-            transactionFolder,
-            {
-                "status": "Failed",
-                "timeFinished": datetime.datetime.now(tz=datetime.timezone.utc),
-                "completed": True,
-                "success": False,
-            }
+        
+        # Build graph
+        print(f"Building graph for node: {node_id}")
+        evidence_graph.build_graph(node_id, identifierCollection)
+        
+        # Update status - Graph built
+        print("Graph built successfully, updating status")
+        asyncCollection.update_one(
+            {"task_id": task_id},
+            {"$set": {
+                "status": "Graph built",
+                "stage": "Storing graph",
+                "updated_at": datetime.datetime.utcnow()
+            }}
         )
-        return False
-    else:
-        backgroundTaskLogger.info(
-            f"transaction: {str(transactionFolder)}\t" +
-            "message: task succeeded"
+        
+        # Store graph
+        print("Attempting to store graph")
+        create_status = evidence_graph.create(identifierCollection)
+        if not create_status.success:
+            print(f"Failed to create graph: {create_status.message}")
+            asyncCollection.update_one(
+                {"task_id": task_id},
+                {"$set": {
+                    "status": "Failed",
+                    "error": create_status.message,
+                    "stage": "Graph creation failed",
+                    "completed": True,
+                    "success": False,
+                    "updated_at": datetime.datetime.utcnow()
+                }}
+            )
+            return False
+            
+        # Update original node reference
+        print("Updating node reference")
+        identifierCollection.update_one(
+            {"@id": node_id},
+            {"$set": {"hasEvidenceGraph": {"@id": evidence_graph.guid}}}
         )
-        updateUploadJob(
-            transactionFolder,
-            {
-                "status": "Finished",
-                "timeFinished": datetime.datetime.now(tz=datetime.timezone.utc),
+        
+        # Update final success status
+        print("Updating final success status")
+        asyncCollection.update_one(
+            {"task_id": task_id},
+            {"$set": {
+                "status": "Completed",
+                "stage": "Graph stored successfully",
                 "completed": True,
                 "success": True,
-                "identifiersMinted": publishMetadata
-            }
+                "updated_at": datetime.datetime.utcnow()
+            }}
         )
         return True
-
-
+        
+    except Exception as e:
+        print(f"Error in task {task_id}: {str(e)}")
+        asyncCollection.update_one(
+            {"task_id": task_id},
+            {"$set": {
+                "status": "Failed",
+                "error": str(e),
+                "stage": "Exception occurred",
+                "completed": True,
+                "success": False,
+                "updated_at": datetime.datetime.utcnow()
+            }}
+        )
+        return False
+        
+    finally:
+        mongoClient.close()
 
 
 if __name__ == '__main__':
     args = ['worker', '--loglevel=INFO']
-
-    # clear all transactions
-    transactionTempFiles = pathlib.Path('/tmp/jobs/') 
-    for jobFolder in transactionTempFiles.glob("*"):
-        shutil.rmtree(jobFolder)
 
     celeryApp.worker_main(argv=args)
 
