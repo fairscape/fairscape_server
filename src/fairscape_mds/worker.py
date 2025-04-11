@@ -306,11 +306,12 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
     # if crateMetadata.get("@id") is None:
     #    pass
     
-    # clean identifiers
     metadata.cleanIdentifiers()
     crateElem = metadata.getCrateMetadata()
     crateGUID = crateElem.guid
 
+    crateMetadata = metadata.model_dump(by_alias=True)
+    
     # Add distribution information if not present
     if crateMetadata.get('distribution') is None:
         zipUploadPath = uploadPath 
@@ -327,17 +328,20 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
 
 
     for crateElement in crateMetadata["@graph"]:
-        #if elementArk is None:
-        #    pass
+
         elementArk = parseArk(crateElement["@id"])
+        if elementArk is None:
+           pass
         crateElement['@id'] = elementArk
         crateElement['isPartOf'] = {"@id": crateGUID}
+        if crateElement.get('metadataType') is not None:
+            crateElement['@type'] = crateElement.get('metadataType')
 
 
     # upload extracted files to datasets 
     # filter out all datasets
     crateDatasets = filter(
-        lambda crateElem: crateElem.get("@type") == "EVI:Dataset" and  crateElem.get("contentUrl") is not None,
+        lambda crateElem: (crateElem.get("@type") == "EVI:Dataset" or crateElem.get("@type") == 'https://w3id.org/EVI#Dataset') and  crateElem.get("contentUrl") is not None,
         crateMetadata['@graph']
         )
 
@@ -411,24 +415,48 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
 
     # set default permissions for uploaded crate
     crateMetadata['permissions'] = {
-            "owner": currentUserLDAP.dn,
+            "owner": userCN,
             "group": currentUserLDAP.memberOf[0]
             }
 
     # set default permissions for all datasets
     for crateElem in crateMetadata['@graph']:
         # set permissions on all rocrate identifiers
+        print()
         crateElem['permissions'] = {
-            "owner": currentUserLDAP.dn,
+            "owner": userCN,
             "group": currentUserLDAP.memberOf[0]
             }
 
-    # for every element in the rocrate model dump json
-    insertMetadata = [ elem for elem in crateMetadata.get("@graph", [])]
-    # insert rocrate json into identifier collection
-    insertMetadata.append(crateMetadata)
+    # Create the ROCrate document in the new format
+    rocrateDocument = {
+        "@id": crateGUID,
+        "@type": "https://w3id.org/EVI#ROCrate",
+        "owner": userCN,
+        "metadata": crateMetadata,
+        "distribution": crateMetadata.get('distribution')
+    }
+    
+    # Create documents for all elements in the graph
+    insertMetadata = []
+    for crateElem in crateMetadata.get("@graph", []):
+        elementArk = crateElem.get("@id")
+        elementType = crateElem.get("@type", "Unknown")
+        
+        documentMetadata = {
+            "@id": elementArk,
+            "@type": elementType,
+            "owner": userCN,
+            "metadata": crateElem,
+            "distribution": crateElem.get('distribution')
+        }
+        
+        insertMetadata.append(documentMetadata)
+    
+    # Add the ROCrate document itself
+    insertMetadata.append(rocrateDocument)
 
-    insertedIdentifiers = [ elem.get("@id") for elem in insertMetadata]
+    insertedIdentifiers = [doc.get("@id") for doc in insertMetadata]
 
     # TODO check for already existing identifiers and mark as conflicts
     #     - should reassign identifiers at metadata processing stage
@@ -454,7 +482,7 @@ def AsyncRegisterROCrate(userCN: str, transactionFolder: str, filePath: str):
         )
 
     # insert rocrate result 
-    insertResult = rocrateCollection.insert_one(crateMetadata)
+    insertResult = rocrateCollection.insert_one(rocrateDocument)
 
     if insertResult.inserted_id is None:
         backgroundTaskLogger.error(
@@ -603,7 +631,7 @@ def AsyncBuildEvidenceGraph(userCN: str, NAAN: str, postfix: str, task_id: str):
         print("Updating node reference")
         identifierCollection.update_one(
             {"@id": node_id},
-            {"$set": {"hasEvidenceGraph": {"@id": evidence_graph.guid}}}
+            {"$set": {"metadata.hasEvidenceGraph": {"@id": evidence_graph.guid}}}
         )
         
         # Update final success status
