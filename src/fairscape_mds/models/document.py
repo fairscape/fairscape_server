@@ -6,7 +6,8 @@ from fairscape_models import (
 	Dataset,
 	Software,
 	Computation,
-	ROCrateMetadataElem
+	ROCrateMetadataElem, 
+	GenericMetadataElem,
 )
 from fairscape_mds.models.schema import Schema
 
@@ -26,6 +27,7 @@ class MongoDocument(BaseModel):
 		Dataset, 
 		Software, 
 		Computation, 
-		Schema
+		Schema,
+		GenericMetadataElem
 		]
 	distribution: Optional[FairscapeDataDistribution] = Field(default=None)
