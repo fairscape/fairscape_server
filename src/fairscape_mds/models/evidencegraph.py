@@ -11,7 +11,9 @@ class EvidenceNode:
        # For Computation nodes
        self.usedSoftware: Optional[List[str]] = None 
        self.usedDataset: Optional[List[str]] = None
-       # For Dataset nodes  
+       self.usedSample: Optional[List[str]] = None
+       self.usedInstrument: Optional[List[str]] = None
+       # For Dataset/Sample/Instrument nodes  
        self.generatedBy: Optional[str] = None
 
 class EvidenceGraph(BaseModel, extra=Extra.allow):
@@ -47,10 +49,12 @@ class EvidenceGraph(BaseModel, extra=Extra.allow):
             return {"@id": node_id}
             
         node = collection.find_one({"@id": node_id}, {"_id": 0})
+        print(f"node: {node}") 
         if not node:
             return {"@id": node_id}
         
         node = self._flatten_metadata(node)
+        
             
         processed.add(node_id)
         result = self._build_base_node(node)
@@ -60,15 +64,26 @@ class EvidenceGraph(BaseModel, extra=Extra.allow):
             node_type = "Dataset"
         elif "Computation" in node_type:
             node_type = "Computation"
+        elif "Sample" in node_type:
+            node_type = "Sample"
+        elif "Instrument" in node_type:
+            node_type = "Instrument"
+        elif "Experiment" in node_type:
+            node_type = "Experiment"
+        print(f"node_type: {node_type}")
     
-        if node_type == "Dataset":
+        if node_type in ["Dataset", "Sample", "Instrument"]:
             if "generatedBy" in node:
                 result["generatedBy"] = self._build_computation_node(node, collection, processed)
-        elif node_type == "Computation":
+        elif node_type in ["Computation", "Experiment"]:
             if "usedDataset" in node:
-                result["usedDataset"] = self._build_used_datasets(node["usedDataset"], collection, processed)
+                result["usedDataset"] = self._build_used_resources(node["usedDataset"], collection, processed)
             if "usedSoftware" in node:
                 result["usedSoftware"] = self._build_software_reference(node["usedSoftware"], collection)
+            if "usedSample" in node:
+                result["usedSample"] = self._build_used_resources(node["usedSample"], collection, processed)
+            if "usedInstrument" in node:
+                result["usedInstrument"] = self._build_used_resources(node["usedInstrument"], collection, processed)
                 
         return result
 
@@ -80,20 +95,21 @@ class EvidenceGraph(BaseModel, extra=Extra.allow):
             "description": node.get("description")
         }
 
-    def _build_computation_node(self, dataset_node: Dict, collection: pymongo.collection.Collection, processed: set) -> Dict:
-        comp_id = (dataset_node["generatedBy"][0]["@id"] 
-                    if isinstance(dataset_node["generatedBy"], list) 
-                    else dataset_node["generatedBy"]["@id"])
+    def _build_computation_node(self, parent_node: Dict, collection: pymongo.collection.Collection, processed: set) -> Dict:
+        comp_id = (parent_node["generatedBy"][0]["@id"] 
+                    if isinstance(parent_node["generatedBy"], list) 
+                    else parent_node["generatedBy"]["@id"])
         
         comp = collection.find_one({"@id": comp_id}, {"_id": 0})
         if not comp:
             return {"@id": comp_id}
         return self._build_graph_recursive(comp_id, collection, processed)
 
-    def _build_used_datasets(self, used_dataset: Union[Dict, List], collection: pymongo.collection.Collection, processed: set) -> List:
-        if isinstance(used_dataset, dict):
-            return [self._build_graph_recursive(used_dataset["@id"], collection, processed)]
-        return [self._build_graph_recursive(dataset["@id"], collection, processed) for dataset in used_dataset]
+    def _build_used_resources(self, used_resources: Union[Dict, List], collection: pymongo.collection.Collection, processed: set) -> List:
+        if isinstance(used_resources, dict):
+            print(used_resources)
+            return [self._build_graph_recursive(used_resources["@id"], collection, processed)]
+        return [self._build_graph_recursive(resource["@id"], collection, processed) for resource in used_resources]
 
     def _build_software_reference(self, used_software: Union[Dict, List], collection: pymongo.collection.Collection) -> Dict:
         software_id = used_software[0]["@id"] if isinstance(used_software, list) else used_software["@id"]
