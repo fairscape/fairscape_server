@@ -285,21 +285,27 @@ def dataset_get(NAAN: str, postfix: str):
         content=rocrateMetadata
     )
 
-@router.get("/rocrate/download/ark:{NAAN}/{postfix}",
+@router.get("/rocrate/download/{identifier:path}",
             summary="Download archived form of ROCrate using StreamingResponse",
             response_description="ROCrate downloaded as a zip file")
 def archived_rocrate_download(
     currentUser: Annotated[UserLDAP, Depends(getCurrentUser)],
-    NAAN: str,
-    postfix: str
+    identifier: str
     ): 
     """
     Download the Zipped ROCrate from MINIO
     """
-
-    rocrateGUID = f"ark:{NAAN}/{postfix}"
+    # Clean up the identifier - handle URL encoding
+    if '%3A' in identifier:
+        rocrateGUID = identifier.replace('%3A', ':')
+    else:
+        rocrateGUID = identifier
+        
     rocrateMetadata = rocrateCollection.find_one(
-        {"@id": rocrateGUID}, 
+        {"$or": [
+            {"@id": rocrateGUID}, 
+            {"@id": f"{rocrateGUID}/"}
+        ]}, 
         projection={"_id": 0}
         )
     
@@ -312,15 +318,15 @@ def archived_rocrate_download(
             }
         )
 
-    rocrateGroup = rocrateMetadata.get("permissions", {}).get("group")
+    if rocrateMetadata.get("metadata",{}):
+        rocrateGroup = rocrateMetadata.get("metadata", {}).get("permissions", {}).get("group")
+    else:
+        rocrateGroup = rocrateMetadata.get("permissions", {}).get("group")
 
     # AuthZ: check if user is allowed to download 
     # if a user is a part of the group that uploaded the ROCrate OR user is an Admin
     if rocrateGroup in currentUser.memberOf or fairscapeConfig.ldap.adminDN in currentUser.memberOf:
         objectPath = rocrateMetadata.get("distribution", {}).get("archivedObjectPath", None)
-
-        # TODO contentURI is external reference
-        # redirect
 
         if objectPath is None:
             return JSONResponse(
@@ -347,4 +353,3 @@ def archived_rocrate_download(
             "error": "Current user is not authorized to download ROcrate"
             }
         )
-        

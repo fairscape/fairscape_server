@@ -713,14 +713,17 @@ def StreamZippedROCrate(MinioClient, BucketName: str, ObjectPath: str):
             "Content-Disposition": "attachment;filename=downloaded-rocrate.zip"
     }
 
-    file_stream = MinioClient.get_object(
-        bucket_name=BucketName, 
-        object_name=ObjectPath
-        ).read()
+    response = MinioClient.get_object(
+        Bucket=BucketName, 
+        Key=ObjectPath
+        )
+
+    file_stream_body = response['Body']
+
 
     return StreamingResponse(
-        generator_iterfile(file_stream), 
-        headers=headers, 
+        file_stream_body,
+        headers=headers,
         media_type="application/zip"
         )
 
