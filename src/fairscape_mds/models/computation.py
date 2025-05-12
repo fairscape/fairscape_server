@@ -1,15 +1,15 @@
 from bson import SON
-from pydantic import Extra
 from typing import List, Union, Optional, Literal
 from datetime import datetime
 from pathlib import Path
+
 from fairscape_mds.models.fairscape_base import *
 from fairscape_mds.models.dataset import DatasetWriteModel
 from fairscape_mds.models.software import Software
 from fairscape_mds.utilities.funcs import *
 from fairscape_mds.utilities.utils import *
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import requests
 import docker
 import time
@@ -17,13 +17,15 @@ import uuid
 import pathlib
 import shutil
 
+from fairscape_models.computation import Computation
+
 default_context = {
     "@vocab": "https://schema.org/", 
     "evi": "https://w3id.org/EVI#"
 }
 
 
-class Computation(FairscapeEVIBaseModel, extra = Extra.allow):
+class Computation(FairscapeEVIBaseModel):
     metadataType: Literal['evi:Computation'] = Field(alias="@type")
     url: str
     owner: str
@@ -36,6 +38,8 @@ class Computation(FairscapeEVIBaseModel, extra = Extra.allow):
     usedSoftware: str
     usedDataset: List[str]
     generated: List[str]
+
+    model_config = ConfigDict(extra='allow')
 
 def createComputation(
         computationInstance: Computation, 
@@ -219,7 +223,7 @@ class JobRequirements(BaseModel):
     cpu: ResourceTuple
     mem: ResourceTuple
 
-class ComputationModel(FairscapeEVIBaseModel, extra = Extra.allow):
+class ComputationModel(FairscapeEVIBaseModel):
     metadataType: Literal['evi:Computation'] = Field(alias="@type")
     url: str
     owner: str
@@ -233,6 +237,7 @@ class ComputationModel(FairscapeEVIBaseModel, extra = Extra.allow):
     usedDataset: List[str]
     generated: List[str]
 
+    model_config = ConfigDict(extra='allow')
 
     def create(self, MongoCollection: pymongo.collection.Collection) -> OperationStatus:
 

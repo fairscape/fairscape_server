@@ -7,7 +7,6 @@ from typing import (
 from datetime import datetime
 from pydantic import (
     BaseModel,
-    Extra,
     Field,
     constr
 )
@@ -23,7 +22,7 @@ from fairscape_mds.models.fairscape_base import (
 from fairscape_mds.models.dataset import DatasetWriteModel
 from fairscape_mds.utilities.operation_status import OperationStatus
 
-class DownloadCreateModel(FairscapeEVIBaseModel, extra=Extra.allow):
+class DownloadCreateModel(FairscapeEVIBaseModel, extra='allow'):
     metadataType: Literal['evi:DataDownload'] = Field(alias="@type", default='evi:DataDownload')
     encodingFormat: str
     owner: str = Field(...)
@@ -37,7 +36,7 @@ class DownloadCreateModel(FairscapeEVIBaseModel, extra=Extra.allow):
     includedInDataCatalog: Optional[str] = Field(default=None)
 
 
-class DownloadReadModel(DownloadCreateModel, extra=Extra.allow):
+class DownloadReadModel(DownloadCreateModel, extra='allow'):
     minioPath: Optional[str] = Field(default=None)
     contentURL: str
 

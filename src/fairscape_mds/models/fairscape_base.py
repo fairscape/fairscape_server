@@ -103,8 +103,7 @@ class IdentifierPropertyValue(BaseModel):
     name: str
 
 
-class Identifier(BaseModel):
-    model_config = ConfigDict(extra='allow')
+class Identifier(BaseModel, extra='allow'):
     guid: str = Field(
         title="guid",
         alias="@id"
@@ -123,11 +122,6 @@ class FairscapeBaseModel(Identifier):
         BaseModel (Default Pydantic): Every instance of the Fairscape BaseModel must contain
         an id, a type, and a name
     """
-    model_config = ConfigDict(
-        populate_by_name=True,
-        validate_assignment=True,
-        extra='allow'
-    )
     context: Optional[Dict[str, str]] = Field(
         default=defaultContext,
         title="context",

@@ -1,6 +1,5 @@
 from bson import SON
 from pydantic import (
-    Extra,
     Field,
     constr
 )
@@ -11,7 +10,7 @@ from datetime import datetime
 
 
 
-class Software(FairscapeEVIBaseModel, extra = Extra.allow):
+class Software(FairscapeEVIBaseModel, extra = 'allow'):
     metadataType: str = Field(default="evi:Software", alias="@type")
     url: Optional[str]
     owner: str
@@ -84,7 +83,7 @@ class Software(FairscapeEVIBaseModel, extra = Extra.allow):
 
 
 
-class SoftwareCreateModel(BaseModel, extra=Extra.allow):
+class SoftwareCreateModel(BaseModel, extra='allow'):
     guid: str = Field(
         title="guid",
         alias="@id"

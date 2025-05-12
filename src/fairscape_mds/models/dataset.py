@@ -14,25 +14,16 @@ from fairscape_mds.models.user import UserLDAP
 from fairscape_mds.models.acl import Permissions 
 from fairscape_mds.utilities.operation_status import OperationStatus
  
+from fairscape_models.dataset import Dataset
 
-class DatasetCreateModel(BaseModel, extra=Extra.allow):
+class DatasetCreateModel(Dataset):
     guid: Optional[str] = Field(
         title="guid",
         alias="@id",
         default=None
     )
-    name: str
-    description: str
-    keywords: List[str]
-    includedInDataCatalog: Optional[str] = Field(default=None)
-    sourceOrganization: Optional[str] = Field(default=None)
-    author: Optional[str] = Field(default=None)
-    dateCreated: Optional[datetime] = Field(default_factory=datetime.now)
-    dateModified: Optional[datetime] = Field(default_factory=datetime.now)
-    usedBy: Optional[List[str]] = Field(alias="evi:usedBy", default=[])
-    generatedBy: Optional[str] = Field(alias="evi:generatedBy", default=None)
-    dataSchema: Optional[str] = Field(alias="evi:Schema", default=None)
-    contentURL: HttpUrl | None  = Field(default=None)
+    metadataType: Optional[str] = Field(alias="@type")
+    dateRegistered: Optional[datetime] = Field(default_factory=datetime.now)
 
 class DistributionTypeEnum(str, Enum):
     MINIO = 'minio'
