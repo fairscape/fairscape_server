@@ -1,29 +1,22 @@
 # Docker Compose Spec for Local Testing of Fairscape
 services:
-  setup:
-    build: "./deploy/setup/"
-    env_file: "./deploy/setup/setup.env"
-    depends_on:
-      - ldap
-      - minio
-      - fairscape-api
   fairscape-worker:
-    build: "./"
+    #build: "./"
+    image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-15.v1
     env_file: "./deploy/docker.env"
     command:
       - "python"
       - "fairscape_mds/worker.py"
     depends_on:
-      - ldap
       - mongo
       - minio
   fairscape-api:
-    build: "./"
+    #build: "./"
+    image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-15.v1
     env_file: "./deploy/docker.env"
     ports:
       - 8080:8080
     depends_on:
-      - ldap
       - mongo
       - minio
   fairscape-frontend:
@@ -32,23 +25,9 @@ services:
       - "5173:5173"
     depends_on:
       - fairscape-api
-      - ldap
       - mongo
       - minio
 
-  ldap-frontend:
-    image: dnknth/ldap-ui
-    environment:
-      LDAP_URL: ldap://ldap:1389
-      BASE_DN: "dc=fairscape,dc=net"
-    ports:
-      - 5000:5000
-  ldap:
-    image: bitnami/openldap:2.5.18
-    restart: always
-    env_file: ./deploy/ldap.env
-    ports:
-      - 1389:1389
   redis:
     image: redis:7.2.4
     ports:
