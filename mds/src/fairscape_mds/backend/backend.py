@@ -6,28 +6,33 @@ from pymongo.collection import Collection
 from celery import Celery
 
 from fairscape_mds.backend.models import FairscapeUserRequest, FairscapeDatasetRequest
+import os
 
 # local test parameters
-mongoUser = "mongotestaccess"
-mongoPassword = "mongotestsecret"
-mongoHost = "localhost"
-mongoPort = "27017"
-mongoDB = "fairscape"
-mongoUserCollection = "users"
-mongoIdentifierCollection = "mds"
-mongoROCrateCollection = "rocrate"
-mongoAsyncCollection = "async"
+mongoUser = os.environ.get("FAIRSCAPE_MONGO_ACCESS_KEY", "mongotestaccess")
+mongoPassword = os.environ.get("FAIRSCAPE_MONGO_SECRET_KEY", "mongotestsecret")
+mongoHost = os.environ.get("FAIRSCAPE_MONGO_HOST", "localhost")
+mongoPort = os.environ.get("FAIRSCAPE_MONGO_PORT", "27017")
+mongoDB = os.environ.get("FAIRSCAPE_MONGO_DATABASE", "fairscape")
+mongoUserCollection = os.environ.get("FAIRSCAPE_MONGO_USER_COLLECTION", "users")
+mongoIdentifierCollection = os.environ.get("FAIRSCAPE_MONGO_IDENTIFIER_COLLECTION", "mds")
+mongoROCrateCollection = os.environ.get("FAIRSCAPE_MONGO_ROCRATE_COLLECTION", "rocrate")
+mongoAsyncCollection =  os.environ.get("FAIRSCAPE_MONGO_ASYNC_COLLECTION", "async")
 
-minioAccessKey = "miniotestadmin"
-minioSecretKey = "miniotestsecret"
-minioEndpoint = "http://localhost:9000"
-minioDefaultBucket = "fairscape"
-minioDefaultPath = "fairscape"
+
+minioAccessKey = os.environ.get("FAIRSCAPE_MINIO_ACCESS_KEY", "miniotestadmin")
+minioSecretKey = os.environ.get("FAIRSCAPE_MINIO_SECRET_KEY", "miniotestsecret")
+minioEndpoint = os.environ.get("FAIRSCAPE_MINIO_URI", "http://localhost:9000")
+minioDefaultBucket = os.environ.get("FAIRSCAPE_MINIO_DEFAULT_BUCKET", "fairscape")
+minioDefaultPath = os.environ.get("FAIRSCAPE_MINIO_DEFAULT_BUCKET_PATH", "fairscape")
 
 # redis settings
-brokerURL = "localhost:6379"
+redisHost = os.environ.get("FAIRSCAPE_REDIS_HOST", "localhost")
+redisPort = os.environ.get("FAIRSCAPE_REDIS_PORT", "6379")
+brokerURL = f"{redisHost}:{redisPort}"
 
-jwtSecret = "test-jwt-secret"
+# JWT Secret
+jwtSecret = os.environ.get("FAIRSCAPE_JWT_SECRET", "test-jwt-secret")
 
 # create a mongo client
 connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}"

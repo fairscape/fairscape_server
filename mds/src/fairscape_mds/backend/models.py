@@ -13,6 +13,11 @@ import jwt
 import pymongo
 from pymongo.collection import Collection
 
+from fairscape_models.computation import Computation
+from fairscape_models.software import Software
+from fairscape_models.schema import Schema
+from fairscape_models.dataset import Dataset
+
 
 
 
@@ -57,6 +62,7 @@ class FairscapeRequest():
 		return self.identifierCollection.find_one({"@id": guid})
 
 
+
 #######################
 #      User Models    #
 #######################
@@ -92,7 +98,6 @@ class UserWriteModel(UserCreateModel):
 		else:
 			permissionsDict['group'] = None
 
-				
 		return Permissions.model_validate(permissionsDict)
 
 
@@ -197,6 +202,55 @@ class FairscapeUserRequest(FairscapeRequest):
 		else:
 				return None
 
+####################################
+# Helper Functions for Identifiers #
+####################################
+
+def deleteIdentifier(
+	idCollection, 
+	requestingUser: UserWriteModel, 
+	modelClass, 
+	guid: str
+	):
+	# find the dataset
+	foundMetadata = idCollection.find_one({
+		"@id": guid,
+	})
+
+	if not foundMetadata:
+		return FairscapeResponse(
+			success=False,
+			statusCode=404,
+			error= {"message": "dataset not found"}
+		)
+
+	modelInstance = modelClass.model_validate(foundMetadata)
+
+	# check permissions
+	if checkPermissions(modelInstance.permissions, requestingUser):
+
+		# update the 
+		idCollection.update_one(
+			{"@id": guid},
+			{"$set": {
+				"published": False
+			}}
+		)
+
+		modelInstance.published = False
+
+		return FairscapeResponse(
+			success=True,
+			statusCode=200,
+			model=modelInstance
+		)
+
+	else:
+		return FairscapeResponse(
+			success=False,
+			statusCode=401,
+			error={"message": "user unauthorized"}
+		)
 
 #####################
 #   Dataset Models  #
@@ -232,8 +286,8 @@ class DatasetDistribution(BaseModel):
 
 
 class DatasetWriteModel(DatasetCreateModel):
+	published: Optional[bool] = Field(default=True)
 	distribution: Optional[DatasetDistribution] = Field(default=None)
-	published: bool = Field(default=True)
 	permissions: Permissions
 
 
@@ -301,7 +355,13 @@ class FairscapeDatasetRequest(FairscapeRequest):
 			Bucket=self.minioBucket,
 			Key=objectKey
 		)
-		return response
+
+		return FairscapeResponse(
+			success=True,
+			statusCode=200,
+			fileResponse=response,
+			model=datasetInstance
+		)
         
 	def createDataset(
 		self, 
@@ -346,7 +406,8 @@ class FairscapeDatasetRequest(FairscapeRequest):
 		outputDataset = DatasetWriteModel.model_validate({
 			**inputDataset.model_dump(by_alias=True),
 			"permissions": permissionsSet, 
-			"distribution": distribution 
+			"distribution": distribution,
+			"published": True
 			})
 
 		# insert identifier metadata into mongo
@@ -364,6 +425,17 @@ class FairscapeDatasetRequest(FairscapeRequest):
 		# TODO return fairscape response
 		return outputDataset
 
+	def deleteDataset(
+		self,		
+		requestingUser: UserWriteModel, 
+		guid: str
+	):
+		return deleteIdentifier(
+			self.identifierCollection,
+			requestingUser,
+			DatasetWriteModel,
+			guid
+		)
 
 
 #######################
@@ -581,6 +653,7 @@ def getROCrateContentsMinio(s3Client, bucketName, zipCratePath: str):
 
 class ROCrateMetadataElemWrite(ROCrateMetadataElem):
 	permissions: Permissions
+	published: Optional[bool] = Field(default=True)
 	hasPart: Optional[List[dict]]
 	distribution: Optional[DatasetDistribution]
 
@@ -604,20 +677,24 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		self.rocrateCollection=rocrateCollection
 		self.asyncCollection=asyncCollection
 
-	def uploadROCrate(self, userInstance: UserWriteModel, rocrate):
-		# TODO replace pathlib with file
+	def uploadROCrate(
+		self, 
+		userInstance: UserWriteModel, 
+		rocrate: fastapi.UploadFile
+	):
 		
 		# set upload path
-		rocrateFilename = rocrateZip.name
+		rocrateFilepath = pathlib.Path(rocrate.filename)
+		rocrateFilename = rocrateFilepath.name
 
 		# get email path
-		userEmailPath = userPath(foundUser.email)
+		userEmailPath = userPath(userInstance.email)
 		
 		uploadPath = f"{self.minioDefaultPath}/{userEmailPath}/rocrates/{rocrateFilename}"
 
 		# upload zip to minio
 		# TODO switch with fastapi.UploadFile
-		with rocrateZip.open('rb') as zippedFileObj:
+		with rocrate.file.open('rb') as zippedFileObj:
 			uploadOperationResult = self.minioClient.upload_fileobj(
 					Bucket = self.minioBucket,
 					Key = str(uploadPath),
@@ -633,11 +710,19 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			"uploadPath": str(uploadPath)
 		})
 		# create record in the async collection
-		uploadRequestMetadata = uploadRequestInstance.model_dump()
-		insertResult = self.asyncCollection.insert_one(uploadRequestMetadata)
+		insertResult = self.asyncCollection.insert_one(
+			uploadRequestInstance.model_dump(mode='json')
+		)
+
+		# TODO check insert result
 
 		# return a response
-		response = FairscapeResponse(success=True, statusCode=200, model=uploadRequestInstance)
+		response = FairscapeResponse(
+			success=True, 
+			statusCode=200, 
+			model=uploadRequestInstance
+			)
+
 		return response
 
 
@@ -820,17 +905,217 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				fileResponse=objectResponse.get('Body')
 		)
 
+	def deleteROCrate(
+		self,				 
+		requestingUser: UserWriteModel, 
+		guid: str
+	):
+
+		return deleteIdentifier(
+			self.identifierCollection,
+			requestingUser,
+			ROCrateMetadataElemWrite,
+			guid
+		)
+
 ############
 # Resolver #
 ############   
+
+def getMetadata(mongoCollection, passedModel, guid: str):
+
+	foundMetadata = mongoCollection.find_one(
+		{"@id": guid}
+	)
+
+	if not foundMetadata:
+		return FairscapeResponse(
+			success=False,
+			statusCode=404,
+			error= {"message": "identifier not found"}
+		)
+
+	modelInstance = passedModel.model_validate(foundMetadata)
+
+	return FairscapeResponse(
+		success=True,
+		statusCode=200,
+		model=modelInstance
+	)
+
+	
+
+class FairscapeResolverRequest(FairscapeRequest):
+
+	def resolveIdentifier(self, guid: str):	
+
+		foundMetadata = self.identifierCollection.find_one(
+			{"@id": guid}
+		)	
+
+		if not foundMetadata:
+			return FairscapeResponse(
+				success=False,
+				statusCode=404,
+				error= {"message": "identifier not found"}
+			)
+
+		identifierCases = {
+			"https://w3id.org/EVI#Dataset": Dataset,
+			"https://w3id.org/EVI#Computation": Computation,
+			"https://w3id.org/EVI#Software": Software,
+			"https://w3id.org/EVI#Schema": Schema,
+		}		
+
+		# TODO handle ROCrate for 
+		if isinstance(foundMetadata.get("@type"), str):
+			foundModel = identifierCases[foundMetadata.get("@type")].model_validate(foundMetadata)
+		
+		else:
+			foundModel = ROCrateMetadataElemWrite.model_validate(foundMetadata)
+
+		return FairscapeResponse(
+			success=True,
+			statusCode=200,
+			model=foundModel
+		)
 
 #############
 # Software  #
 #############
 
+class SoftwareWriteModel(Software):
+	permissions: Permissions
+	published: Optional[bool] = Field(default=True)
+
+
+class SoftwareUpdateModel(BaseModel):
+	name: Optional[str]
+	description: Optional[str]
+
+
+class FairscapeSoftwareRequest(FairscapeRequest):
+
+	def createSoftware(
+		self, 
+		requestingUser: UserWriteModel,		
+		softwareInstance: Software
+	):
+
+		writeModel = SoftwareWriteModel.model_validate({
+			**softwareInstance.model_dump(by_alias=True, mode='json'),
+			"permissions": requestingUser.getPermissions()
+		})
+
+		insertResult = self.identifierCollection.insert_one(
+			writeModel.model_dump(by_alias=True, mode='json')
+		)
+
+		return FairscapeResponse(
+			success=True,
+			statusCode=201,
+			model=writeModel
+		)
+
+	def getSoftware(self, guid: str):
+		return getMetadata(self.identifierCollection, Software, guid)
+
+	def deleteSoftware(
+		self,		
+		requestingUser: UserWriteModel, 
+		guid: str
+	):
+
+		return deleteIdentifier(
+			self.identifierCollection,
+			requestingUser,
+			SoftwareWriteModel,
+			guid
+		)
+
+	def updateSoftware(self):
+		pass
+
 ###############
 # Computation #
 ###############
+
+class ComputationWriteModel(Computation):
+	permissions: Permissions
+	published: Optional[bool] = Field(default=True)
+
+
+class FairscapeComputationRequest(FairscapeRequest):
+
+	def createComputation(
+		self, 
+		requestingUser: UserWriteModel,		
+		computationInstance: Computation
+	):
+
+		writeModel = ComputationWriteModel.model_validate({
+			**computationInstance.model_dump(by_alias=True, mode='json'),
+			"permissions": requestingUser.getPermissions()
+		})
+
+		insertResult = self.identifierCollection.insert_one(
+			writeModel.model_dump(by_alias=True, mode='json')
+		)
+
+		return FairscapeResponse(
+			success=True,
+			statusCode=201,
+			model=writeModel
+		)
+
+
+	def getComputation(self, guid: str):
+		return getMetadata(self.identifierCollection, Computation, guid)
+
+
+	def deleteComputation(
+		self,		
+		requestingUser: UserWriteModel, 
+		guid: str
+	):
+		return deleteIdentifier(
+			self.identifierCollection,
+			requestingUser,
+			Computation,
+			guid
+		)
+
+
+	def updateComputation(self):
+		pass
+
+###########
+# Schema  #
+###########
+
+class SchemaWriteModel(Schema):
+	permissions: Permissions
+	published: bool = Field(default=True)
+
+
+class FairscapeSchemaRequest(FairscapeRequest):
+
+	def createSchema(
+		self, 
+		requestingUser: UserWriteModel,
+		schemaInstance: Schema
+	):
+		pass
+
+	def getSchema(self):
+		pass
+
+	def updateSchema(self):
+		pass
+
+	def deleteSchema(self):
+		pass
+
 
 #########################
 # Transfer to repository#
