@@ -2,7 +2,7 @@
 services:
   fairscape-worker:
     #build: "./"
-    image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-15.v1
+    image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-15.v3
     env_file: "./deploy/docker.env"
     command:
       - "python"
@@ -12,7 +12,7 @@ services:
       - minio
   fairscape-api:
     #build: "./"
-    image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-15.v1
+    image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-15.v3
     env_file: "./deploy/docker.env"
     ports:
       - 8080:8080

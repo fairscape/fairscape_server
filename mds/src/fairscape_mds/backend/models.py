@@ -1105,16 +1105,41 @@ class FairscapeSchemaRequest(FairscapeRequest):
 		requestingUser: UserWriteModel,
 		schemaInstance: Schema
 	):
-		pass
+		writeModel = SchemaWriteModel.model_validate({
+			**schemaInstance.model_dump(by_alias=True, mode='json'),
+			"permissions": requestingUser.getPermissions(),
+			"published": True
+		})
 
-	def getSchema(self):
-		pass
+		insertResult = self.identifierCollection.insert_one({
+			writeModel.model_dump(by_alias=True, mode='json')
+		})
+
+		return FairscapeResponse(
+			success=True,
+			statusCode=201,
+			model=writeModel
+		)
+
+
+	def getSchema(self, guid: str):
+		return getMetadata(self.identifierCollection, Schema, guid)
+
 
 	def updateSchema(self):
 		pass
 
-	def deleteSchema(self):
-		pass
+	def deleteSchema(
+		self,
+		requestingUser: UserWriteModel,
+		guid: str	
+		):
+		return deleteIdentifier(
+			self.identifierCollection,
+			requestingUser,
+			SchemaWriteModel,
+			guid
+		)
 
 
 #########################

@@ -22,4 +22,4 @@ click
 rdflib
 email-validator
 celery[redis]
-ldap3
+fairscape_models
