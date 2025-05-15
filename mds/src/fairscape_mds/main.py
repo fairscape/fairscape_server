@@ -66,6 +66,15 @@ rocrateRequest = FairscapeROCrateRequest(
 	rocrateCollection=rocrateCollection,
 	asyncCollection=asyncCollection	
 )
+schemaRequest = FairscapeSchemaRequest(
+	minioClient=s3,
+	minioBucket=minioDefaultBucket,
+	identifierCollection=identifierCollection,
+	userCollection=userCollection,
+	rocrateCollection=rocrateCollection,
+	asyncCollection=asyncCollection	
+)
+
 
 def getCurrentUser(
 	token: Annotated[str, Depends(OAuthScheme)]
@@ -326,6 +335,24 @@ def createSoftware(
 		)
 
 
+@app.get("/software/ark:{NAAN}/{postfix}")
+def getSoftware(
+	NAAN: str,
+	postfix: str
+):
+	softwareGUID = f"ark:{NAAN}/{postfix}"
+	response = softwareRequest.getSoftware(softwareGUID)
+
+	if response.success:
+		return response.model
+
+	else:
+		return JSONResponse(
+			status_code = response.statusCode,
+			content = response.error
+		)
+
+
 @app.delete("/software/ark:{NAAN}/{postfix}")
 def deleteSoftware(
 	NAAN: str,
@@ -382,6 +409,67 @@ def deleteComputation(
 	response = computationRequest.deleteComputation(
 		currentUser,
 		computationGUID
+	)
+
+	if response.success:
+		return response.model
+
+	else:
+		return JSONResponse(
+			status_code = response.statusCode,
+			content = response.error
+		)
+
+
+@app.post("/schema")
+def createSchema(
+	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
+	schemaInstance: Schema
+):
+	response = schemaRequest.createSchema(
+		currentUser,
+		schemaInstance
+	)
+
+	if response.success:
+		return response.model
+
+	else:
+		return JSONResponse(
+			status_code = response.statusCode,
+			content = response.error
+		)
+
+
+@app.get("/schema/ark:{NAAN}/{postfix}")
+def getSchema(
+	NAAN: str,
+	postfix: str
+):
+	schemaGUID = f"ark:{NAAN}/{postfix}"
+	response = schemaRequest.getSchema(schemaGUID)
+
+	if response.success:
+		return response.model
+
+	else:
+		return JSONResponse(
+			status_code = response.statusCode,
+			content = response.error
+		)
+
+
+@app.delete("/schema/ark:{NAAN}/{postfix}")
+def deleteSchema(
+	NAAN: str,
+	postfix: str,
+	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
+):
+	schemaGUID = f"ark:{NAAN}/{postfix}"
+
+	response = schemaRequest.deleteSchema(
+		currentUser,
+		schemaGUID
 	)
 
 	if response.success:
