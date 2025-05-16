@@ -742,24 +742,25 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		)
 
 		foundUser = UserWriteModel.model_validate(userMetadata)
+		zippedCratePath = uploadInstance.uploadPath
 
 		# TODO getROCrateMetadata
 		roCrateMetadata = getROCrateMetadata(self.minioClient, self.minioBucket, uploadInstance)
 		
 		# parse the metadata into the rocrate
 		try:
-				roCrateModel = ROCrateV1_2.model_validate(roCrateJSON)
-		
-		except ValidationError as validationErr:
-				# TODO return an error
-				print("ValidationError")
-				return None
+			roCrateModel = ROCrateV1_2.model_validate(roCrateMetadata)
+		except Exception as e:
+			print(f"ValidationError: {str(e)}")
+			import traceback
+			traceback.print_exc()
+			return None
 
 		# get rocrate GUID
 		crateMetadata = roCrateModel.getCrateMetadata()
 
 		# get list of the objects from minio
-		objectList = getROCrateContentsMinio(s3, minioDefaultBucket, zippedCratePath)
+		objectList = getROCrateContentsMinio(self.minioClient, self.minioBucket, zippedCratePath)
 
 		# write dataset records
 		datasetGUIDS = writeDatasets(
