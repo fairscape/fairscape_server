@@ -102,7 +102,7 @@ def getCurrentUser(
 from fairscape_mds.backend.for_now.credentitals_router import router as credentials_router
 app.include_router(credentials_router)
 
-@app.post("/api/login")
+@app.post("/login")
 def form(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
 
 	token = userRequest.loginUser(form_data.username, form_data.password)
@@ -221,7 +221,7 @@ def deleteDataset(
 			content = response.error
 		)
 
-@app.post("/api/rocrate/upload-async")
+@app.post("/rocrate")
 def uploadROCrate(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
 	crate: UploadFile
@@ -237,7 +237,7 @@ def uploadROCrate(
 		uploadJob = uploadOperation.model
 
 		# start backend job
-		processROCrate.apply_async(args=(uploadJob.guid))
+		processROCrate.apply_async(args=(uploadJob.guid,))
 
 		return uploadJob
 

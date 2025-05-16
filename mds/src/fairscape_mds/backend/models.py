@@ -693,14 +693,15 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		uploadPath = f"{self.minioDefaultPath}/{userEmailPath}/rocrates/{rocrateFilename}"
 
 		# upload zip to minio
-		# TODO switch with fastapi.UploadFile
-		with rocrate.file.open('rb') as zippedFileObj:
-			uploadOperationResult = self.minioClient.upload_fileobj(
-					Bucket = self.minioBucket,
-					Key = str(uploadPath),
-					Fileobj = zippedFileObj,
-					ExtraArgs = {'ContentType': 'application/zip'}
-			)
+		# Reset file position to beginning before upload
+		rocrate.file.seek(0)
+		
+		uploadOperationResult = self.minioClient.upload_fileobj(
+				Bucket = self.minioBucket,
+				Key = str(uploadPath),
+				Fileobj = rocrate.file,
+				ExtraArgs = {'ContentType': 'application/zip'}
+		)
 
 		transactionGUID = uuid.uuid4()
 		
