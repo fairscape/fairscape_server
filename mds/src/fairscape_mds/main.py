@@ -2,6 +2,7 @@
 from fastapi import FastAPI, Depends, HTTPException, Path, UploadFile
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware 
 from typing import Annotated
 
 from fairscape_mds.backend.backend import *
@@ -17,7 +18,16 @@ from fairscape_models.biochem_entity import BioChemEntity
 from fairscape_models.medical_condition import MedicalCondition
 from fairscape_models.rocrate import ROCrateV1_2
 
+
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"], 
+    allow_headers=["*"],
+)
 
 OAuthScheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -88,8 +98,11 @@ def getCurrentUser(
 			status_code=401,
 			detail=f"Authorization Error Decoding Token\terror: {str(e)}"
 		)
+  
+from fairscape_mds.backend.for_now.credentitals_router import router as credentials_router
+app.include_router(credentials_router)
 
-@app.post("/login")
+@app.post("/api/login")
 def form(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
 
 	token = userRequest.loginUser(form_data.username, form_data.password)
@@ -185,7 +198,6 @@ def getDatasetContent(
 			content=datasetResponse.error
 		)
 
-
 @app.delete("/dataset/ark:{NAAN}/{postfix}")
 def deleteDataset(
 	NAAN: str,
@@ -209,16 +221,15 @@ def deleteDataset(
 			content = response.error
 		)
 
-
-@app.post("/rocrate")
+@app.post("/api/rocrate/upload-async")
 def uploadROCrate(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
-	rocrate: UploadFile
+	crate: UploadFile
 ):
 
 	uploadOperation = rocrateRequest.uploadROCrate(
 		userInstance=currentUser,
-		rocrate=rocrate
+		rocrate=crate
 	)
 
 	if uploadOperation.success:
@@ -234,6 +245,50 @@ def uploadROCrate(
 		return JSONResponse(
 			status_code=400,
 			content={"error": uploadOperation.error}
+		)
+  
+@app.post(
+    "/api/rocrate/metadata",
+    summary="Mint metadata-only ROCrate records without file content",
+    status_code=201
+)
+def publishMetadataOnly(
+    currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
+    crateMetadata: ROCrateV1_2
+):
+    try:
+        # Call the mintMetadataOnlyROCrate method on the existing rocrateRequest
+        result = rocrateRequest.mintMetadataOnlyROCrate(
+            requestingUser=currentUser,
+            crateModel=crateMetadata
+        )
+        
+        if result.success:
+            return JSONResponse(
+                content=result.model,
+                status_code=result.statusCode
+            )
+        else:
+            return JSONResponse(
+                content=result.error,
+                status_code=result.statusCode
+            )
+    except Exception as e:
+        return JSONResponse(
+            content={
+                "message": "Error minting metadata-only ROCrate identifiers",
+                "error": str(e)
+            },
+            status_code=500
+        )
+        
+@app.get("/api/rocrate")
+def listcrates(
+	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
+):
+    return JSONResponse(
+			status_code = 200,
+			content = []
 		)
 
 
