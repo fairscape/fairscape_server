@@ -1,17 +1,16 @@
 from celery import Celery
 from fairscape_mds.backend.models import FairscapeROCrateRequest
-from fairscape_mds.backend.backend import s3, minioDefaultBucket, identifierCollection, userCollection, rocrateCollection, asyncCollection
+from fairscape_mds.backend.backend import s3, minioDefaultBucket, identifierCollection, userCollection, rocrateCollection, asyncCollection, brokerURL
 
 # Initialize Celery app
 app = Celery('fairscape_mds.worker')
-app.conf.broker_url = "redis://localhost:6379//"
+app.conf.broker_url = f"redis://{brokerURL}"
 app.conf.update(
     task_concurrency=4,
     worker_prefetch_multiplier=4,
-    broker_connection_retry_on_startup=True  # Fix the deprecation warning
+    broker_connection_retry_on_startup=True
 )
 
-# Initialize the ROCrate request handler
 rocrateRequests = FairscapeROCrateRequest(
     minioClient=s3,
     minioBucket=minioDefaultBucket,

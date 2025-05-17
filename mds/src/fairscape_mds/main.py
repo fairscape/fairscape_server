@@ -238,7 +238,7 @@ def deleteDataset(
 			content = response.error
 		)
 
-@app.post("/rocrate")
+@app.post("/rocrate/upload-async")
 def uploadROCrate(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
 	crate: UploadFile
@@ -265,7 +265,7 @@ def uploadROCrate(
 		)
   
 @app.post(
-    "/api/rocrate/metadata",
+    "/rocrate/metadata",
     summary="Mint metadata-only ROCrate records without file content",
     status_code=201
 )
@@ -299,7 +299,7 @@ def publishMetadataOnly(
             status_code=500
         )
         
-@app.get("/api/rocrate")
+@app.get("/rocrate")
 def listcrates(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
 ):
