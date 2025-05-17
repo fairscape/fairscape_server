@@ -132,7 +132,7 @@ class EvidenceGraph(BaseModel):
     def build_graph(self, start_node_id: str, mongo_collection: pymongo.collection.Collection):
         """Builds the graph starting from node_id and stores it in self.graph."""
         processed_nodes = set()
-        self.graph = {"@graph": [self._build_graph_recursive(start_node_id, mongo_collection, processed_nodes)]}
+        self.graph = [self._build_graph_recursive(start_node_id, mongo_collection, processed_nodes)]
 
 
 class EvidenceGraphCreate(BaseModel):
