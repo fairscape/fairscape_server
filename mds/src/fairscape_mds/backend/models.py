@@ -20,8 +20,6 @@ from fairscape_models.dataset import Dataset
 
 
 
-
-
 class FairscapeResponse():
 	def __init__(
 		self, 
@@ -793,7 +791,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				
 		rocrateMetadataElem = ROCrateMetadataElemWrite.model_validate({
 				**metadataElem.model_dump(by_alias=True),
-				"permissions": permissionsSet, 
+				"permissions": foundUser.getPermissions(), 
 				"distribution": roCrateDistribution,
 				"hasPart": [{"@id": elem} for elem in nonDatasetGUIDS + datasetGUIDS],
 				})
@@ -802,7 +800,12 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		
 		# dump into identifier collection and rocrate collection
 		self.identifierCollection.insert_one(rocrateMetadataWrite)
-		self.rocrateCollection.insert_one(rocrateMetadataWrite)
+
+		# write the whole ROCrateV1_2 model into the rocrate collection
+		self.rocrateCollection.insert_one({
+			"@id": rocrateMetadataElem.guid,
+			**roCrateModel.model_dump(mode='json', by_alias=True)
+		})
 		
 		# update process as success
 		updateResult = self.asyncCollection.update_one(
@@ -850,6 +853,27 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 	def getROCrateMetadata(self, rocrateGUID: str):
 		rocrateMetadata = self.rocrateCollection.find_one({
+				"@id": rocrateGUID
+		})
+		
+		# if no metadata is found return 404
+		if not rocrateMetadata:
+			return FairscapeResponse(
+					success=False,
+					statusCode=404,
+					error={"message": "rocrate not found"}
+			)
+		else:
+			rocrateModel = ROCrateV1_2.model_validate(rocrateMetadata)
+			return FairscapeResponse(
+					success=True,
+					model=rocrateModel,
+					statusCode=200
+			)
+
+
+	def getROCrateMetadataElem(self, rocrateGUID: str):
+		rocrateMetadata = self.identifierCollection.find_one({
 				"@id": rocrateGUID
 		})
 		

@@ -371,8 +371,17 @@ def getROCrateMetadata(
 	NAAN: str,
 	postfix: str
 ):
-	#TODO return ROCrateV1_2
-	pass
+	guid = f"ark:{NAAN}/{postfix}"
+	response = rocrateRequest.getROCrateMetadata(guid)
+
+	if response.success:
+		return response.model
+
+	else:
+		return JSONResponse(
+			status_code = response.statusCode,
+			content = response.error
+		)
 
 @app.get("/ark:{NAAN}/{postfix}")
 def resolveARK(
