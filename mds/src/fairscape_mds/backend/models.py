@@ -468,6 +468,10 @@ class ROCrateUploadRequest(BaseModel):
 	error: Optional[str] = Field(default=None)
 	identifiersMinted: Optional[int] = Field(default=None)
 	rocrateIdentifier: Optional[str] = Field(default=None)
+	transactionFolder: Optional[str] = Field(default=None)
+	status: Optional[str] = Field(default=None)
+	stage: Optional[str] = Field(default=None)
+	success: Optional[bool] = Field(default=False)
 
 
 # ROCrate Helper Functions
@@ -507,7 +511,8 @@ def writeDatasets(
 	identifierCollection, 
 	userInstance: UserWriteModel, 
 	rocrateInstance, 
-	objectList
+	objectList,
+	minioBucket
 ):
 	""" Write ROCrate metadata to identifier collection for all dataset elements.
 
@@ -550,7 +555,7 @@ def writeDatasets(
 	
 		# create metadata record to insert 
 		objectSize = matchedElement.get('Size')
-		objectPath = matchedElement.get('Key').lstrip(self.minioDefaultBucket + '/')
+		objectPath = matchedElement.get('Key').lstrip(minioBucket + '/')
 			
 		# create distribution for metadata
 		distribution = DatasetDistribution.model_validate({
@@ -564,15 +569,22 @@ def writeDatasets(
 				"distribution": distribution,
 				"size": objectSize,
 				"isPartOf": {
-						"@id": crateGUID,
+						"@id": rocrateInstance.metadataGraph[1].guid,
 				},
 				
 		})
+		output_json = {
+			"@id": outputDataset.guid,
+			"@type": outputDataset.metadataType,
+      		"metadata":outputDataset.model_dump(by_alias=True, mode='json'),
+            "permissions": permissionsSet.model_dump(mode='json', by_alias=True), 
+			"distribution": distribution.model_dump(by_alias=True, mode='json'),
+    	}
+  
 
 		# insert all identifiers for datasets
 		insertResult = identifierCollection.insert_one(
-				outputDataset.model_dump(by_alias=True, mode='json')
-		)
+				output_json)
 
 		# TODO: check insertResult for success
 
@@ -580,7 +592,6 @@ def writeDatasets(
 		datasetWriteList.append(outputDataset.guid)
 	
 	return datasetWriteList
-
 def writeMetadataElements(
 	identifierCollection,
 	userInstance,
@@ -610,9 +621,10 @@ def writeMetadataElements(
 	# mint all metadata elements
 	for metadataModel in rocrateMetadataElements:
 		insertDocument = {
-			**metadataModel.model_dump(by_alias=True, mode='json'),
+			"@id": metadataModel.guid,
+			"@type": metadataModel.metadataType,
+			"metadata":metadataModel.model_dump(by_alias=True, mode='json'),
 			'permissions': userPermissions.model_dump(mode='json'),
-			'isPartOf': {"@id": crateGUID}
 		}
 		
 		insertResult = identifierCollection.insert_one(
@@ -710,6 +722,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		
 		uploadRequestInstance = ROCrateUploadRequest.model_validate({
 			"guid": str(transactionGUID),
+   			"transactionFolder": str(transactionGUID),
 			"permissions": userInstance.getPermissions(),
 			"uploadPath": str(uploadPath)
 		})
@@ -733,6 +746,15 @@ class FairscapeROCrateRequest(FairscapeRequest):
 	def processROCrate(self, transactionGUID: str):
 		# get the current rocrate upload job
 		uploadMetadata = self.asyncCollection.find_one({"guid": transactionGUID})
+
+		self.asyncCollection.update_one(
+        	{"transactionFolder": str(transactionGUID)},
+        	{"$set": 
+            	{
+                	"stage": "processing metadata"
+            	}
+        	}
+    	)
 
 		if uploadMetadata is None:
 				raise Exception
@@ -765,12 +787,22 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		# get list of the objects from minio
 		objectList = getROCrateContentsMinio(self.minioClient, self.minioBucket, zippedCratePath)
 
+		self.asyncCollection.update_one(
+        	{"transactionFolder": transactionGUID},
+        	{"$set": 
+            	{
+                	"stage": "publishing metadata"
+            	}
+        	}
+    	)
+  
 		# write dataset records
 		datasetGUIDS = writeDatasets(
 				self.identifierCollection, 
 				foundUser, 
 				roCrateModel, 
-				objectList
+				objectList,
+				self.minioBucket
 		)
 
 		# write metadata elements
@@ -814,7 +846,10 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						"completed": True,
 						"identifiersMinted": len(datasetGUIDS + nonDatasetGUIDS)+1,
 						"rocrateIdentifier": metadataElem.guid,
-						"timeFinished": datetime.datetime.now()
+						"timeFinished": datetime.datetime.now(),
+						"success": True,
+						"status": "finished",
+						"stage": "completed all tasks successfully"
 				}}
 		)
 

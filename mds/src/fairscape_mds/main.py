@@ -309,7 +309,7 @@ def listcrates(
 		)
 
 
-@app.get("/rocrate/upload/{submissionUUID}")
+@app.get("/rocrate/upload/status/{submissionUUID}")
 def getUploadStatus(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
 	submissionUUID: str
