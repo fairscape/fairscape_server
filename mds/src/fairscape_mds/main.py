@@ -109,6 +109,8 @@ def getCurrentUser(
   
 from fairscape_mds.backend.for_now.credentitals_router import router as credentials_router
 app.include_router(credentials_router)
+from fairscape_mds.backend.for_now.evidence_graph_router import router as evidence_graph_router
+app.include_router(evidence_graph_router)
 
 @app.post("/login")
 def form(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
@@ -299,14 +301,26 @@ def publishMetadataOnly(
             status_code=500
         )
         
-@app.get("/rocrate")
-def listcrates(
-	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
+@app.get(
+    "/rocrate",
+    summary="List all ROCrates accessible by the current user",
+    response_description="A list of RO-Crates with their basic metadata"
+)
+def list_rocrates_endpoint(
+    currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
 ):
-    return JSONResponse(
-			status_code = 200,
-			content = []
-		)
+    fairscape_response = rocrateRequest.list_crates(requestingUser=currentUser)
+
+    if fairscape_response.success:
+        return JSONResponse(
+            status_code=fairscape_response.statusCode,
+            content=fairscape_response.model
+        )
+    else:
+        raise HTTPException(
+            status_code=fairscape_response.statusCode,
+            detail=fairscape_response.error
+        )
 
 
 @app.get("/rocrate/upload/status/{submissionUUID}")

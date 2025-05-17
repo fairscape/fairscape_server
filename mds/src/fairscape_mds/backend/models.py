@@ -6,7 +6,9 @@ from pydantic import (
 from typing import (
     Optional,
     List,
-    Literal
+    Literal,
+    Dict,
+    Any
 )
 import datetime
 import jwt
@@ -18,7 +20,7 @@ from fairscape_models.software import Software
 from fairscape_models.schema import Schema
 from fairscape_models.dataset import Dataset
 
-
+ADMIN_GROUP_IDENTIFIER = "admin"
 
 class FairscapeResponse():
 	def __init__(
@@ -1127,6 +1129,58 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			ROCrateMetadataElemWrite,
 			guid
 		)
+  
+	def list_crates(
+			self,
+			requestingUser: UserWriteModel
+		) -> FairscapeResponse:
+			"""
+			Lists RO-Crates based on user permissions.
+			Admins see all crates. Regular users see crates they own or that belong to their primary group.
+			"""
+			query: Dict[str, Any] = {}
+			is_admin = ADMIN_GROUP_IDENTIFIER in requestingUser.groups
+
+			if not is_admin:
+				user_primary_group = requestingUser.groups[0] if requestingUser.groups else None
+				
+				or_conditions = [{"owner": requestingUser.email}]
+				if user_primary_group:
+					or_conditions.append({"permissions.group": user_primary_group})
+				
+				query["$or"] = or_conditions
+			
+			try:
+				cursor = self.rocrateCollection.find(
+					query,
+					projection={
+						"_id": 0,
+						"@id": 1,
+						"metadata": 1,
+					}
+				)
+
+				crates_list = []
+				for crate_doc in cursor:
+					crate_id = crate_doc.get("@id")
+					crates_list.append({
+						"@id": crate_id,
+						"name": crate_doc.get('metadata',{}).get("@graph",[{},{}])[1].get("name"),
+						"description": crate_doc.get('metadata',{}).get("@graph",[{},{}])[1].get("description"),
+						"@graph": []
+					})
+
+				return FairscapeResponse(
+					success=True,
+					statusCode=200,
+					model={"rocrates": crates_list}
+				)
+
+			except Exception as e:
+				return FairscapeResponse(
+					success=False,
+					statusCode=500,
+					error={"message": f"Error listing RO-Crates: {str(e)}"})
 
 ############
 # Resolver #
