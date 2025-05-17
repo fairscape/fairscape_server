@@ -698,14 +698,15 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		uploadPath = f"{self.minioDefaultPath}/{userEmailPath}/rocrates/{rocrateFilename}"
 
 		# upload zip to minio
-		# TODO switch with fastapi.UploadFile
-		with rocrate.file.open('rb') as zippedFileObj:
-			uploadOperationResult = self.minioClient.upload_fileobj(
-					Bucket = self.minioBucket,
-					Key = str(uploadPath),
-					Fileobj = zippedFileObj,
-					ExtraArgs = {'ContentType': 'application/zip'}
-			)
+		# Reset file position to beginning before upload
+		rocrate.file.seek(0)
+		
+		uploadOperationResult = self.minioClient.upload_fileobj(
+				Bucket = self.minioBucket,
+				Key = str(uploadPath),
+				Fileobj = rocrate.file,
+				ExtraArgs = {'ContentType': 'application/zip'}
+		)
 
 		transactionGUID = uuid.uuid4()
 		
@@ -746,24 +747,25 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		)
 
 		foundUser = UserWriteModel.model_validate(userMetadata)
+		zippedCratePath = uploadInstance.uploadPath
 
 		# TODO getROCrateMetadata
 		roCrateMetadata = getROCrateMetadata(self.minioClient, self.minioBucket, uploadInstance)
 		
 		# parse the metadata into the rocrate
 		try:
-				roCrateModel = ROCrateV1_2.model_validate(roCrateJSON)
-		
-		except ValidationError as validationErr:
-				# TODO return an error
-				print("ValidationError")
-				return None
+			roCrateModel = ROCrateV1_2.model_validate(roCrateMetadata)
+		except Exception as e:
+			print(f"ValidationError: {str(e)}")
+			import traceback
+			traceback.print_exc()
+			return None
 
 		# get rocrate GUID
 		crateMetadata = roCrateModel.getCrateMetadata()
 
 		# get list of the objects from minio
-		objectList = getROCrateContentsMinio(s3, minioDefaultBucket, zippedCratePath)
+		objectList = getROCrateContentsMinio(self.minioClient, self.minioBucket, zippedCratePath)
 
 		# write dataset records
 		datasetGUIDS = writeDatasets(
@@ -909,6 +911,150 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				statusCode=200,
 				fileResponse=objectResponse.get('Body')
 		)
+  
+	def _validateMetadataOnlyCrate(self, crateModel: ROCrateV1_2) -> Optional[dict]:
+		"""Checks for file:// contentUrls in Datasets."""
+		errors = {}
+		datasets = crateModel.getDatasets()
+
+		file_content_urls = {}
+
+		for crateDataset in datasets:
+			if crateDataset.contentUrl:
+				if isinstance(crateDataset.contentUrl, list):
+					for url in crateDataset.contentUrl:
+						if url and isinstance(url, str) and url.lower().startswith("file://"):
+							file_content_urls[crateDataset.guid] = url
+				elif isinstance(crateDataset.contentUrl, str) and crateDataset.contentUrl.lower().startswith("file://"):
+					file_content_urls[crateDataset.guid] = crateDataset.contentUrl	
+
+		if file_content_urls:
+			errors["message"] = "Metadata-only ROCrates cannot contain local file references (file://)"
+			errors["details"] = file_content_urls
+			return errors
+		return None
+
+	def mintMetadataOnlyROCrate(
+			self,
+			requestingUser: UserWriteModel,
+			crateModel: ROCrateV1_2
+		) -> FairscapeResponse:
+			"""
+			Mints metadata records for an ROCrate and its elements without file content upload.
+			- Stores the full ROCrate model dump in rocrateCollection (keyed by root GUID).
+			- Stores individual contextual element dumps in identifierCollection (keyed by element GUIDs),
+			wrapped in MongoDocument.
+			- Does NOT update the user model's lists of associated identifiers.
+			"""
+			try:
+				crateModel.cleanIdentifiers()
+			except Exception as e:
+				return FairscapeResponse(
+					success=False, statusCode=500,
+					error={"message": "Failed to clean ROCrate identifiers", "details": str(e)}
+				)
+		
+			validation_errors = self._validateMetadataOnlyCrate(crateModel)
+			if validation_errors:
+				return FairscapeResponse(
+					success=False, statusCode=400, error=validation_errors
+				)
+		
+			root_metadata_entity = crateModel.getCrateMetadata()
+			if not root_metadata_entity or not root_metadata_entity.guid:
+				return FairscapeResponse(
+					success=False, statusCode=400,
+					error={"message": "ROCrate root descriptor or its @id is missing."}
+				)
+			root_guid = root_metadata_entity.guid
+			user_permissions = requestingUser.getPermissions()
+		
+			# 1. Store the full RO-Crate dump in rocrateCollection
+			try:
+				full_crate_dump = crateModel.model_dump(by_alias=True, mode='json')
+				rocrate_doc_for_rocrate_collection = {
+					"@id": root_guid,
+					"@type": ['Dataset', "https://w3id.org/EVI#ROCrate"],
+					"owner": requestingUser.email,
+					"metadata": full_crate_dump,
+				}
+				self.rocrateCollection.insert_one(rocrate_doc_for_rocrate_collection)
+			except pymongo.errors.DuplicateKeyError:
+				return FairscapeResponse(
+					success=False, statusCode=409,
+					error={"message": f"ROCrate with @id '{root_guid}' already exists in rocrateCollection."}
+				)
+			except Exception as e:
+				return FairscapeResponse(
+					success=False, statusCode=500,
+					error={"message": "Database error storing full ROCrate model.", "details": str(e)}
+				)
+		
+			user_permissions = requestingUser.getPermissions().model_dump(mode='json')
+			
+			# Initialize collections to store results
+			documents_for_identifier_collection = []
+			minted_element_guids = []
+			
+			# Process each element in the ROCrate metadata graph
+			for elem in crateModel.metadataGraph:
+				if elem.guid == root_guid or elem.metadataType in ["Project", "Organization"] or elem.guid == "ro-crate-metadata.json":
+					continue
+
+				try:
+					element_document_data = {
+						"@id": elem.guid,
+						"@type": elem.metadataType, 
+						"owner": requestingUser.email, 
+						"permissions": user_permissions,
+						"metadata": elem.model_dump(by_alias=True, mode='json'),
+						"distribution": None, 
+					}
+
+					documents_for_identifier_collection.append(element_document_data)
+					minted_element_guids.append(elem.guid)
+		
+				except Exception as e:
+					print(f"Unexpected error processing element {elem.guid}: {e}")
+					return FairscapeResponse(
+						success=False, statusCode=500,
+						error={"message": f"Unexpected error processing element {elem.guid}", "details": str(e)}
+					)
+
+			if not documents_for_identifier_collection:
+				print("No individual elements to insert into identifierCollection after filtering.")
+				return FairscapeResponse(
+					success=True, statusCode=201,
+					model={"rocrate_guid": root_guid, "minted_element_identifiers": []}
+				)
+
+			try:
+				insert_identifier_result = self.identifierCollection.insert_many(documents_for_identifier_collection)
+
+				if len(insert_identifier_result.inserted_ids) != len(documents_for_identifier_collection):
+					print(f"Warning: Inserted fewer documents ({len(insert_identifier_result.inserted_ids)}) into identifierCollection than expected ({len(documents_for_identifier_collection)})")
+					return FairscapeResponse(
+						success=False, statusCode=500,
+						error={"message": "Database error: Partial insert into identifierCollection occurred"}
+					)
+
+			except pymongo.errors.BulkWriteError as bwe:
+				print(f"Bulk write error during insert into identifierCollection: {bwe.details}")
+				return FairscapeResponse(
+					success=False, statusCode=500,
+					error={"message": "Database error during bulk insert into identifierCollection", "details": bwe.details}
+				)
+			except Exception as e:
+				print(f"Unexpected database error during insert_many into identifierCollection: {e}")
+				return FairscapeResponse(
+					success=False, statusCode=500,
+					error={"message": "Unexpected database error storing elements.", "details": str(e)}
+				)
+
+			return FairscapeResponse(
+				success=True, statusCode=201,
+				model={"rocrate_guid": root_guid, "minted_element_identifiers": minted_element_guids}
+			)
 
 	def deleteROCrate(
 		self,				 

@@ -18,6 +18,7 @@ mongoUserCollection = os.environ.get("FAIRSCAPE_MONGO_USER_COLLECTION", "users")
 mongoIdentifierCollection = os.environ.get("FAIRSCAPE_MONGO_IDENTIFIER_COLLECTION", "mds")
 mongoROCrateCollection = os.environ.get("FAIRSCAPE_MONGO_ROCRATE_COLLECTION", "rocrate")
 mongoAsyncCollection =  os.environ.get("FAIRSCAPE_MONGO_ASYNC_COLLECTION", "async")
+mongoTokensCollection =  os.environ.get("FAIRSCAPE_MONGO_TOKENS_COLLECTION", "tokens")
 
 
 minioAccessKey = os.environ.get("FAIRSCAPE_MINIO_ACCESS_KEY", "miniotestadmin")
@@ -44,6 +45,7 @@ userCollection = mongoDB[mongoUserCollection]
 identifierCollection = mongoDB[mongoIdentifierCollection]
 rocrateCollection = mongoDB[mongoROCrateCollection]
 asyncCollection = mongoDB[mongoAsyncCollection]
+tokensCollection = mongoDB[mongoTokensCollection]
 
 # create a boto s3 client
 s3 = boto3.client('s3',
