@@ -890,8 +890,12 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 	def getROCrateMetadata(self, rocrateGUID: str):
 		rocrateMetadata = self.rocrateCollection.find_one({
-				"@id": rocrateGUID
-		})
+				"$or":[
+        			{"@id": rocrateGUID},
+         			{"@id":f"{rocrateGUID}/"}]
+		},
+        projection={"_id": False}
+        )
 		
 		# if no metadata is found return 404
 		if not rocrateMetadata:
@@ -901,10 +905,10 @@ class FairscapeROCrateRequest(FairscapeRequest):
 					error={"message": "rocrate not found"}
 			)
 		else:
-			rocrateModel = ROCrateV1_2.model_validate(rocrateMetadata)
+			rocrateModel = ROCrateV1_2.model_validate(rocrateMetadata["metadata"])
 			return FairscapeResponse(
 					success=True,
-					model=rocrateModel,
+					model=rocrateMetadata,
 					statusCode=200
 			)
 
@@ -1059,7 +1063,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			
 			# Process each element in the ROCrate metadata graph
 			for elem in crateModel.metadataGraph:
-				if elem.guid == root_guid or elem.metadataType in ["Project", "Organization"] or elem.guid == "ro-crate-metadata.json":
+				if elem.metadataType in ["Project", "Organization"] or elem.guid == "ro-crate-metadata.json":
 					continue
 
 				try:
@@ -1212,9 +1216,12 @@ def getMetadata(mongoCollection, passedModel, guid: str):
 class FairscapeResolverRequest(FairscapeRequest):
 
 	def resolveIdentifier(self, guid: str):	
-
 		foundMetadata = self.identifierCollection.find_one(
-			{"@id": guid}
+			{"$or": [
+				{"@id": guid},
+				{"@id": f"{guid}/"}
+			]},
+			projection={"_id": False}
 		)	
 
 		if not foundMetadata:
@@ -1224,24 +1231,24 @@ class FairscapeResolverRequest(FairscapeRequest):
 				error= {"message": "identifier not found"}
 			)
 
-		identifierCases = {
-			"https://w3id.org/EVI#Dataset": Dataset,
-			"https://w3id.org/EVI#Computation": Computation,
-			"https://w3id.org/EVI#Software": Software,
-			"https://w3id.org/EVI#Schema": Schema,
-		}		
+		# identifierCases = {
+		# 	"https://w3id.org/EVI#Dataset": Dataset,
+		# 	"https://w3id.org/EVI#Computation": Computation,
+		# 	"https://w3id.org/EVI#Software": Software,
+		# 	"https://w3id.org/EVI#Schema": Schema,
+		# }		
 
-		# TODO handle ROCrate for 
-		if isinstance(foundMetadata.get("@type"), str):
-			foundModel = identifierCases[foundMetadata.get("@type")].model_validate(foundMetadata)
+		# # TODO handle ROCrate for 
+		# if isinstance(foundMetadata.get("@type"), str):
+		# 	foundModel = identifierCases[foundMetadata.get("@type")].model_validate(foundMetadata)
 		
-		else:
-			foundModel = ROCrateMetadataElemWrite.model_validate(foundMetadata)
+		# else:
+		# 	foundModel = ROCrateMetadataElemWrite.model_validate(foundMetadata)
 
 		return FairscapeResponse(
 			success=True,
 			statusCode=200,
-			model=foundModel
+			model=foundMetadata
 		)
 
 #############
