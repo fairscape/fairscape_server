@@ -296,8 +296,8 @@ def setDatasetObjectKey(
 	userInstance: UserWriteModel, 
 	basePath: str = None
 	):
+	contentName = pathlib.Path(datasetFilename).name
 	if basePath is None:
-		contentName = pathlib.Path(datasetFilename).name
 		return f"{userInstance.email}/datasets/{contentName}"
 	else:
 		return f"{basePath}/{userInstance.email}/datasets/{contentName}"
@@ -319,7 +319,7 @@ def uploadObjectMinio(
 
 	# create distribution for metadata
 	distribution = DatasetDistribution.model_validate({
-			"distributionType": DistributionTypeEnum.Minio,
+			"distributionType": DistributionTypeEnum.MINIO,
 					"location": {"path": minioKey}
 			})
 
@@ -398,7 +398,12 @@ class FairscapeDatasetRequest(FairscapeRequest):
 			)
 			
 			# upload content and return a dataset distribution
-			distribution = uploadObjectMinio(self.minioClient, self.minioBucket, uploadKey, datasetContent)
+			distribution = uploadObjectMinio(
+				self.minioClient, 
+				self.minioBucket, 
+				uploadKey, 
+				datasetContent.file
+				)
 
 		# set remainder of metadata for storage
 		permissionsSet = userInstance.getPermissions()

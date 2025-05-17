@@ -1,8 +1,12 @@
 # fast api routers
-from fastapi import FastAPI, Depends, HTTPException, Path, UploadFile
+from fastapi import FastAPI, Depends, HTTPException, Path, UploadFile, Form, File
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import HTTPException
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi.responses import JSONResponse, StreamingResponse
 from typing import Annotated
+
+from pydantic import ValidationError
 
 from fairscape_mds.backend.backend import *
 from fairscape_mds.backend.models import *
@@ -17,7 +21,11 @@ from fairscape_models.biochem_entity import BioChemEntity
 from fairscape_models.medical_condition import MedicalCondition
 from fairscape_models.rocrate import ROCrateV1_2
 
-app = FastAPI()
+app = FastAPI(
+	root_path="/api",
+	title="Fairscape API",
+	description="Backend Fairscape API for storing EVI Providence Graphs and rich provenance metadata"
+)
 
 OAuthScheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -122,17 +130,26 @@ def admin(
 		return {"message": "secret handshake", "currentUserEmail": currentUser.email}
 
 
+def parseDataset(datasetMetadata: str = Form(...)):
+	try:
+		return Dataset.model_validate_json(datasetMetadata)
+	except ValidationError as e:
+		raise HTTPException(
+			detail=jsonable_encoder(e.errors()),
+			status_code=422
+		)
+
 @app.post("/dataset")
 def createDataset(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
-	datasetMetadata: Dataset,
-	#uploadFile: Optional[UploadFile]
+	datasetMetadata: Annotated[Dataset, Depends(parseDataset)],
+	uploadFile: Optional[UploadFile] = None
 ):
 
 	response = datasetRequest.createDataset(
 		userInstance=currentUser,
 		inputDataset=datasetMetadata,
-		#datasetContent=uploadFile
+		datasetContent=uploadFile
 	)
 
 	return response
@@ -294,6 +311,13 @@ def getROCrateArchive(
 			content = response.error
 		)
 
+@app.get("/rocrate/ark:{NAAN}/{postfix}")
+def getROCrateMetadata(
+	NAAN: str,
+	postfix: str
+):
+	#TODO return ROCrateV1_2
+	pass
 
 @app.get("/ark:{NAAN}/{postfix}")
 def resolveARK(
