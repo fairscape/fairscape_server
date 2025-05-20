@@ -1,4 +1,4 @@
-VERSION = RELEASE.2025-05-15.v3
+VERSION = RELEASE.2025-05-18.v2
 
 run:
 	cd src/ && python -m fairscape_mds

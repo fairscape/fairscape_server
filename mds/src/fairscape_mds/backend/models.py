@@ -594,6 +594,8 @@ def writeDatasets(
 		datasetWriteList.append(outputDataset.guid)
 	
 	return datasetWriteList
+
+
 def writeMetadataElements(
 	identifierCollection,
 	userInstance,
@@ -905,7 +907,6 @@ class FairscapeROCrateRequest(FairscapeRequest):
 					error={"message": "rocrate not found"}
 			)
 		else:
-			rocrateModel = ROCrateV1_2.model_validate(rocrateMetadata["metadata"])
 			return FairscapeResponse(
 					success=True,
 					model=rocrateMetadata,
