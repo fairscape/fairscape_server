@@ -23,6 +23,12 @@ from fairscape_models.medical_condition import MedicalCondition
 from fairscape_models.rocrate import ROCrateV1_2
 
 
+try:
+    s3.create_bucket(Bucket=minioDefaultBucket)
+except:
+    pass
+
+
 app = FastAPI(
 	root_path="/api",
 	title="Fairscape API",
