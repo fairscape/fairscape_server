@@ -1,5 +1,6 @@
 minio>=7.2.3
 python-dotenv>=1.0.1
-ldap3
+pymongo
 requests
+pydantic
 docker
