@@ -40,8 +40,6 @@ class EvidenceGraph(BaseModel):
         return flattened
 
     def _build_graph_recursive(self, node_id: str, collection: pymongo.collection.Collection, processed: set) -> Dict:
-        if node_id in processed:
-            return {"@id": node_id}
 
         node_data = collection.find_one({"@id": node_id}, {"_id": 0})
         if not node_data:
@@ -72,7 +70,8 @@ class EvidenceGraph(BaseModel):
 
         if "Dataset" in current_node_type_str or \
            "Sample" in current_node_type_str or \
-           "Instrument" in current_node_type_str: 
+           "Instrument" in current_node_type_str or \
+           "Software" in current_node_type_str: 
             generated_by_info = node.get("generatedBy")
             if generated_by_info:
                 if isinstance(generated_by_info, list) and generated_by_info:
