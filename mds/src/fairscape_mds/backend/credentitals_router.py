@@ -9,23 +9,13 @@ from fairscape_mds.backend.models import (
     #UserTokenUpdate
 )
 
-from fairscape_mds.backend.for_now.credentials_crud import (
+from fairscape_mds.backend.credentials_crud import (
     FairscapeCredentialsRequest,
     UserToken,
     UserTokenUpdate
 )
 
-from fairscape_mds.backend.backend import (
-    s3,
-    minioDefaultBucket,
-    identifierCollection,
-    userCollection,
-    rocrateCollection,
-    asyncCollection,
-    tokensCollection,
-    jwtSecret
-)
-
+from fairscape_mds.backend.backend import config
 from fairscape_mds.main import getCurrentUser
 
 router = APIRouter(
@@ -34,16 +24,7 @@ router = APIRouter(
 )
 
 
-credentials_request_handler = FairscapeCredentialsRequest(
-    tokensCollection=tokensCollection, 
-    minioClient=s3,
-    minioBucket=minioDefaultBucket,
-    identifierCollection=identifierCollection,
-    userCollection=userCollection,
-    asyncCollection=asyncCollection,
-    rocrateCollection=rocrateCollection,
-    jwtSecret=jwtSecret
-)
+credentials_request_handler = FairscapeCredentialsRequest(config)
 
 @router.get("", response_model=List[UserToken], summary="Get all API tokens for the current user")
 def get_user_api_tokens_route(

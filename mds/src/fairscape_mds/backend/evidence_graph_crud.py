@@ -1,22 +1,15 @@
 import pymongo
 from fairscape_mds.backend.models import FairscapeRequest, FairscapeResponse, UserWriteModel
-from fairscape_mds.backend.for_now.evidence_graph import EvidenceGraph, EvidenceGraphCreate
+from fairscape_mds.backend.evidence_graph import EvidenceGraph, EvidenceGraphCreate
 
 class FairscapeEvidenceGraphRequest(FairscapeRequest):
-    def __init__(
-        self,
-        identiferCollection: pymongo.MongoClient,
-        userCollection: pymongo.MongoClient,
-    ):
-        self.identifierCollection = identiferCollection
-        self.userCollection = userCollection
 
     def create_evidence_graph(
         self,
         requesting_user: UserWriteModel,
         evi_graph_create_model: EvidenceGraphCreate
     ) -> FairscapeResponse:
-        if self.identifierCollection.find_one({"@id": evi_graph_create_model.guid}):
+        if self.config.identifierCollection.find_one({"@id": evi_graph_create_model.guid}):
             return FairscapeResponse(
                 success=False,
                 statusCode=409,
@@ -35,7 +28,7 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
         try:
             evidence_graph = EvidenceGraph.model_validate(evidence_graph_data)
             insert_data = evidence_graph.model_dump(by_alias=True)
-            result = self.identifierCollection.insert_one(insert_data)
+            result = self.config.identifierCollection.insert_one(insert_data)
             if result.inserted_id:
                 return FairscapeResponse(success=True, statusCode=201, model=evidence_graph)
             else:
@@ -44,7 +37,7 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
             return FairscapeResponse(success=False, statusCode=500, error={"message": f"Error creating evidence graph: {str(e)}"})
 
     def get_evidence_graph(self, evidence_id: str) -> FairscapeResponse:
-        graph_data = self.identifierCollection.find_one({"@id": evidence_id}, {"_id": 0})
+        graph_data = self.config.identifierCollection.find_one({"@id": evidence_id}, {"_id": 0})
         if not graph_data:
             return FairscapeResponse(success=False, statusCode=404, error={"message": "EvidenceGraph not found"})
         try:
@@ -54,7 +47,7 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
             return FairscapeResponse(success=False, statusCode=500, error={"message": f"Data validation error for EvidenceGraph {evidence_id}: {str(e)}"})
 
     def delete_evidence_graph(self, requesting_user: UserWriteModel, evidence_id: str) -> FairscapeResponse:
-        graph_data = self.identifierCollection.find_one({"@id": evidence_id})
+        graph_data = self.config.identifierCollection.find_one({"@id": evidence_id})
         if not graph_data:
             return FairscapeResponse(success=False, statusCode=404, error={"message": "EvidenceGraph not found"})
 
@@ -62,9 +55,9 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
             return FairscapeResponse(success=False, statusCode=403, error={"message": "User not authorized to delete this EvidenceGraph"})
 
         try:
-            result = self.identifierCollection.delete_one({"@id": evidence_id})
+            result = self.config.identifierCollection.delete_one({"@id": evidence_id})
             if result.deleted_count == 1:
-                self.identifierCollection.update_many(
+                self.config.identifierCollection.update_many(
                     {"metadata.hasEvidenceGraph.@id": evidence_id},
                     {"$unset": {"metadata.hasEvidenceGraph": ""}}
                 )
@@ -87,12 +80,12 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
         node_id = f"ark:{naan}/{postfix}"
         evidence_graph_id = f"ark:{naan}/evidence-graph-{postfix}"
 
-        source_node_data = self.identifierCollection.find_one({"@id": node_id})
+        source_node_data = self.config.identifierCollection.find_one({"@id": node_id})
         if not source_node_data:
             return FairscapeResponse(success=False, statusCode=404, error={"message": f"Source node {node_id} not found."})
 
         existing_graph_id_from_node = source_node_data.get("metadata", {}).get("hasEvidenceGraph", {}).get("@id")
-        existing_graph_with_target_id = self.identifierCollection.find_one({"@id": evidence_graph_id})
+        existing_graph_with_target_id = self.config.identifierCollection.find_one({"@id": evidence_graph_id})
 
         ids_to_delete = set()
         if existing_graph_id_from_node:
@@ -116,24 +109,31 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
         
         try:
             evidence_graph = EvidenceGraph.model_validate(evidence_graph_data_to_validate)
-            evidence_graph.build_graph(node_id, self.identifierCollection)
+            evidence_graph.build_graph(node_id, self.config.identifierCollection)
         except Exception as e:
             return FairscapeResponse(success=False, statusCode=500, error={"message": f"Error building evidence graph: {str(e)}"})
 
         try:
             insert_data = evidence_graph.model_dump(by_alias=True)
-            self.identifierCollection.insert_one(insert_data)
+            self.config.identifierCollection.insert_one(insert_data)
         except pymongo.errors.DuplicateKeyError:
             return FairscapeResponse(success=False, statusCode=409, error={"message": f"EvidenceGraph with @id '{evidence_graph_id}' already exists (race condition or failed cleanup)."})
         except Exception as e:
             return FairscapeResponse(success=False, statusCode=500, error={"message": f"Error storing new evidence graph: {str(e)}"})
 
         try:
-            self.identifierCollection.update_one(
+            self.config.identifierCollection.update_one(
                 {"@id": node_id},
                 {"$set": {"metadata.hasEvidenceGraph": {"@id": evidence_graph.guid}}}
             )
         except Exception as e:
-            return FairscapeResponse(success=False, statusCode=500, model=evidence_graph, error={"message": f"EvidenceGraph created but failed to link to source node {node_id}: {str(e)} (graph @id: {evidence_graph.guid})"})
+            return FairscapeResponse(
+                success=False, 
+                statusCode=500, 
+                model=evidence_graph, 
+                error={
+                    "message": f"EvidenceGraph created but failed to link to source node {node_id}: {str(e)} (graph @id: {evidence_graph.guid})"
+                }
+            )
 
         return FairscapeResponse(success=True, statusCode=201, model=evidence_graph)

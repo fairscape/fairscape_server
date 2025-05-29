@@ -22,6 +22,31 @@ from fairscape_models.dataset import Dataset
 
 ADMIN_GROUP_IDENTIFIER = "admin"
 
+class FairscapeConfig():
+	def __init__(
+			self,
+			minioClient, 
+			minioBucket: str, 
+			minioDefaultPath: str,
+			identifierCollection,
+			userCollection, 
+			asyncCollection,
+			rocrateCollection,
+			tokensCollection,
+			jwtSecret: str,
+			adminGroup: str
+	):
+		self.minioClient=minioClient
+		self.minioBucket=minioBucket
+		self.minioDefaultPath=minioDefaultPath 
+		self.identifierCollection=identifierCollection
+		self.userCollection=userCollection
+		self.rocrateCollection=rocrateCollection
+		self.asyncCollection=asyncCollection
+		self.tokensCollection=tokensCollection
+		self.jwtSecret = jwtSecret
+		self.adminGroup = adminGroup
+
 class FairscapeResponse():
 	def __init__(
 		self, 
@@ -29,37 +54,26 @@ class FairscapeResponse():
 		statusCode: int, 
 		model=None, 
 		fileResponse=None, 
-		error: dict=None
+		error: dict= {},
+		jsonResponse: dict={}
 	):
 		self.model = model
 		self.success = success
 		self.statusCode = statusCode
 		self.error = error
 		self.fileResponse = fileResponse
+		self.jsonResponse = jsonResponse
 
 
 class FairscapeRequest():
 	def __init__(
 			self, 
-			minioClient, 
-			minioBucket, 
-			identifierCollection, 
-			userCollection, 
-			asyncCollection,
-			rocrateCollection=None,
-			jwtSecret: str = None,
+			backendConfig: FairscapeConfig
 	):
-		self.minioClient=minioClient
-		self.minioBucket=minioBucket
-		self.minioDefaultPath="fairscape"
-		self.identifierCollection=identifierCollection
-		self.userCollection=userCollection
-		self.rocrateCollection=rocrateCollection
-		self.asyncCollection=asyncCollection
-		self.jwtSecret = jwtSecret
+		self.config = backendConfig
   
 	def getMetadata(self, guid: str):
-		return self.identifierCollection.find_one({"@id": guid})
+		return self.config.identifierCollection.find_one({"@id": guid})
 
 
 
@@ -115,32 +129,34 @@ def checkPermissions(
 		return False
 
 
-def createUser(
-	userCollection: Collection, 
-	userInstance: UserCreateModel
-	)->pymongo.results.InsertOneResult:
-	userWriteInstance = UserWriteModel.model_validate({**userInstance.model_dump()})
-	
-	insertResult = userCollection.insert_one(
-			userWriteInstance.model_dump(by_alias=True)
-	)
-
-	return insertResult
-
-
 class FairscapeUserRequest(FairscapeRequest):
+	
+	def createUser(self, userInstance):
+		userWriteInstance = UserWriteModel.model_validate({**userInstance.model_dump()})
+		
+		insertResult = self.config.userCollection.insert_one(
+				userWriteInstance.model_dump(by_alias=True)
+		)
+
+		# check that insertResult was successfull
+
+		return insertResult
 
 	def loginUser(self, userEmail: str, userPassword: str):
 		""" Get a user record, create a session for the 
 		"""
 	
-		foundUser = self.userCollection.find_one({
+		foundUser = self.config.userCollection.find_one({
 				"email": userEmail,
 				"password": userPassword
 		})
 
 		if foundUser is None:
-				return None
+				return FairscapeResponse(
+					success=False,
+					statusCode=401,
+					jsonResponse={"error": "credentials not found"}
+				)
 
 		# create a token for the user
 		userEmail = foundUser['email']
@@ -162,12 +178,12 @@ class FairscapeUserRequest(FairscapeRequest):
 
 		compactJWS = jwt.encode(
 				tokenMessage, 
-				self.jwtSecret, 
+				self.config.jwtSecret, 
 				algorithm="HS256"
 		)
 		
 		# set session in userCollection
-		updateTokenResult = self.userCollection.update_one({
+		updateTokenResult = self.config.userCollection.update_one({
 				"email": userEmail,
 				"password": userPassword
 				},
@@ -176,24 +192,37 @@ class FairscapeUserRequest(FairscapeRequest):
 				}
 		)
 
-		print(updateTokenResult)
+		# check that update is correct
+		if updateTokenResult.matched_count == 1 and updateTokenResult.modified_count == 1:
 
-		#TODO check that update is correct
+			return FairscapeResponse(
+				success = True,
+				jsonResponse = {"access_token": compactJWS},
+				statusCode = 200
+			)
 
-		return compactJWS
+		else:
+			
+			return FairscapeResponse(
+				success = False,
+				jsonResponse = {
+					"error": "failed to set token"
+					},
+				statusCode = 500
+			)
 
 
 	def getUserBySession(self, session: str):
 
 		tokenMetadata = jwt.decode(
 			jwt=session,
-			key=self.jwtSecret,
+			key=self.config.jwtSecret,
 			algorithms=["HS256"]
 		)
 
 		userEmail = tokenMetadata.get('sub')
 
-		foundUser = self.userCollection.find_one({
+		foundUser = self.config.userCollection.find_one({
 			"email": userEmail
 		})
 
@@ -206,12 +235,38 @@ class FairscapeUserRequest(FairscapeRequest):
 # Helper Functions for Identifiers #
 ####################################
 
+def getMetadata(
+	mongoCollection, 
+	passedModel, 
+	guid: str
+	)-> FairscapeResponse:
+
+	foundMetadata = mongoCollection.find_one(
+		{"@id": guid}
+	)
+
+	if not foundMetadata:
+		return FairscapeResponse(
+			success=False,
+			statusCode=404,
+			error= {"message": "identifier not found"}
+		)
+
+	modelInstance = passedModel.model_validate(foundMetadata)
+
+	return FairscapeResponse(
+		success=True,
+		statusCode=200,
+		model=modelInstance
+	)
+
+
 def deleteIdentifier(
 	idCollection, 
 	requestingUser: UserWriteModel, 
 	modelClass, 
 	guid: str
-	):
+	)-> FairscapeResponse:
 	# find the dataset
 	foundMetadata = idCollection.find_one({
 		"@id": guid,
@@ -294,7 +349,7 @@ class DatasetWriteModel(DatasetCreateModel):
 def setDatasetObjectKey(
 	datasetFilename: str, 
 	userInstance: UserWriteModel, 
-	basePath: str = None
+	basePath: str = ""
 	):
 	contentName = pathlib.Path(datasetFilename).name
 	if basePath is None:
@@ -348,20 +403,31 @@ class FairscapeDatasetRequest(FairscapeRequest):
 		if datasetInstance.distribution.distributionType != DistributionTypeEnum.MINIO:
 			raise Exception
 
-		# get the distribution location from metadata
-		objectKey = datasetInstance.distributionType.location.path
+		# check permissions
+		if checkPermissions(datasetInstance.permissions, userInstance):
 
-		response = self.minioClient.get_object(
-			Bucket=self.minioBucket,
-			Key=objectKey
-		)
+			# get the distribution location from metadata
+			objectKey = datasetInstance.distributionType.location.path
 
-		return FairscapeResponse(
-			success=True,
-			statusCode=200,
-			fileResponse=response,
-			model=datasetInstance
-		)
+			response = self.config.minioClient.get_object(
+				Bucket=self.config.minioBucket,
+				Key=objectKey
+			)
+
+			return FairscapeResponse(
+				success=True,
+				statusCode=200,
+				fileResponse=response,
+				model=datasetInstance
+			)
+
+		else:
+			return FairscapeResponse(
+				success=False,
+				statusCode=401,
+				jsonResponse={"error": "user unauthorized"}
+			)
+
         
 	def createDataset(
 		self, 
@@ -394,13 +460,13 @@ class FairscapeDatasetRequest(FairscapeRequest):
 			uploadKey = setDatasetObjectKey(
 				datasetContent.filename, 
 				userInstance, 
-				basePath= self.minioDefaultPath
+				basePath= self.config.minioDefaultPath
 			)
 			
 			# upload content and return a dataset distribution
 			distribution = uploadObjectMinio(
-				self.minioClient, 
-				self.minioBucket, 
+				self.config.minioClient, 
+				self.config.minioBucket, 
 				uploadKey, 
 				datasetContent.file
 				)
@@ -416,19 +482,28 @@ class FairscapeDatasetRequest(FairscapeRequest):
 			})
 
 		# insert identifier metadata into mongo
-		insertResult = self.identifierCollection.insert_one(
+		insertResult = self.config.identifierCollection.insert_one(
 			outputDataset.model_dump(by_alias=True)
 		)
 
+		# TODO handle insert errors
+
 		
 		# add identifier to users'dataset
-		updateResult = self.userCollection.update_one(
+		updateResult = self.config.userCollection.update_one(
 				{"email": userInstance.email}, 
 				{"$push": {"identifiers": inputDataset.guid}}
 		)
 
-		# TODO return fairscape response
-		return outputDataset
+		# TODO handle update errors 
+
+		# return fairscape response
+		return FairscapeResponse(
+			success=True,
+			statusCode=201,
+			model=outputDataset
+		)
+
 
 	def deleteDataset(
 		self,		
@@ -436,7 +511,7 @@ class FairscapeDatasetRequest(FairscapeRequest):
 		guid: str
 	):
 		return deleteIdentifier(
-			self.identifierCollection,
+			self.config.identifierCollection,
 			requestingUser,
 			DatasetWriteModel,
 			guid
@@ -679,23 +754,6 @@ class ROCrateMetadataElemWrite(ROCrateMetadataElem):
 
 class FairscapeROCrateRequest(FairscapeRequest):
 
-	def __init__(
-			self, 
-			minioClient, 
-			minioBucket, 
-			identifierCollection, 
-			userCollection, 
-			asyncCollection,
-			rocrateCollection=None,
-	):
-		self.minioClient=minioClient
-		self.minioBucket=minioBucket
-		self.minioDefaultPath="fairscape"
-		self.identifierCollection=identifierCollection
-		self.userCollection=userCollection
-		self.rocrateCollection=rocrateCollection
-		self.asyncCollection=asyncCollection
-
 	def uploadROCrate(
 		self, 
 		userInstance: UserWriteModel, 
@@ -709,14 +767,14 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		# get email path
 		userEmailPath = userPath(userInstance.email)
 		
-		uploadPath = f"{self.minioDefaultPath}/{userEmailPath}/rocrates/{rocrateFilename}"
+		uploadPath = f"{self.config.minioDefaultPath}/{userEmailPath}/rocrates/{rocrateFilename}"
 
 		# upload zip to minio
 		# Reset file position to beginning before upload
 		rocrate.file.seek(0)
 		
-		uploadOperationResult = self.minioClient.upload_fileobj(
-				Bucket = self.minioBucket,
+		uploadOperationResult = self.config.minioClient.upload_fileobj(
+				Bucket = self.config.minioBucket,
 				Key = str(uploadPath),
 				Fileobj = rocrate.file,
 				ExtraArgs = {'ContentType': 'application/zip'}
@@ -726,12 +784,12 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		
 		uploadRequestInstance = ROCrateUploadRequest.model_validate({
 			"guid": str(transactionGUID),
-   			"transactionFolder": str(transactionGUID),
+   		"transactionFolder": str(transactionGUID),
 			"permissions": userInstance.getPermissions(),
 			"uploadPath": str(uploadPath)
 		})
 		# create record in the async collection
-		insertResult = self.asyncCollection.insert_one(
+		insertResult = self.config.asyncCollection.insert_one(
 			uploadRequestInstance.model_dump(mode='json')
 		)
 
@@ -749,9 +807,9 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 	def processROCrate(self, transactionGUID: str):
 		# get the current rocrate upload job
-		uploadMetadata = self.asyncCollection.find_one({"guid": transactionGUID})
+		uploadMetadata = self.config.asyncCollection.find_one({"guid": transactionGUID})
 
-		self.asyncCollection.update_one(
+		self.config.asyncCollection.update_one(
         	{"transactionFolder": str(transactionGUID)},
         	{"$set": 
             	{
@@ -766,7 +824,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		uploadInstance = ROCrateUploadRequest.model_validate(uploadMetadata)
 		
 		# find the user uploading the ROCrate to set permissions
-		userMetadata = self.userCollection.find_one(
+		userMetadata = self.config.userCollection.find_one(
 				{"email": uploadInstance.permissions.owner }
 		)
 
@@ -774,7 +832,11 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		zippedCratePath = uploadInstance.uploadPath
 
 		# TODO getROCrateMetadata
-		roCrateMetadata = getROCrateMetadata(self.minioClient, self.minioBucket, uploadInstance)
+		roCrateMetadata = getROCrateMetadata(
+			self.config.minioClient, 
+			self.config.minioBucket, 
+			uploadInstance
+			)
 		
 		# parse the metadata into the rocrate
 		try:
@@ -789,9 +851,13 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		crateMetadata = roCrateModel.getCrateMetadata()
 
 		# get list of the objects from minio
-		objectList = getROCrateContentsMinio(self.minioClient, self.minioBucket, zippedCratePath)
+		objectList = getROCrateContentsMinio(
+			self.config.minioClient, 
+			self.config.minioBucket, 
+			zippedCratePath
+			)
 
-		self.asyncCollection.update_one(
+		self.config.asyncCollection.update_one(
         	{"transactionFolder": transactionGUID},
         	{"$set": 
             	{
@@ -802,16 +868,16 @@ class FairscapeROCrateRequest(FairscapeRequest):
   
 		# write dataset records
 		datasetGUIDS = writeDatasets(
-				self.identifierCollection, 
+				self.config.identifierCollection, 
 				foundUser, 
 				roCrateModel, 
 				objectList,
-				self.minioBucket
+				self.config.minioBucket
 		)
 
 		# write metadata elements
 		nonDatasetGUIDS = writeMetadataElements(
-				self.identifierCollection,
+				self.config.identifierCollection,
 				foundUser,
 				roCrateModel
 		)
@@ -821,9 +887,9 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		metadataElem = roCrateModel.getCrateMetadata()
 		
 		roCrateDistribution = DatasetDistribution.model_validate({
-				"distributionType": 'minio',
-						"location": {"path": uploadInstance.uploadPath}
-						})
+			"distributionType": 'minio',
+			"location": {"path": uploadInstance.uploadPath}
+			})
 				
 		rocrateMetadataElem = ROCrateMetadataElemWrite.model_validate({
 				**metadataElem.model_dump(by_alias=True),
@@ -835,16 +901,16 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		rocrateMetadataWrite = rocrateMetadataElem.model_dump(by_alias=True, mode='json')
 		
 		# dump into identifier collection and rocrate collection
-		self.identifierCollection.insert_one(rocrateMetadataWrite)
+		self.config.identifierCollection.insert_one(rocrateMetadataWrite)
 
 		# write the whole ROCrateV1_2 model into the rocrate collection
-		self.rocrateCollection.insert_one({
+		self.config.rocrateCollection.insert_one({
 			"@id": rocrateMetadataElem.guid,
 			**roCrateModel.model_dump(mode='json', by_alias=True)
 		})
 		
 		# update process as success
-		updateResult = self.asyncCollection.update_one(
+		updateResult = self.config.asyncCollection.update_one(
 				{"guid": uploadInstance.guid},
 				{"$set": {
 						"completed": True,
@@ -863,7 +929,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 	def getUploadMetadata(self, requestingUser: UserWriteModel, transactionGUID: str):
 		# get upload metadata
-		uploadMetadata = self.asyncCollection.find_one({
+		uploadMetadata = self.config.asyncCollection.find_one({
 				"guid": transactionGUID
 		})
 
@@ -890,8 +956,9 @@ class FairscapeROCrateRequest(FairscapeRequest):
 					error={"message": "user unauthorized to view upload status"}
 			)
 
+
 	def getROCrateMetadata(self, rocrateGUID: str):
-		rocrateMetadata = self.rocrateCollection.find_one({
+		rocrateMetadata = self.config.rocrateCollection.find_one({
 				"$or":[
         			{"@id": rocrateGUID},
          			{"@id":f"{rocrateGUID}/"}]
@@ -915,7 +982,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 
 	def getROCrateMetadataElem(self, rocrateGUID: str):
-		rocrateMetadata = self.identifierCollection.find_one({
+		rocrateMetadata = self.config.identifierCollection.find_one({
 				"@id": rocrateGUID
 		})
 		
@@ -941,7 +1008,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		rocrateGUID: str
 	):
 
-		rocrateMetadata = self.identifierCollection.find_one({
+		rocrateMetadata = self.config.identifierCollection.find_one({
 				"@id": rocrateGUID
 		})
 
@@ -966,8 +1033,8 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 		# get the object from s3
 		# TODO handle key missing error
-		objectResponse = self.minioClient.get_object(
-				Bucket=self.minioBucket,
+		objectResponse = self.config.minioClient.get_object(
+				Bucket=self.config.minioBucket,
 				Key=rocrateInstance.distribution.location.path
 		)
 
@@ -1044,7 +1111,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 					"owner": requestingUser.email,
 					"metadata": full_crate_dump,
 				}
-				self.rocrateCollection.insert_one(rocrate_doc_for_rocrate_collection)
+				self.config.rocrateCollection.insert_one(rocrate_doc_for_rocrate_collection)
 			except pymongo.errors.DuplicateKeyError:
 				return FairscapeResponse(
 					success=False, statusCode=409,
@@ -1095,7 +1162,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				)
 
 			try:
-				insert_identifier_result = self.identifierCollection.insert_many(documents_for_identifier_collection)
+				insert_identifier_result = self.config.identifierCollection.insert_many(documents_for_identifier_collection)
 
 				if len(insert_identifier_result.inserted_ids) != len(documents_for_identifier_collection):
 					print(f"Warning: Inserted fewer documents ({len(insert_identifier_result.inserted_ids)}) into identifierCollection than expected ({len(documents_for_identifier_collection)})")
@@ -1127,14 +1194,17 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		requestingUser: UserWriteModel, 
 		guid: str
 	):
+		""" Mark ROCrate as 
+		"""
 
 		return deleteIdentifier(
-			self.identifierCollection,
+			self.config.identifierCollection,
 			requestingUser,
 			ROCrateMetadataElemWrite,
 			guid
 		)
-  
+
+
 	def list_crates(
 			self,
 			requestingUser: UserWriteModel
@@ -1144,7 +1214,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			Admins see all crates. Regular users see crates they own or that belong to their primary group.
 			"""
 			query: Dict[str, Any] = {}
-			is_admin = ADMIN_GROUP_IDENTIFIER in requestingUser.groups
+			is_admin = self.config.adminGroup in requestingUser.groups
 
 			if not is_admin:
 				user_primary_group = requestingUser.groups[0] if requestingUser.groups else None
@@ -1156,7 +1226,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				query["$or"] = or_conditions
 			
 			try:
-				cursor = self.rocrateCollection.find(
+				cursor = self.config.rocrateCollection.find(
 					query,
 					projection={
 						"_id": 0,
@@ -1191,33 +1261,13 @@ class FairscapeROCrateRequest(FairscapeRequest):
 # Resolver #
 ############   
 
-def getMetadata(mongoCollection, passedModel, guid: str):
-
-	foundMetadata = mongoCollection.find_one(
-		{"@id": guid}
-	)
-
-	if not foundMetadata:
-		return FairscapeResponse(
-			success=False,
-			statusCode=404,
-			error= {"message": "identifier not found"}
-		)
-
-	modelInstance = passedModel.model_validate(foundMetadata)
-
-	return FairscapeResponse(
-		success=True,
-		statusCode=200,
-		model=modelInstance
-	)
 
 	
 
 class FairscapeResolverRequest(FairscapeRequest):
 
 	def resolveIdentifier(self, guid: str):	
-		foundMetadata = self.identifierCollection.find_one(
+		foundMetadata = self.config.identifierCollection.find_one(
 			{"$or": [
 				{"@id": guid},
 				{"@id": f"{guid}/"}

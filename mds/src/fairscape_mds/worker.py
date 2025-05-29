@@ -1,6 +1,9 @@
 from celery import Celery
-from fairscape_mds.backend.models import FairscapeROCrateRequest
-from fairscape_mds.backend.backend import s3, minioDefaultBucket, identifierCollection, userCollection, rocrateCollection, asyncCollection, brokerURL
+from fairscape_mds.backend.models import FairscapeConfig, FairscapeROCrateRequest
+from fairscape_mds.backend.backend import (
+    config,
+    brokerURL
+    )
 
 # Initialize Celery app
 app = Celery('fairscape_mds.worker')
@@ -11,14 +14,8 @@ app.conf.update(
     broker_connection_retry_on_startup=True
 )
 
-rocrateRequests = FairscapeROCrateRequest(
-    minioClient=s3,
-    minioBucket=minioDefaultBucket,
-    identifierCollection=identifierCollection,
-    userCollection=userCollection,
-    rocrateCollection=rocrateCollection,
-    asyncCollection=asyncCollection
-)
+
+rocrateRequests = FairscapeROCrateRequest(config)
 
 @app.task(name='fairscape_mds.worker.processROCrate')
 def processROCrate(transactionGUID: str):

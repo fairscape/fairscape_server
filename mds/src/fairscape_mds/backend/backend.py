@@ -5,7 +5,7 @@ from botocore.client import Config
 from pymongo.collection import Collection
 from celery import Celery
 
-from fairscape_mds.backend.models import FairscapeUserRequest, FairscapeDatasetRequest
+from fairscape_mds.backend.models import FairscapeConfig
 import os
 
 # local test parameters
@@ -34,6 +34,7 @@ brokerURL = f"{redisHost}:{redisPort}"
 
 # JWT Secret
 jwtSecret = os.environ.get("FAIRSCAPE_JWT_SECRET", "test-jwt-secret")
+adminGroup = os.environ.get("FAIRSCAPE_ADMIN_GROUP", "admin")
 
 # create a mongo client
 connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}"
@@ -74,4 +75,17 @@ celeryApp.conf.broker_url = "redis://" + brokerURL
 celeryApp.conf.update(
     task_concurrency=4,  # Use 4 threads for concurrency
     worker_prefetch_multiplier=4  # Prefetch one task at a time
+)
+
+config = FairscapeConfig(
+    minioClient=s3,
+    minioBucket=minioDefaultBucket,
+	minioDefaultPath=minioDefaultPath,
+	userCollection=userCollection,
+	identifierCollection=identifierCollection,
+	asyncCollection=asyncCollection,
+	rocrateCollection=rocrateCollection,
+	tokensCollection=tokensCollection,
+    jwtSecret=jwtSecret,
+	adminGroup=adminGroup
 )

@@ -45,59 +45,13 @@ app.add_middleware(
 
 OAuthScheme = OAuth2PasswordBearer(tokenUrl="token")
 
-userRequest = FairscapeUserRequest(
-  minioClient=s3,
-  minioBucket=minioDefaultBucket,
-	userCollection=userCollection,
-	identifierCollection=identifierCollection,
-	asyncCollection=asyncCollection,
-  jwtSecret=jwtSecret
-)
-resolverRequest = FairscapeResolverRequest(
-  minioClient=s3,
-  minioBucket=minioDefaultBucket,
-	userCollection=userCollection,
-	identifierCollection=identifierCollection,
-	asyncCollection=asyncCollection,
-)
-datasetRequest = FairscapeDatasetRequest(
-	minioClient=s3,
-	minioBucket=minioDefaultBucket,
-	identifierCollection=identifierCollection,
-	userCollection=userCollection,
-	asyncCollection=asyncCollection
-)
-softwareRequest = FairscapeSoftwareRequest(
-	minioClient=s3,
-	minioBucket=minioDefaultBucket,
-	identifierCollection=identifierCollection,
-	userCollection=userCollection,
-	asyncCollection=asyncCollection
-)
-computationRequest = FairscapeComputationRequest(
-	minioClient=s3,
-	minioBucket=minioDefaultBucket,
-	identifierCollection=identifierCollection,
-	userCollection=userCollection,
-	asyncCollection=asyncCollection
-)
-rocrateRequest = FairscapeROCrateRequest(
-	minioClient=s3,
-	minioBucket=minioDefaultBucket,
-#	minioDefaultPath="fairscape",
-	identifierCollection=identifierCollection,
-	userCollection=userCollection,
-	rocrateCollection=rocrateCollection,
-	asyncCollection=asyncCollection	
-)
-schemaRequest = FairscapeSchemaRequest(
-	minioClient=s3,
-	minioBucket=minioDefaultBucket,
-	identifierCollection=identifierCollection,
-	userCollection=userCollection,
-	rocrateCollection=rocrateCollection,
-	asyncCollection=asyncCollection	
-)
+userRequest = FairscapeUserRequest(config)
+resolverRequest = FairscapeResolverRequest(config)
+datasetRequest = FairscapeDatasetRequest(config)
+softwareRequest = FairscapeSoftwareRequest(config)
+computationRequest = FairscapeComputationRequest(config)
+rocrateRequest = FairscapeROCrateRequest(config)
+schemaRequest = FairscapeSchemaRequest(config)
 
 
 def getCurrentUser(
@@ -113,26 +67,28 @@ def getCurrentUser(
 			detail=f"Authorization Error Decoding Token\terror: {str(e)}"
 		)
   
-from fairscape_mds.backend.for_now.credentitals_router import router as credentials_router
+from fairscape_mds.backend.credentitals_router import router as credentials_router
+from fairscape_mds.backend.evidence_graph_router import router as evidence_graph_router
+
+# add the routers back in 
 app.include_router(credentials_router)
-from fairscape_mds.backend.for_now.evidence_graph_router import router as evidence_graph_router
 app.include_router(evidence_graph_router)
 
 @app.post("/login")
 def form(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
 
-	token = userRequest.loginUser(form_data.username, form_data.password)
+	response = userRequest.loginUser(form_data.username, form_data.password)
 
-	if not token:
+	if not response.success:
 		return JSONResponse(
 			status_code=401,
 			content={"message": "unrecognized username password combination"}
 		)
 	
-	return {
-	"access_token": str(token), 
-	"token_type": "bearer"
-	}
+	return JSONResponse(
+		status_code=response.statusCode,
+		content=response.jsonResponse
+	)
           
 
 @app.get("/admin")

@@ -12,12 +12,12 @@ from fairscape_mds.backend.models import (
     Permissions, 
     checkPermissions
 )
-from mds.src.fairscape_mds.backend.for_now.credentials_crud import (
+from fairscape_mds.backend.credentials_crud import (
     FairscapeCredentialsRequest,
     UserToken 
 )
 
-from fairscape_mds.backend.for_now.publish import (
+from fairscape_mds.backend.publish import (
     PublishingService,
     DataversePublisher,
     ZenodoPublisher,
@@ -29,36 +29,12 @@ from fairscape_mds.backend.for_now.publish import (
 class FairscapePublishRequest(FairscapeRequest):
     def __init__(
         self,
-        minioClient,
-        minioBucket: str,
-        identifierCollection: Collection,
-        userCollection: Collection,
-        rocrateCollection: Collection,
-        asyncCollection: Collection,
-        tokensCollection: Collection, 
-        jwtSecret: str,
+        config
     ):
-        super().__init__(
-            minioClient=minioClient,
-            minioBucket=minioBucket,
-            identifierCollection=identifierCollection,
-            userCollection=userCollection,
-            asyncCollection=asyncCollection,
-            rocrateCollection=rocrateCollection,
-            jwtSecret=jwtSecret
-        )
-        self.tokensCollection = tokensCollection
+        self.config = config
+        super().__init__(config)
 
-        self.credentials_request_handler = FairscapeCredentialsRequest(
-            tokensCollection=self.tokensCollection,
-            minioClient=self.minioClient,
-            minioBucket=self.minioBucket,
-            identifierCollection=self.identifierCollection,
-            userCollection=self.userCollection,
-            asyncCollection=self.asyncCollection,
-            rocrateCollection=self.rocrateCollection, 
-            jwtSecret=self.jwtSecret
-        )
+        self.credentials_request_handler = FairscapeCredentialsRequest(config)
         self.publishing_service = PublishingService()
 
     async def create_dataset_on_platform(
@@ -70,22 +46,33 @@ class FairscapePublishRequest(FairscapeRequest):
         database: Optional[str] = None
     ) -> FairscapeResponse:
 
-        rocrate_metadata_doc = self.rocrateCollection.find_one({"@id": rocrate_guid}) # Get full doc
+        rocrate_metadata_doc = self.config.rocrateCollection.find_one({"@id": rocrate_guid}) # Get full doc
         if rocrate_metadata_doc is None:
             return FairscapeResponse(
                 success=False,
                 statusCode=404,
-                error={"@id": f"ark://{rocrate_guid}", "message": f"ROCrate not found: {rocrate_guid}"} # Assuming f-string was intended
+                error={
+                    "@id": f"ark://{rocrate_guid}", 
+                    "message": f"ROCrate not found: {rocrate_guid}"
+                } 
             )
 
         rocrate_permissions_dict = rocrate_metadata_doc.get("permissions")
         if not rocrate_permissions_dict:
-            return FairscapeResponse(success=False, statusCode=403, error={"message": "ROCrate has no permission metadata."})
+            return FairscapeResponse(
+                success=False, 
+                statusCode=403, 
+                error={"message": "ROCrate has no permission metadata."}
+                )
         
         try:
             rocrate_permissions = Permissions.model_validate(rocrate_permissions_dict)
         except Exception as e:
-            return FairscapeResponse(success=False, statusCode=500, error={"message": "Invalid ROCrate permission format."})
+            return FairscapeResponse(
+                success=False, 
+                statusCode=500, 
+                error={"message": "Invalid ROCrate permission format."}
+            )
 
         if not checkPermissions(rocrate_permissions, current_user):
             return FairscapeResponse(
@@ -103,9 +90,20 @@ class FairscapePublishRequest(FairscapeRequest):
             elif "figshare" in platform_url.lower():
                 publisher = FigsharePublisher(platform_url)
             else:
-                return FairscapeResponse(success=False, statusCode=400, error={"message": f"Unsupported platform URL: {platform_url}"})
+                return FairscapeResponse(
+                    success=False, 
+                    statusCode=400, 
+                    error={
+                        "message": f"Unsupported platform URL: {platform_url}"
+                        }
+                    )
+
         except Exception as e:
-            return FairscapeResponse(success=False, statusCode=500, error={"message": f"Error setting up publisher: {str(e)}"})
+            return FairscapeResponse(
+                success=False, 
+                statusCode=500, 
+                error={"message": f"Error setting up publisher: {str(e)}"}
+            )
 
         # Get User's API tokens for the platform
         token_response = self.credentials_request_handler.get_user_api_tokens(user_instance=current_user)
@@ -145,7 +143,7 @@ class FairscapePublishRequest(FairscapeRequest):
             # Some publishers use a transaction in addition to a persistent ID
             "transaction_identifier": dataset_info.get("transaction_id", dataset_info.get("persistent_id"))
         }
-        update_result = self.rocrateCollection.update_one({"@id": rocrate_guid}, {"$set": update_doc})
+        update_result = self.config.rocrateCollection.update_one({"@id": rocrate_guid}, {"$set": update_doc})
 
         rocrate_update_status = "failed"
         rocrate_update_message = f"ROCrate {rocrate_guid} not found for update."
@@ -169,7 +167,7 @@ class FairscapePublishRequest(FairscapeRequest):
         platform_url: str
     ) -> FairscapeResponse:
 
-        rocrate_metadata_doc = self.rocrateCollection.find_one({"@id": rocrate_guid})
+        rocrate_metadata_doc = self.config.rocrateCollection.find_one({"@id": rocrate_guid})
         if rocrate_metadata_doc is None:
             return FairscapeResponse(success=False, statusCode=404, error={"message": f"ROCrate not found: {rocrate_guid}"})
 
@@ -220,11 +218,18 @@ class FairscapePublishRequest(FairscapeRequest):
 
 
         try:
-            minio_object = self.minioClient.get_object(Bucket=self.minioBucket, Key=file_path_in_minio)
+            minio_object = self.config.minioClient.get_object(
+                Bucket=self.config.minioBucket, 
+                Key=file_path_in_minio
+                )
             file_data = minio_object['Body'].read()
             file_name_for_upload = Path(file_path_in_minio).name
         except Exception as e:
-            return FairscapeResponse(success=False, statusCode=500, error={"message": f"Minio download error: {str(e)}"})
+            return FairscapeResponse(
+                success=False, 
+                statusCode=500, 
+                error={"message": f"Minio download error: {str(e)}"}
+            )
 
         try:
             upload_info = await publisher.upload_files(
@@ -233,7 +238,20 @@ class FairscapePublishRequest(FairscapeRequest):
         except Exception as e:
             detail = getattr(e, 'detail', str(e))
             status = getattr(e, 'status_code', 500)
-            return FairscapeResponse(success=False, statusCode=status, error={"message": f"Platform upload error: {detail}"})
+            return FairscapeResponse(
+                success=False, 
+                statusCode=status, 
+                error={"message": f"Platform upload error: {detail}"}
+            )
         
-        upload_info_response = {**upload_info, "rocrate_guid": rocrate_guid, "platform_dataset_id": platform_dataset_id}
-        return FairscapeResponse(success=True, statusCode=200, model=upload_info_response)
+        upload_info_response = {
+            **upload_info, 
+            "rocrate_guid": rocrate_guid, 
+            "platform_dataset_id": platform_dataset_id
+        }
+
+        return FairscapeResponse(
+            success=True, 
+            statusCode=200, 
+            model=upload_info_response
+        )

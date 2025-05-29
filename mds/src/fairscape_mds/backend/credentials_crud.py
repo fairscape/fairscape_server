@@ -28,29 +28,6 @@ class UserTokenUpdate(BaseModel):
     description: Optional[str] = Field(default=None)
 
 class FairscapeCredentialsRequest(FairscapeRequest):
-    def __init__(
-        self,
-        tokensCollection: Collection, 
-        minioClient,
-        minioBucket,
-        identifierCollection,
-        userCollection,
-        asyncCollection,
-        jwtSecret: str = "",
-        rocrateCollection=None 
-    ):
-        # Initialize parent class
-        super().__init__(
-            minioClient=minioClient,
-            minioBucket=minioBucket,
-            identifierCollection=identifierCollection,
-            userCollection=userCollection,
-            asyncCollection=asyncCollection,
-            jwtSecret=jwtSecret,
-            rocrateCollection=rocrateCollection
-        )
-        # Collection for storing user API tokens (e.g., for Dataverse, Zenodo)
-        self.tokensCollection = tokensCollection
 
     def add_user_api_token(
         self,
@@ -61,7 +38,7 @@ class FairscapeCredentialsRequest(FairscapeRequest):
         Adds a new user API token to the MongoDB collection.
         Checks if a token with the same tokenUID already exists for the user.
         """
-        existing_token = self.tokensCollection.find_one(
+        existing_token = self.config.tokensCollection.find_one(
             {"user_email": user_instance.email, "tokenUID": token_instance.tokenUID}
         )
         if existing_token:
@@ -76,7 +53,7 @@ class FairscapeCredentialsRequest(FairscapeRequest):
 
 
         try:
-            result = self.tokensCollection.insert_one(token_document)
+            result = self.config.tokensCollection.insert_one(token_document)
             if result.acknowledged:
                 return FairscapeResponse(
                     success=True,
@@ -104,7 +81,7 @@ class FairscapeCredentialsRequest(FairscapeRequest):
         Retrieves all API tokens for a given user from MongoDB.
         """
         try:
-            token_docs = self.tokensCollection.find({"user_email": user_instance.email})
+            token_docs = self.config.tokensCollection.find({"user_email": user_instance.email})
             token_list = [UserToken.model_validate(doc) for doc in token_docs]
             return FairscapeResponse(
                 success=True,
@@ -127,7 +104,7 @@ class FairscapeCredentialsRequest(FairscapeRequest):
         Deletes a specific API token for a user from MongoDB.
         """
         try:
-            result = self.tokensCollection.delete_one(
+            result = self.config.tokensCollection.delete_one(
                 {"user_email": user_instance.email, "tokenUID": token_uid}
             )
             if result.deleted_count > 0:
@@ -173,7 +150,7 @@ class FairscapeCredentialsRequest(FairscapeRequest):
             )
 
         try:
-            result = self.tokensCollection.update_one(
+            result = self.config.tokensCollection.update_one(
                 {"user_email": user_instance.email, "tokenUID": token_update.tokenUID},
                 {"$set": update_fields}
             )
