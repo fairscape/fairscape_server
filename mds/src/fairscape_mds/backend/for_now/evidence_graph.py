@@ -72,7 +72,8 @@ class EvidenceGraph(BaseModel):
 
         if "Dataset" in current_node_type_str or \
            "Sample" in current_node_type_str or \
-           "Instrument" in current_node_type_str: 
+           "Instrument" in current_node_type_str or \
+           "Sofrware" in current_node_type_str: 
             generated_by_info = node.get("generatedBy")
             if generated_by_info:
                 if isinstance(generated_by_info, list) and generated_by_info:
