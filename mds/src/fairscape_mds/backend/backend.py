@@ -37,7 +37,7 @@ jwtSecret = os.environ.get("FAIRSCAPE_JWT_SECRET", "test-jwt-secret")
 adminGroup = os.environ.get("FAIRSCAPE_ADMIN_GROUP", "admin")
 
 # create a mongo client
-connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}"
+connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDB}?retryWrites=true"
 mongoClient = pymongo.MongoClient(connection_string)
 
 mongoDB = mongoClient[mongoDB]
