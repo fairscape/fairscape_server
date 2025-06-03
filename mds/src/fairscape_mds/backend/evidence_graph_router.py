@@ -41,6 +41,29 @@ def get_evidence_graph_route(
     else:
         raise HTTPException(status_code=response.statusCode, detail=response.error)
 
+
+@router.get("/query/ark:{NAAN}/{postfix}", response_model=EvidenceGraph, summary="Get an EvidenceGraph by its ARK ID")
+def get_evidence_graph_route(
+    NAAN: Annotated[str, Path(description="Name Assigning Authority Number of the ARK ID")],
+    postfix: Annotated[str, Path(description="Postfix of the ARK ID")],
+    current_user: Annotated[UserWriteModel, Depends(getCurrentUser)],
+):
+
+    evidence_id = f"ark:{NAAN}/{postfix}"
+
+    response = evidence_graph_request_handler.build_evidence_graph_for_node(
+            requesting_user=current_user,
+            naan=NAAN,
+            postfix=postfix
+    )
+
+    response = evidence_graph_request_handler.get_evidence_graph(evidence_id)
+    if response.success:
+        return response.model
+    else:
+        raise HTTPException(status_code=response.statusCode, detail=response.error)
+
+
 @router.delete("/ark:{NAAN}/{postfix}", summary="Delete an EvidenceGraph by its ARK ID")
 def delete_evidence_graph_route(
     NAAN: Annotated[str, Path(description="Name Assigning Authority Number of the ARK ID")],
