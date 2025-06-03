@@ -632,7 +632,7 @@ def writeDatasets(
 	
 		# create metadata record to insert 
 		objectSize = matchedElement.get('Size')
-		objectPath = matchedElement.get('Key').lstrip(minioBucket + '/')
+		objectPath = matchedElement.get('Key')
 			
 		# create distribution for metadata
 		distribution = DatasetDistribution.model_validate({
@@ -891,24 +891,35 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			"location": {"path": uploadInstance.uploadPath}
 			})
 				
-		rocrateMetadataElem = ROCrateMetadataElemWrite.model_validate({
-				**metadataElem.model_dump(by_alias=True),
-				"permissions": foundUser.getPermissions(), 
-				"distribution": roCrateDistribution,
-				"hasPart": [{"@id": elem} for elem in nonDatasetGUIDS + datasetGUIDS],
-				})
-
-		rocrateMetadataWrite = rocrateMetadataElem.model_dump(by_alias=True, mode='json')
+		rocrate_metadata_elem_data = {
+			"@id": metadataElem.guid,
+			"@type": metadataElem.metadataType,
+			"owner": foundUser.email,                               
+			"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True) ,              
+			"published": True,                                      
+			"metadata": {                                          
+				**metadataElem.model_dump(by_alias=True, exclude={'@id', '@type'}), 
+				"distribution": roCrateDistribution.model_dump(mode='json', by_alias=True),                
+				"hasPart": [{"@id": elem} for elem in nonDatasetGUIDS + datasetGUIDS] ,
+    			"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True) ,              
+				"published": True,   
+			}
+		}
+		rocrateMetadataWrite = ROCrateMetadataElemWrite.model_validate(rocrate_metadata_elem_data['metadata'])
 		
 		# dump into identifier collection and rocrate collection
-		self.config.identifierCollection.insert_one(rocrateMetadataWrite)
+		self.config.identifierCollection.insert_one(rocrate_metadata_elem_data  )
 
 		# write the whole ROCrateV1_2 model into the rocrate collection
-		self.config.rocrateCollection.insert_one({
-			"@id": rocrateMetadataElem.guid,
-			**roCrateModel.model_dump(mode='json', by_alias=True)
-		})
-		
+		rocrate_doc_for_collection = {
+			"@id": metadataElem.guid,
+			"@type": ['Dataset', "https://w3id.org/EVI#ROCrate"], 
+			"owner": foundUser.email,
+   			"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True) ,                              
+			"metadata": roCrateModel.model_dump(mode='json', by_alias=True) 
+		}
+		self.config.rocrateCollection.insert_one(rocrate_doc_for_collection)
+  
 		# update process as success
 		updateResult = self.config.asyncCollection.update_one(
 				{"guid": uploadInstance.guid},
