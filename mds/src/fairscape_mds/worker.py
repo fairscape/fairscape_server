@@ -19,6 +19,7 @@ rocrateRequests = FairscapeROCrateRequest(config)
 
 @app.task(name='fairscape_mds.worker.processROCrate')
 def processROCrate(transactionGUID: str):
+    print(f"Starting Job: {transactionGUID}")
     return rocrateRequests.processROCrate(transactionGUID)
 
 if __name__ == '__main__':

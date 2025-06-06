@@ -218,7 +218,7 @@ def uploadROCrate(
 		uploadJob = uploadOperation.model
 
 		# start backend job
-		processROCrate.apply_async(args=(uploadJob.guid,))
+		processROCrate.apply_async(args=(uploadJob.guid,), countdown=3)
 
 		return uploadJob
 
