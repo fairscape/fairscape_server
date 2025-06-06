@@ -73,7 +73,7 @@ class FairscapeRequest():
 		self.config = backendConfig
   
 	def getMetadata(self, guid: str):
-		return self.config.identifierCollection.find_one({"@id": guid})
+		return self.config.identifierCollection.find_one({"@id": guid}, {"_id": 0})
 
 
 
