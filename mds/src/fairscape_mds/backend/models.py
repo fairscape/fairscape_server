@@ -578,12 +578,8 @@ def getROCrateMetadata(s3Client, bucketName, uploadInstance):
 			roCrateJSON = json.loads(content)
 			return roCrateJSON
 		
-		except s3Client.exceptions.NoSuchKey as err:
-			if '.zip/' in zippedMetadataPath: return extractFileFromZip(s3Client, bucketName, zippedMetadataPath)
-      
-			print("No Key Found")
-			print(err)
-			return None
+		except:
+			return extractFileFromZip(s3Client, bucketName, zippedMetadataPath)
 	
 	metadata = DownloadROCrateMetadata(stemPath)
 
@@ -1550,8 +1546,8 @@ def extractFileFromZip(s3_client, bucket_name, file_path):
     """
     Extracts file from zip using partial reads to minimize data transfer
     """
-    zip_path = file_path.split('.zip/')[0] + '.zip'
-    internal_path = file_path.split('.zip/')[1]
+    zip_path = str(file_path).split('.zip/')[0] + '.zip'
+    internal_path = str(file_path).split('.zip/')[1]
     
     zip_size = s3_client.head_object(Bucket=bucket_name, Key=zip_path)['ContentLength']
     
