@@ -624,7 +624,7 @@ def writeDatasets(
 	permissionsSet = userInstance.getPermissions()
 
 	for datasetElem in rocrateInstance.getDatasets():
-		if not datasetElem.contentUrl:
+		if not datasetElem.contentUrl or datasetElem.contentUrl == 'Embargoed':
 			outputDataset = DatasetWriteModel.model_validate({
 					**datasetElem.model_dump(by_alias=True),
 					"permissions": permissionsSet, 
@@ -633,7 +633,12 @@ def writeDatasets(
 							"@id": rocrateInstance.metadataGraph[1].guid,
 					},		
 			})
-			output_json = datasetElem.model_dump(by_alias=True, mode='json')
+			output_json = {                   
+                   "@id": outputDataset.guid,
+				   "@type": outputDataset.metadataType,
+				   "metadata":outputDataset.model_dump(by_alias=True, mode='json'),
+				   "permissions": permissionsSet.model_dump(mode='json', by_alias=True)
+       		}
 		else:
 
 			if 'http' in datasetElem.contentUrl:
@@ -650,7 +655,13 @@ def writeDatasets(
 								"@id": rocrateInstance.metadataGraph[1].guid,
 						},		
 				})
-				output_json = datasetElem.model_dump(by_alias=True, mode='json')
+				output_json = {					
+                   "@id": outputDataset.guid,
+				   "@type": outputDataset.metadataType,
+				   "metadata":outputDataset.model_dump(by_alias=True, mode='json'),
+				   "permissions": permissionsSet.model_dump(mode='json', by_alias=True), 
+				   "distribution": distribution.model_dump(by_alias=True, mode='json'),
+       			}
 
 			else:	
 				# match the metadata path to content
