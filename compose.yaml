@@ -1,9 +1,17 @@
 # Docker Compose Spec for Local Testing of Fairscape
 services:
+  setup:
+    # image: ghcr.io/fairscape/setup:RELEASE.2025-05-27
+    build: "./deploy/setup/"
+    env_file: "./deploy/setup/setup.env"
+    depends_on:
+      - minio
+      - fairscape-api
+      - mongo
   fairscape-worker:
-    #build: "./"
-    image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-15.v3
-    env_file: "./deploy/docker.env"
+    build: "./"
+    # image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-21.v1
+    env_file: "./deploy/docker_compose.env"
     command:
       - "python"
       - "fairscape_mds/worker.py"
@@ -11,22 +19,24 @@ services:
       - mongo
       - minio
   fairscape-api:
-    #build: "./"
-    image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-15.v3
-    env_file: "./deploy/docker.env"
+    build: "./"
+    # image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-21.v1
+    env_file: "./deploy/docker_compose.env"
     ports:
       - 8080:8080
     depends_on:
       - mongo
       - minio
-  fairscape-frontend:
-    image: ghcr.io/fairscape/fairscapefrontendlocal:RELEASE.2025-02-12
-    ports:
-      - "5173:5173"
-    depends_on:
-      - fairscape-api
-      - mongo
-      - minio
+  # fairscape-frontend:
+  #   image: ghcr.io/fairscape/fairscapefrontend:release.2025-06-10.v2
+  #   ports:
+  #     - "5173:80"
+  #   environment:
+  #     VITE_FAIRSCAPE_API_URL: "http://localhost:8080/api"
+  #   depends_on:
+  #     - fairscape-api
+  #     - mongo
+  #     - minio
 
   redis:
     image: redis:7.2.4
