@@ -14,6 +14,7 @@ import datetime
 import jwt
 import pymongo
 from pymongo.collection import Collection
+import struct
 
 from fairscape_models.computation import Computation
 from fairscape_models.software import Software
@@ -578,7 +579,8 @@ def getROCrateMetadata(s3Client, bucketName, uploadInstance):
 			return roCrateJSON
 		
 		except s3Client.exceptions.NoSuchKey as err:
-			# TODO handle error
+			if '.zip/' in zippedMetadataPath: return extractFileFromZip(s3Client, bucketName, zippedMetadataPath)
+      
 			print("No Key Found")
 			print(err)
 			return None
@@ -1543,3 +1545,86 @@ class FairscapeSchemaRequest(FairscapeRequest):
 #########################
 # Transfer to repository#
 #########################
+
+def extractFileFromZip(s3_client, bucket_name, file_path):
+    """
+    Extracts file from zip using partial reads to minimize data transfer
+    """
+    zip_path = file_path.split('.zip/')[0] + '.zip'
+    internal_path = file_path.split('.zip/')[1]
+    
+    zip_size = s3_client.head_object(Bucket=bucket_name, Key=zip_path)['ContentLength']
+    
+    end_of_central_dir = getRangeFromS3(s3_client, bucket_name, zip_path, zip_size - 22, 22)
+    
+    if end_of_central_dir[:4] != b'PK\x05\x06':
+        end_of_central_dir = findEndofCentralDir(s3_client, bucket_name, zip_path, zip_size)
+    
+    central_dir_size = struct.unpack('<L', end_of_central_dir[12:16])[0]
+    central_dir_offset = struct.unpack('<L', end_of_central_dir[16:20])[0]
+    
+    central_directory = getRangeFromS3(s3_client, bucket_name, zip_path, central_dir_offset, central_dir_size)
+    
+    file_info = findFileInDir(central_directory, internal_path)
+    if not file_info:
+        raise FileNotFoundError(f"File {internal_path} not found in zip")
+    
+    local_header = getRangeFromS3(s3_client, bucket_name, zip_path, file_info['offset'], 30)
+    
+    filename_len = struct.unpack('<H', local_header[26:28])[0]
+    extra_len = struct.unpack('<H', local_header[28:30])[0]
+    
+    data_offset = file_info['offset'] + 30 + filename_len + extra_len
+    
+    return getRangeFromS3(s3_client, bucket_name, zip_path, data_offset, file_info['compressed_size'])
+
+def getRangeFromS3(s3_client, bucket_name, key, start, length):
+    """
+    Gets specific byte range from S3 object
+    """
+    response = s3_client.get_object(
+        Bucket=bucket_name,
+        Key=key,
+        Range=f'bytes={start}-{start + length - 1}'
+    )
+    return response['Body'].read()
+
+def findEndofCentralDir(s3_client, bucket_name, key, zip_size):
+    """
+    Searches for end of central directory record
+    """
+    search_size = min(65557, zip_size)
+    data = getRangeFromS3(s3_client, bucket_name, key, zip_size - search_size, search_size)
+    
+    for i in range(len(data) - 4, -1, -1):
+        if data[i:i+4] == b'PK\x05\x06':
+            return data[i:i+22]
+    
+    raise ValueError("End of central directory not found")
+
+def findFileInDir(central_dir, target_filename):
+    """
+    Finds file entry in central directory
+    """
+    offset = 0
+    while offset < len(central_dir):
+        if central_dir[offset:offset+4] != b'PK\x01\x02':
+            break
+        
+        compressed_size = struct.unpack('<L', central_dir[offset+20:offset+24])[0]
+        filename_len = struct.unpack('<H', central_dir[offset+28:offset+30])[0]
+        extra_len = struct.unpack('<H', central_dir[offset+30:offset+32])[0]
+        comment_len = struct.unpack('<H', central_dir[offset+32:offset+34])[0]
+        local_header_offset = struct.unpack('<L', central_dir[offset+42:offset+46])[0]
+        
+        filename = central_dir[offset+46:offset+46+filename_len].decode('utf-8')
+        
+        if filename == target_filename:
+            return {
+                'compressed_size': compressed_size,
+                'offset': local_header_offset
+            }
+        
+        offset += 46 + filename_len + extra_len + comment_len
+    
+    return None
