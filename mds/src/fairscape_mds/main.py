@@ -69,10 +69,12 @@ def getCurrentUser(
   
 from fairscape_mds.backend.credentitals_router import router as credentials_router
 from fairscape_mds.backend.evidence_graph_router import router as evidence_graph_router
+from fairscape_mds.backend.search_router import router as search_router
 
 # add the routers back in 
 app.include_router(credentials_router)
 app.include_router(evidence_graph_router)
+app.include_router(search_router)
 
 @app.post("/login")
 def form(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
