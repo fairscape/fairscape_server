@@ -598,6 +598,98 @@ def userPath(inputEmail):
 
 
 # set remainder of metadata for storage
+def writeROCrateDataset(
+	identifierCollection,
+	userInstance: UserWriteModel,
+	objectList,
+	rocrateInstance,
+	datasetElem: Dataset
+):
+
+	permissionsSet = userInstance.getPermissions()
+
+	if not datasetElem.contentUrl:
+		outputDataset = DatasetWriteModel.model_validate({
+			**datasetElem.model_dump(by_alias=True),
+			"permissions": permissionsSet, 
+			"distribution": None,
+			"isPartOf": {
+					"@id": rocrateInstance.metadataGraph[1].guid,
+			},		
+		})
+
+		output_json = datasetElem.model_dump(by_alias=True, mode='json')
+	
+	else:
+		if 'http' in datasetElem.contentUrl:
+			# create distribution for metadata
+			distribution = DatasetDistribution.model_validate({
+				"distributionType": 'url',
+				"location": {"uri": datasetElem.contentUrl}
+			})
+			outputDataset = DatasetWriteModel.model_validate({
+					**datasetElem.model_dump(by_alias=True),
+					"permissions": permissionsSet, 
+					"distribution": None,
+					"isPartOf": {
+							"@id": rocrateInstance.metadataGraph[1].guid,
+					},		
+			})
+			output_json = datasetElem.model_dump(by_alias=True, mode='json')
+
+		else:	
+			# match the metadata path to content
+			datasetCratePath = datasetElem.contentUrl.lstrip('file:///')
+			
+			# filter function to match content url to key
+			matchedElementList = list(
+					filter(
+					lambda x: datasetCratePath in x.get('Key'),
+					objectList
+					)
+			)
+
+			if len(matchedElementList)>0:
+				matchedElement = matchedElementList[0]
+			else:
+				print(f"ContentNotFound: {datasetElem.guid}\tPath: {datasetElem.contentUrl}")
+				raise Exception
+			
+			# create metadata record to insert 
+			objectSize = matchedElement.get('Size')
+			objectPath = matchedElement.get('Key')
+				
+			# create distribution for metadata
+			distribution = DatasetDistribution.model_validate({
+					"distributionType": 'minio',
+					"location": {"path": objectPath}
+					})
+					
+			outputDataset = DatasetWriteModel.model_validate({
+					**datasetElem.model_dump(by_alias=True),
+					"permissions": permissionsSet, 
+					"distribution": distribution,
+					"size": objectSize,
+					"isPartOf": {
+							"@id": rocrateInstance.metadataGraph[1].guid,
+					},		
+			})
+
+			output_json = {
+				"@id": outputDataset.guid,
+				"@type": outputDataset.metadataType,
+						"metadata":outputDataset.model_dump(by_alias=True, mode='json'),
+							"permissions": permissionsSet.model_dump(mode='json', by_alias=True), 
+				"distribution": distribution.model_dump(by_alias=True, mode='json'),
+				}
+  
+		# insert all identifiers for datasets
+		insertResult = identifierCollection.insert_one(
+			output_json
+		)
+	pass
+
+
 def writeDatasets(
 	identifierCollection, 
 	userInstance: UserWriteModel, 
@@ -735,11 +827,7 @@ def writeMetadataElements(
 	Returns:
 			List[str]: List of all ARKs minted
 	"""
-	
-	# mint software and computation and biochem entity
-	rocrateMetadataElements = rocrateInstance.getSoftware() + rocrateInstance.getComputations() + rocrateInstance.getSchemas() + \
-			rocrateInstance.getBioChemEntities() + rocrateInstance.getMedicalConditions()
-
+	 
 	userPermissions = userInstance.getPermissions()
 	crateGUID = rocrateInstance.getCrateMetadata().guid
 	
@@ -747,21 +835,28 @@ def writeMetadataElements(
 	guidList = []
 
 	# mint all metadata elements
-	for metadataModel in rocrateMetadataElements:
-		insertDocument = {
-			"@id": metadataModel.guid,
-			"@type": metadataModel.metadataType,
-			"metadata":metadataModel.model_dump(by_alias=True, mode='json'),
-			'permissions': userPermissions.model_dump(mode='json'),
-		}
-		
-		insertResult = metadataCollection.insert_one(
-			insertDocument
-		)
+	for metadataModel in rocrateInstance.metadataGraph:
 
-		# TODO check insertResult
-		
-		guidList.append(metadataModel.guid)
+		if metadataModel.metadataType == "https://w3id.org/EVI#Dataset" or metadataModel.guid == 'ro-crate-metadata.json':
+			pass
+		else:
+			insertDocument = {
+				"@id": metadataModel.guid,
+				"@type": metadataModel.metadataType,
+				"metadata": { 
+					**metadataModel.model_dump(by_alias=True, mode='json'),
+					"isPartOf": crateGUID
+				},
+				'permissions': userPermissions.model_dump(mode='json'),
+			}
+			
+			insertResult = metadataCollection.insert_one(
+				insertDocument
+			)
+
+			# TODO check insertResult
+			
+			guidList.append(metadataModel.guid)
 			
 
 	return guidList
