@@ -16,7 +16,7 @@ FROM python:3.12-slim AS fairscape
 COPY --from=builder /opt/venv /opt/venv
 
 # copy source code
-COPY src/ /fairscape/src/
+COPY mds/src/ /fairscape/src/
 WORKDIR /fairscape/src/
 
 # add users to run fairscape server
@@ -27,8 +27,9 @@ RUN chgrp -R fair /fairscape
 USER fair
 
 
-#RUN export PYTHONPATH=$PYTHONPATH:/fairscape_mds
+#RUN export PYTHONPATH="$PYTHONPATH:/fairscape/src"
+ENV PYTHONPATH="/fairscape/src"
 ENV PATH="/opt/venv/bin:$PATH"
 
 # run using uvicorn
-CMD ["uvicorn", "fairscape_mds.app:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "fairscape_mds.main:app", "--host", "0.0.0.0", "--port", "8080"]
