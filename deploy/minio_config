@@ -1,6 +1,0 @@
-# Minio config file for local testing with docker-compose
-# /etc/default/minio
-MINIO_ROOT_USER=fairscapetest
-MINIO_ROOT_PASSWORD=8@uXGJ3Ujmj5cVtg&&Md
-MINIO_VOLUMES="/mnt/data"
-MINIO_SERVER_URL="http://minio:9000"
