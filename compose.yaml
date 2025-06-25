@@ -28,11 +28,12 @@ services:
       - mongo
       - minio
   fairscape-frontend:
-    image: ghcr.io/fairscape/fairscapefrontend:release.2025-06-10.v4
+    image: ghcr.io/fairscape/fairscapefrontend:release.2025-06-25.v3
     ports:
       - "5173:80"
     environment:
       VITE_FAIRSCAPE_API_URL: "http://localhost:8080/api"
+      SEMANTIC_SEARCH_ENABLED: "false"
     depends_on:
       - fairscape-api
       - mongo
