@@ -546,3 +546,7 @@ def deleteSchema(
 			status_code = response.statusCode,
 			content = response.error
 		)
+
+@app.get("/healthz")
+def health_check():
+    return {"status": "healthy"}
