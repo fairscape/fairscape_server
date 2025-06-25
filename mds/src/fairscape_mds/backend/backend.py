@@ -11,7 +11,7 @@ import os
 # local test parameters
 mongoUser = os.environ.get("FAIRSCAPE_MONGO_ACCESS_KEY", "mongotestaccess")
 mongoPassword = os.environ.get("FAIRSCAPE_MONGO_SECRET_KEY", "mongotestsecret")
-mongoHost = os.environ.get("FAIRSCAPE_MONGO_HOST", "localhost")
+mongoHost = os.environ.get("FAIRSCAPE_MONGO_HOST", "http://localhost")
 mongoPort = os.environ.get("FAIRSCAPE_MONGO_PORT", "27017")
 mongoDatabaseName = os.environ.get("FAIRSCAPE_MONGO_DATABASE", "fairscape")
 mongoUserCollection = os.environ.get("FAIRSCAPE_MONGO_USER_COLLECTION", "users")
@@ -37,7 +37,8 @@ jwtSecret = os.environ.get("FAIRSCAPE_JWT_SECRET", "test-jwt-secret")
 adminGroup = os.environ.get("FAIRSCAPE_ADMIN_GROUP", "admin")
 
 # create a mongo client
-connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?retryWrites=true"
+
+connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?authSource=admin&retryWrites=true"
 mongoClient = pymongo.MongoClient(connection_string)
 
 mongoDB = mongoClient[mongoDatabaseName]
