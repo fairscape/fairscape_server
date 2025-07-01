@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, ValidationError
 from typing import Dict, List, Optional, Any, Union
 import pymongo
+import datetime
 from fairscape_mds.backend.models import FairscapeResponse, UserWriteModel
 
 
@@ -148,3 +149,19 @@ def list_evidence_graphs_from_db(mongo_collection: pymongo.collection.Collection
         return FairscapeResponse(success=True, statusCode=200, model=graphs)
     except Exception as e:
         return FairscapeResponse(success=False, statusCode=500, error={"message": f"Error listing evidence graphs: {str(e)}"})
+    
+class EvidenceGraphBuildRequest(BaseModel):
+    guid: str
+    task_type: str = Field(default="EvidenceGraphBuild")
+    owner_email: str
+    naan: str
+    postfix: str
+    status: str = Field(default="PENDING")
+    time_created: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
+    time_started: Optional[datetime.datetime] = None
+    time_finished: Optional[datetime.datetime] = None
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[Dict[str, Any]] = None
+
+    class Config:
+        populate_by_name = True
