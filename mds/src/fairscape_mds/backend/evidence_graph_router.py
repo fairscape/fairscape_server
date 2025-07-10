@@ -8,7 +8,6 @@ from fairscape_mds.backend.evidence_graph import EvidenceGraph, EvidenceGraphCre
 from fairscape_mds.backend.evidence_graph_crud import FairscapeEvidenceGraphRequest
 from fairscape_mds.main import getCurrentUser
 from fairscape_mds.backend.backend import (config)
-from fairscape_mds.worker import app as celery_app
 from fairscape_mds.worker import build_evidence_graph_task
 
 

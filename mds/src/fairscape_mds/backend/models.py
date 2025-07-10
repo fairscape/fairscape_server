@@ -48,6 +48,15 @@ class FairscapeConfig():
 		self.jwtSecret = jwtSecret
 		self.adminGroup = adminGroup
 
+		
+		# set up support for compression headers
+		def _add_header(request, **kwargs):
+				request.headers.add_header('x-minio-extract', 'true')
+
+		self.s3_event_system = self.minioClient.meta.events
+		self.s3_event_system.register_first('before-sign.s3.*', _add_header)
+
+
 class FairscapeResponse():
 	def __init__(
 		self, 
@@ -579,7 +588,7 @@ def getROCrateMetadata(s3Client, bucketName, uploadInstance):
 			return roCrateJSON
 		
 		except:
-			return extractFileFromZip(s3Client, bucketName, zippedMetadataPath)
+			return None
 	
 	metadata = DownloadROCrateMetadata(stemPath)
 
@@ -897,6 +906,10 @@ class ROCrateMetadataElemWrite(ROCrateMetadataElem):
 
 
 class FairscapeROCrateRequest(FairscapeRequest):
+
+	def __init__(self, config):
+		super().__init__(config)
+		self.config = config
 
 	def uploadROCrate(
 		self, 
