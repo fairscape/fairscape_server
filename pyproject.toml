@@ -16,27 +16,28 @@ classifiers = [
 keywords = ["fairscape", "reproducibility", "fair"]
 dependencies = [
 	"fairscape_models>=1.0.4",
-        "fastapi>=0.109.0",
-        "uvicorn>=0.27.0",
-        "requests>=2.31.0",
-        "minio>=7.2.3",
-        "python-multipart>=0.0.6",
-        "docker>=7.0.0",
-        "jinja2>=3.1.3",
-        "pyjwt>=2.8.0",
-        "requests-toolbelt>=1.0.0",
-        "celery[redis]>=5.3.6",
-        "boto3>=1.34.26",
-        "python-dotenv>=1.0.1",
-        "ipykernel>=6.29.0",
-        "sqids>=0.4.1", 
-        "boto3>=1.34.26",
-        "pydantic>=2.5.1",
+	"fastapi>=0.109.0",
+	"uvicorn>=0.27.0",
+	"requests>=2.31.0",
+	"minio>=7.2.3",
+	"python-multipart>=0.0.6",
+	"docker>=7.0.0",
+	"jinja2>=3.1.3",
+	"pyjwt>=2.8.0",
+	"requests-toolbelt>=1.0.0",
+	"celery[redis]>=5.3.6",
+	"boto3>=1.34.26",
+	"python-dotenv>=1.0.1",
+	"ipykernel>=6.29.0",
+	"sqids>=0.4.1",
+	"boto3>=1.34.26",
+	"pydantic>=2.5.1",
+	"rdflib>=6.3.2",
+	"httpx>=0.28.1",
+	"pytest>=8.3.5",
 ]
 requires-python = ">=3.8"                                                                                                                                                         
                                                        
 [project.urls]                              
 Homepage = "https://fairscape.github.io"
                                             
-[project.scripts]
-fairscape-mds = "fairscape_mds.__main__"
