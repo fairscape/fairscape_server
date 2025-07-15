@@ -41,3 +41,7 @@ requires-python = ">=3.8"
 [project.urls]                              
 Homepage = "https://fairscape.github.io"
                                             
+[tool.pytest.ini_options]
+pythonpath = [
+  "mds/src", 
+]
