@@ -211,7 +211,7 @@ def uploadROCrate(
 		uploadJob = uploadOperation.model
 
 		# start backend job
-		processROCrate.apply_async(args=(uploadJob.guid,), countdown=3)
+		processROCrate.apply_async(args=(uploadJob.guid,), )
 
 		return uploadJob
 
@@ -444,6 +444,28 @@ def createComputation(
 		computationInstance
 	)
 
+	if response.success:
+		return response.model
+
+	else:
+		return JSONResponse(
+			status_code = response.statusCode,
+			content = response.error
+		)
+
+
+@app.get("/computation/ark:{NAAN}/{postfix}")
+def getComputationMetadata(
+	NAAN: str,
+	postfix: str,
+):
+
+	computationGUID = f"ark:{NAAN}/{postfix}"
+
+	response = computationRequest.getComputation(
+		computationGUID
+	)
+	
 	if response.success:
 		return response.model
 
