@@ -56,6 +56,10 @@ class FairscapeConfig():
 		self.s3_event_system = self.minioClient.meta.events
 		self.s3_event_system.register_first('before-sign.s3.*', _add_header)
 
+	def __str__(self):
+		minioStr = f"Minio:\n\tMinioClient: {self.minioClient}\n\tBucket: {self.minioBucket}\n\tDefaultPath: {self.minioDefaultPath}"
+		return f"Backend Configuration Object:\n{minioStr}"
+
 
 class FairscapeResponse():
 	def __init__(
@@ -338,6 +342,7 @@ class DistributionTypeEnum(str, Enum):
 	MINIO = 'minio'
 	URL = 'url'
 	GLOBUS = 'globus'
+	FTP = 'ftp'
 
 class MinioDistribution(BaseModel):
 	path: str
@@ -402,6 +407,7 @@ class FairscapeDatasetRequest(FairscapeRequest):
 		else:
 			return DatasetWriteModel.model_validate({**foundMetadata})
 
+
 	def getDatasetContent(
 		self, 
 		userInstance: UserWriteModel, 
@@ -438,7 +444,7 @@ class FairscapeDatasetRequest(FairscapeRequest):
 				jsonResponse={"error": "user unauthorized"}
 			)
 
-        
+ 
 	def createDataset(
 		self, 
 		userInstance: UserWriteModel,
@@ -454,12 +460,21 @@ class FairscapeDatasetRequest(FairscapeRequest):
 		# if no content is passed
 		if datasetContent is None:
 			
-			# process dataset
+			# if http URI add url distribution
 			if 'http' in inputDataset.contentUrl:
 				distribution = DatasetDistribution.model_validate({
 						"distributionType": "url",
 						"location": {"uri": inputDataset.contentUrl}
 						})
+
+
+			# if ftp URI add url distribution
+			if 'ftp' in inputDataset.contentUrl:
+				distribution = DatasetDistribution.model_validate({
+					"distributionType": "ftp",
+					"location": {"uri": inputDataset.contentUrl}
+				})
+
 			if inputDataset.contentUrl is None:
 				distribution = None 
 
