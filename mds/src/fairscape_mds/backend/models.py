@@ -15,6 +15,7 @@ import jwt
 import pymongo
 from pymongo.collection import Collection
 import struct
+import copy
 
 from fairscape_models.computation import Computation
 from fairscape_models.software import Software
@@ -839,6 +840,9 @@ def writeMetadataElements(
 
 		if metadataModel.metadataType == "https://w3id.org/EVI#Dataset" or metadataModel.guid == 'ro-crate-metadata.json':
 			pass
+		if isinstance(metadataModel.metadataType,list):
+			if 'https://w3id.org/EVI#ROCrate' in metadataModel.metadataType:
+				continue
 		else:
 			insertDocument = {
 				"@id": metadataModel.guid,
@@ -1177,9 +1181,10 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		rocrateGUID: str
 	):
 
-		rocrateMetadata = self.config.identifierCollection.find_one({
-				"@id": rocrateGUID
-		})
+		rocrateMetadata = self.config.identifierCollection.find_one(			{"$or": [
+				{"@id": rocrateGUID},
+				{"@id": f"{rocrateGUID}/"}
+			]},)['metadata']
 
 		# if no metadata is found return 404
 		if not rocrateMetadata:

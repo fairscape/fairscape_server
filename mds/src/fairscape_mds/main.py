@@ -164,14 +164,10 @@ def getDatasetContent(
 		zipHeaders = {
 			"Content-Type": "application/zip",
 			"Content-Disposition": "attachment;filename=downloaded-rocrate.zip"
-    }
-
-		def iterfile():
-			with open(datasetResponse.fileResponse['Body'], "r") as datasetFile:
-				yield from datasetFile
+   		}
 
 		return StreamingResponse(
-			iterfile(),
+			datasetResponse.fileResponse,
 			headers=zipHeaders
 		)
 
@@ -327,14 +323,9 @@ def getROCrateArchive(
 		zipHeaders = {
 			"Content-Type": "application/zip",
 			"Content-Disposition": "attachment;filename=downloaded-rocrate.zip"
-    }
-
-		def iterfile():
-			with open(response.fileResponse['Body'], "rb'") as rocrateFile:
-				yield from rocrateFile
-
+    	}
 		return StreamingResponse(
-			iterfile(),
+			response.fileResponse,
 			headers=zipHeaders
 		)
 
