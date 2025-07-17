@@ -6,6 +6,8 @@ from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware 
 from typing import Annotated
+import pathlib
+import mimetypes
 
 from pydantic import ValidationError
 
@@ -144,7 +146,7 @@ def getDatasetMetadata(
 	return datasetRequest.getDatasetMetadata(datasetGUID)
 
 
-@app.get("/dataset/ark:{naan}/{postfix}?download")
+@app.get("/dataset/download/ark:{naan}/{postfix}")
 def getDatasetContent(
 	naan: str,
 	postfix: str,
@@ -159,16 +161,23 @@ def getDatasetContent(
 
 	if datasetResponse.success:
 
-		# TODO set the download file name as the filename download
-		# TODO set the content type based on the metadata
-		zipHeaders = {
-			"Content-Type": "application/zip",
-			"Content-Disposition": "attachment;filename=downloaded-rocrate.zip"
+		dataset_instance = datasetResponse.model
+		object_key = dataset_instance.distribution.location.path
+		filename = object_key.split("/")[-1]
+  
+		content_type, _ = mimetypes.guess_type(filename)
+
+		if content_type is None:
+			content_type = "application/octet-stream"
+
+		download_headers = {
+			"Content-Type": content_type,
+			"Content-Disposition": f'attachment; filename="{filename}"'
    		}
 
 		return StreamingResponse(
 			datasetResponse.fileResponse,
-			headers=zipHeaders
+			headers=download_headers
 		)
 
 	else:
@@ -319,14 +328,18 @@ def getROCrateArchive(
 	)
 	
 	if response.success:
-		# TODO set the rocrate name as the filename download
-		zipHeaders = {
+
+		object_key = response.model.distribution.location.path
+		filename = pathlib.Path(object_key).name
+
+		zip_headers = {
 			"Content-Type": "application/zip",
-			"Content-Disposition": "attachment;filename=downloaded-rocrate.zip"
+			"Content-Disposition": f'attachment; filename="{filename}"'
     	}
+        
 		return StreamingResponse(
 			response.fileResponse,
-			headers=zipHeaders
+			headers=zip_headers
 		)
 
 	else:

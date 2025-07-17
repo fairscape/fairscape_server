@@ -36,8 +36,14 @@ brokerURL = f"{redisHost}:{redisPort}"
 jwtSecret = os.environ.get("FAIRSCAPE_JWT_SECRET", "test-jwt-secret")
 adminGroup = os.environ.get("FAIRSCAPE_ADMIN_GROUP", "admin")
 
+# Fairscape base URL
+baseUrl = os.environ.get("FAIRSCAPE_BASE_URL", "http://localhost:8080/api")
+
 # create a mongo client
-connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?authSource=admin&retryWrites=true"
+if "localhost" in baseUrl:
+    connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?authSource=admin&retryWrites=true"
+else:
+    connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?retryWrites=true"
 mongoClient = pymongo.MongoClient(connection_string)
 
 mongoDB = mongoClient[mongoDatabaseName]
@@ -87,5 +93,6 @@ config = FairscapeConfig(
 	rocrateCollection=rocrateCollection,
 	tokensCollection=tokensCollection,
     jwtSecret=jwtSecret,
-	adminGroup=adminGroup
+	adminGroup=adminGroup,
+    baseUrl=baseUrl
 )

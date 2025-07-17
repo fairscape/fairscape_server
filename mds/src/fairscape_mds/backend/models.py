@@ -36,7 +36,8 @@ class FairscapeConfig():
 			rocrateCollection,
 			tokensCollection,
 			jwtSecret: str,
-			adminGroup: str
+			adminGroup: str,
+			baseUrl: str
 	):
 		self.minioClient=minioClient
 		self.minioBucket=minioBucket
@@ -48,6 +49,8 @@ class FairscapeConfig():
 		self.tokensCollection=tokensCollection
 		self.jwtSecret = jwtSecret
 		self.adminGroup = adminGroup
+		self.baseUrl = baseUrl
+  
 
 class FairscapeResponse():
 	def __init__(
@@ -388,7 +391,7 @@ class FairscapeDatasetRequest(FairscapeRequest):
 			self,
 			datasetGUID: str
 	):
-		foundMetadata = self.getMetadata(datasetGUID)
+		foundMetadata = self.getMetadata(datasetGUID)['metadata']
 		if foundMetadata is None:
 			raise Exception
 		else:
@@ -400,7 +403,6 @@ class FairscapeDatasetRequest(FairscapeRequest):
 		datasetGUID: str,
 	):
 		datasetInstance = self.getDatasetMetadata(datasetGUID)
-
 		# check that datasetInstance has minio distribtuion
 		if datasetInstance.distribution.distributionType != DistributionTypeEnum.MINIO:
 			raise Exception
@@ -409,7 +411,7 @@ class FairscapeDatasetRequest(FairscapeRequest):
 		if checkPermissions(datasetInstance.permissions, userInstance):
 
 			# get the distribution location from metadata
-			objectKey = datasetInstance.distributionType.location.path
+			objectKey = datasetInstance.distribution.location.path
 
 			response = self.config.minioClient.get_object(
 				Bucket=self.config.minioBucket,
@@ -693,6 +695,7 @@ def writeROCrateDataset(
 
 def writeDatasets(
 	identifierCollection, 
+	baseUrl: str,
 	userInstance: UserWriteModel, 
 	rocrateInstance, 
 	objectList
@@ -775,6 +778,9 @@ def writeDatasets(
 				# create metadata record to insert 
 				objectSize = matchedElement.get('Size')
 				objectPath = matchedElement.get('Key')
+    
+				# Update contentUrl for created dataset
+				datasetElem.contentUrl = f"{baseUrl}/dataset/download/{datasetElem.guid}"
 				
 				# create distribution for metadata
 				distribution = DatasetDistribution.model_validate({
@@ -1023,6 +1029,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		# write dataset records
 		datasetGUIDS = writeDatasets(
 				self.config.identifierCollection, 
+				self.config.baseUrl,
 				foundUser, 
 				roCrateModel, 
 				objectList
@@ -1216,7 +1223,8 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		return FairscapeResponse(
 				success=True,
 				statusCode=200,
-				fileResponse=objectResponse.get('Body')
+				fileResponse=objectResponse.get('Body'),
+				model=rocrateInstance
 		)
   
 	def _validateMetadataOnlyCrate(self, crateModel: ROCrateV1_2) -> Optional[dict]:
