@@ -12,7 +12,7 @@ RUN uv sync --locked
 
 #RUN export PYTHONPATH="$PYTHONPATH:/fairscape/src"
 ENV PYTHONPATH="/fairscape/src"
-ENV PATH="/opt/venv/bin:$PATH"
+ENV PATH="/fairscape/src/.venv/bin:$PATH"
 
 WORKDIR /fairscape/src/
 

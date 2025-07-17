@@ -571,7 +571,7 @@ class ROCrateUploadRequest(BaseModel):
 	timeFinished: Optional[datetime.datetime] = Field(default=None)
 	completed: Optional[bool] = Field(default=False)
 	error: Optional[str] = Field(default=None)
-	identifiersMinted: Optional[int] = Field(default=None)
+	identifiersMinted: Optional[Union[int, List[str]]] = Field(default=None)
 	rocrateIdentifier: Optional[str] = Field(default=None)
 	transactionFolder: Optional[str] = Field(default=None)
 	status: Optional[str] = Field(default=None)

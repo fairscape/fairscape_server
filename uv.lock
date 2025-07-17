@@ -693,7 +693,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.34.26" },
     { name = "celery", extras = ["redis"], specifier = ">=5.3.6" },
     { name = "docker", specifier = ">=7.0.0" },
-    { name = "fairscape-models", specifier = ">=1.0.4" },
+    { name = "fairscape-models", specifier = ">=1.0.6" },
     { name = "fastapi", specifier = ">=0.109.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "ipykernel", specifier = ">=6.29.0" },
@@ -713,7 +713,7 @@ requires-dist = [
 
 [[package]]
 name = "fairscape-models"
-version = "1.0.4"
+version = "1.0.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mongomock" },
@@ -723,9 +723,9 @@ dependencies = [
     { name = "pymongo", version = "4.13.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "typing" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/af/0874fbe81394871414bd5c596e4f8beb92e4d5c34facbcc0cefd399cb1c3/fairscape_models-1.0.4.tar.gz", hash = "sha256:8736dd896130d25b8f3ff418e12896d2eeb880294fe4047efae0fd73ba0a1e5c", size = 11197, upload-time = "2025-06-26T14:09:35.238Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/8d/1fed083ae676fa618765bc7ce7f9072aaacfed1f7158f1aed6d29ceb73d2/fairscape_models-1.0.6.tar.gz", hash = "sha256:29ff7c41d2753df120c6f1d49ce0ef103d6a80d95ce6bad586a326fd7020b371", size = 11034, upload-time = "2025-07-16T18:17:29.547Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fd/bb/fb5d4ce8cbfc90243140b8c99f078af3f6f1a660731513a67eb443830622/fairscape_models-1.0.4-py3-none-any.whl", hash = "sha256:0a69a9a88670918cf0aa0a9fb59a7b7c9118cac7a21de439ade945800c4ed074", size = 15351, upload-time = "2025-06-26T14:09:34.409Z" },
+    { url = "https://files.pythonhosted.org/packages/32/db/3aa5ba302d92cfbb451171850207046d984485a7b554e6c968e3fcbd7d4b/fairscape_models-1.0.6-py3-none-any.whl", hash = "sha256:231c455461f7c779dc363558b262b9279e1bc530c33dff6ea1cc9654387905b5", size = 15168, upload-time = "2025-07-16T18:17:28.726Z" },
 ]
 
 [[package]]
