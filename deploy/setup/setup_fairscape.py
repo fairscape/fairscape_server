@@ -198,23 +198,35 @@ def setupMongoUsersAndGroups(db: pymongo.database.Database):
 # --- Main Execution ---
 if __name__ == "__main__":
     print("INFO: Starting Fairscape setup script...")
-
     initial_delay_str = get_config('INITIAL_SETUP_DELAY', '0')
     try:
         initial_delay = int(initial_delay_str)
         if initial_delay > 0:
             print(f"INFO: Initial delay of {initial_delay} seconds...")
             time.sleep(initial_delay)
-    except ValueError: # Simplified error handling for delay
-        if initial_delay_str != '0': # Only warn if it's not the default '0' and invalid
+    except ValueError:
+        if initial_delay_str != '0':
             print(f"WARNING: Invalid INITIAL_SETUP_DELAY: '{initial_delay_str}'. No delay.")
-
+    
     setupMinio()
-    mongo_db_connection = connectMongo()
-
-    if mongo_db_connection is not None: # Corrected truthiness check
+    
+    mongo_db_connection = None
+    retry_count = 0
+    max_retries = 30
+    retry_delay = 5
+    
+    while mongo_db_connection is None and retry_count < max_retries:
+        print(f"INFO: Attempting MongoDB connection (attempt {retry_count + 1}/{max_retries})...")
+        mongo_db_connection = connectMongo()
+        if mongo_db_connection is None:
+            retry_count += 1
+            if retry_count < max_retries:
+                print(f"INFO: MongoDB not ready, waiting {retry_delay} seconds before retry...")
+                time.sleep(retry_delay)
+    
+    if mongo_db_connection is not None:
         setupMongoUsersAndGroups(mongo_db_connection)
     else:
-        print("ERROR: Skipping MongoDB user/group setup due to connection failure.")
-
+        print("ERROR: Failed to connect to MongoDB after maximum retries. Skipping user/group setup.")
+    
     print("INFO: Fairscape setup script finished.")
