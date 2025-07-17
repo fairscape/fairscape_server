@@ -21,15 +21,17 @@ mongoAsyncCollection =  os.environ.get("FAIRSCAPE_MONGO_ASYNC_COLLECTION", "asyn
 mongoTokensCollection =  os.environ.get("FAIRSCAPE_MONGO_TOKENS_COLLECTION", "tokens")
 
 
-minioAccessKey = os.environ.get("FAIRSCAPE_MINIO_ACCESS_KEY", "miniotestadmin")
-minioSecretKey = os.environ.get("FAIRSCAPE_MINIO_SECRET_KEY", "miniotestsecret")
-minioEndpoint = os.environ.get("FAIRSCAPE_MINIO_URI", "http://localhost:9000")
-minioDefaultBucket = os.environ.get("FAIRSCAPE_MINIO_DEFAULT_BUCKET", "fairscape")
+minioAccessKey = os.environ.get("FAIRSCAPE_MINIO_ACCESS_KEY") # "miniotestadmin")
+minioSecretKey = os.environ.get("FAIRSCAPE_MINIO_SECRET_KEY") # "miniotestsecret")
+minioEndpoint = os.environ.get("FAIRSCAPE_MINIO_URI") #"http://localhost:9000")
+minioDefaultBucket = os.environ.get("FAIRSCAPE_MINIO_DEFAULT_BUCKET") # "fairscape")
 minioDefaultPath = os.environ.get("FAIRSCAPE_MINIO_DEFAULT_BUCKET_PATH", "fairscape")
 
 # redis settings
 redisHost = os.environ.get("FAIRSCAPE_REDIS_HOST", "localhost")
 redisPort = os.environ.get("FAIRSCAPE_REDIS_PORT", "6379")
+redisJobDatabase = os.environ.get("FAIRSCAPE_REDIS_JOB_DATABASE", "0")
+redisResultDatabase = os.environ.get("FAIRSCAPE_REDIS_RESULT_DATABASE", "1")
 brokerURL = f"{redisHost}:{redisPort}"
 
 # JWT Secret
@@ -60,6 +62,7 @@ s3 = boto3.client('s3',
         aws_access_key_id=minioAccessKey,
         aws_secret_access_key=minioSecretKey,
         config=Config(signature_version='s3v4'),
+        aws_session_token=None,
         region_name='us-east-1'
     )
 
@@ -69,14 +72,15 @@ except:
     pass
 
 # set up support for compression headers
-def _add_header(request, **kwargs):
-    request.headers.add_header('x-minio-extract', 'true')
+#def _add_header(request, **kwargs):
+#    request.headers.add_header('x-minio-extract', 'true')
 
-event_system = s3.meta.events
-event_system.register_first('before-sign.s3.*', _add_header)
+#event_system = s3.meta.events
+#event_system.register_first('before-sign.s3.*', _add_header)
 
 celeryApp = Celery()
-celeryApp.conf.broker_url = "redis://" + brokerURL
+celeryApp.conf.broker_url = "redis://" + brokerURL + "/" + redisJobDatabase
+celeryApp.conf.result_backend = "redis://" + brokerURL + "/" + redisResultDatabase
 
 celeryApp.conf.update(
     task_concurrency=4,  # Use 4 threads for concurrency

@@ -2,29 +2,17 @@ from celery import Celery
 import datetime
 from fairscape_mds.backend.models import FairscapeConfig, FairscapeROCrateRequest, UserWriteModel
 from fairscape_mds.backend.evidence_graph_crud import FairscapeEvidenceGraphRequest
-from fairscape_mds.backend.backend import (
-    config,
-    brokerURL
-    )
-
-app = Celery('fairscape_mds.worker')
-app.conf.broker_url = f"redis://{brokerURL}"
-app.conf.update(
-    task_concurrency=4,
-    worker_prefetch_multiplier=4,
-    broker_connection_retry_on_startup=True
-)
-
+from fairscape_mds.backend.backend import *
 
 rocrateRequests = FairscapeROCrateRequest(config)
 evidenceGraphRequests = FairscapeEvidenceGraphRequest(config)
 
-@app.task(name='fairscape_mds.worker.processROCrate')
+@celeryApp.task(name='fairscape_mds.worker.processROCrate')
 def processROCrate(transactionGUID: str):
     print(f"Starting Job: {transactionGUID}")
     return rocrateRequests.processROCrate(transactionGUID)
 
-@app.task(name='fairscape_mds.worker.build_evidence_graph_task', bind=True)
+@celeryApp.task(name='fairscape_mds.worker.build_evidence_graph_task', bind=True)
 def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, postfix: str):
     print(f"Starting Evidence Graph Build Job: Task GUID {task_guid} for ark:{naan}/{postfix}")
 
@@ -99,4 +87,4 @@ def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, 
 
 if __name__ == '__main__':
     args = ['worker', '--loglevel=INFO']
-    app.worker_main(argv=args)
+    celeryApp.worker_main(argv=args)

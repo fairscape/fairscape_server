@@ -1,19 +1,12 @@
 # Docker Compose Spec for Local Testing of Fairscape
 services:
-  setup:
-    # image: ghcr.io/fairscape/setup:RELEASE.2025-05-27
-    build: "./deploy/setup/"
-    env_file: "./deploy/setup/setup.env"
-    depends_on:
-      - minio
-      - fairscape-api
-      - mongo
   fairscape-worker:
     build: "./"
     # image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-21.v1
     env_file: "./deploy/docker_compose.env"
     command:
-      - "python"
+      - "uv"
+      - "run"
       - "fairscape_mds/worker.py"
     depends_on:
       - mongo

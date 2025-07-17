@@ -78,6 +78,12 @@ app.include_router(credentials_router)
 app.include_router(evidence_graph_router)
 app.include_router(search_router)
 
+@app.get("/status")
+def getStatus():
+	# TODO validate minio, mongo are working
+	return {"live": "true"}
+
+
 @app.post("/login")
 def form(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
 
@@ -93,22 +99,6 @@ def form(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
 		status_code=response.statusCode,
 		content=response.jsonResponse
 	)
-          
-
-@app.get("/admin")
-def admin(
-	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)]
-	):
-
-	print(currentUser)
-
-	if not currentUser:
-		return JSONResponse(
-			status_code=401,
-			content={"message": "unauthorized"}
-		)
-	else:
-		return {"message": "secret handshake", "currentUserEmail": currentUser.email}
 
 
 def parseDataset(datasetMetadata: str = Form(...)):
@@ -119,6 +109,7 @@ def parseDataset(datasetMetadata: str = Form(...)):
 			detail=jsonable_encoder(e.errors()),
 			status_code=422
 		)
+
 
 @app.post("/dataset")
 def createDataset(
@@ -225,7 +216,7 @@ def uploadROCrate(
 		uploadJob = uploadOperation.model
 
 		# start backend job
-		processROCrate.apply_async(args=(uploadJob.guid,), countdown=3)
+		processROCrate.apply_async(args=(uploadJob.guid,), )
 
 		return uploadJob
 
@@ -457,6 +448,28 @@ def createComputation(
 		computationInstance
 	)
 
+	if response.success:
+		return response.model
+
+	else:
+		return JSONResponse(
+			status_code = response.statusCode,
+			content = response.error
+		)
+
+
+@app.get("/computation/ark:{NAAN}/{postfix}")
+def getComputationMetadata(
+	NAAN: str,
+	postfix: str,
+):
+
+	computationGUID = f"ark:{NAAN}/{postfix}"
+
+	response = computationRequest.getComputation(
+		computationGUID
+	)
+	
 	if response.success:
 		return response.model
 
