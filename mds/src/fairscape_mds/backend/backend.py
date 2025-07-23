@@ -21,10 +21,10 @@ mongoAsyncCollection =  os.environ.get("FAIRSCAPE_MONGO_ASYNC_COLLECTION", "asyn
 mongoTokensCollection =  os.environ.get("FAIRSCAPE_MONGO_TOKENS_COLLECTION", "tokens")
 
 
-minioAccessKey = os.environ.get("FAIRSCAPE_MINIO_ACCESS_KEY") # "miniotestadmin")
-minioSecretKey = os.environ.get("FAIRSCAPE_MINIO_SECRET_KEY") # "miniotestsecret")
-minioEndpoint = os.environ.get("FAIRSCAPE_MINIO_URI") #"http://localhost:9000")
-minioDefaultBucket = os.environ.get("FAIRSCAPE_MINIO_DEFAULT_BUCKET") # "fairscape")
+minioAccessKey = os.environ.get("FAIRSCAPE_MINIO_ACCESS_KEY", "miniotestadmin")
+minioSecretKey = os.environ.get("FAIRSCAPE_MINIO_SECRET_KEY", "miniotestsecret")
+minioEndpoint = os.environ.get("FAIRSCAPE_MINIO_URI", "http://localhost:9000")
+minioDefaultBucket = os.environ.get("FAIRSCAPE_MINIO_DEFAULT_BUCKET", "fairscape")
 minioDefaultPath = os.environ.get("FAIRSCAPE_MINIO_DEFAULT_BUCKET_PATH", "fairscape")
 
 # redis settings

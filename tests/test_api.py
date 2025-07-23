@@ -1,13 +1,10 @@
-import os
-import sys
-
 import pytest
-from fastapi.testclient import TestClient
-from fairscape_mds.main import app
+import httpx
+import time
 from fairscape_mds.backend.backend import *
 from fairscape_mds.backend.models import UserWriteModel
 
-testApp = TestClient(app)
+root_url = "http://localhost:8080"
 
 testUser = UserWriteModel.model_validate({
     "email": "test@example.org",
@@ -15,16 +12,20 @@ testUser = UserWriteModel.model_validate({
     "lastName": "Doe",
     "password": "test"
     }) 
+
+userCollection.delete_many({})
  
 # create a test user for the 
 insertUserResult = userCollection.insert_one(
     testUser.model_dump(by_alias=True, mode='json')
 )
 
+
 class UserFixture:
     def __init__(self, username, password):
         self.username = username
         self.password = password
+
 
 class HeadersFixture:
     def __init__(self, headers):
@@ -33,24 +34,34 @@ class HeadersFixture:
 
 @pytest.fixture
 def get_user():
+    testUser = UserWriteModel.model_validate({
+        "email": "test@example.org",
+        "firstName": "John",
+        "lastName": "Doe",
+        "password": "test"
+        }) 
     # create a test user for logging in
     return UserFixture(testUser.email, testUser.password)
 
 
-
 def test_live():
-    response = testApp.get("/status")
+    response = httpx.get(root_url + "/status")
     assert response.status_code == 200
 
-def test_login_user(get_user):
 
+
+def test_upload_rocrate(get_user):
     # login the user
     loginData = {
         "username": get_user.username,
         "password": get_user.password
         }
 
-    loginResponse = testApp.post("/login", data=loginData)
+
+    loginResponse = httpx.post(
+        root_url + "/login", 
+        data=loginData
+        )
     loginJSON = loginResponse.json()
 
     assert loginResponse.status_code == 200
@@ -58,55 +69,67 @@ def test_login_user(get_user):
     assert loginJSON.get("access_token")
 
     authHeaders = {
-        "Authorization": f"Bearer {loginJSON.get("access_token")}"
+        "Authorization": f"Bearer {loginJSON.get('access_token')}"
         }
 
 
-
-@pytest.fixture
-def get_headers():
-
-    loginResponse = testApp.post("/login", data=loginData)
-    loginJSON = loginResponse.json()
-    authHeaders = {
-        "Authorization": f"Bearer {loginJSON.get("access_token")}"
-        }
-    return HeadersFixture(authHeaders)
-
-
-def test_upload_rocrate(get_headers):
     rocrateFiles = {
-         "crate": ("Example.zip", open("test/data/Example.zip", "rb"), "application/zip")
+         "crate": ("Example.zip", open("tests/data/Example.zip", "rb"), "application/zip")
     }
-
+    
     # upload a test rocrate
-    uploadResponse = testApp.post(
-         "/rocrate/upload",
+    uploadResponse = httpx.post(
+         root_url + "/rocrate/upload-async",
          files=rocrateFiles,
-         headers=get_headers.headers
+         headers=authHeaders
     )
 
-    assert uploadResponse.status_code > 200
-
+    # check that upload response is successfull
+    assert uploadResponse.status_code == 200
     uploadResponseJSON = uploadResponse.json()
+    assert uploadResponseJSON
 
     submissionUUID = uploadResponseJSON.get("guid")
+    assert submissionUUID
 
-    # check status
-    checkStatus = testApp.get(
-         f"/rocrate/upload/status/{submissionUUID}",
-         headers=get_headers.headers
-    )
 
-    assert checkStatus.status_code == 200
-    
-    statusJSON = checkStatus.json()
-    assert statusJSON
+    def loopStatus():
+        jobFinished = False
+        loop = 0
+        while not jobFinished and loop > 5:
+            loop+=1
+            # check status
+            checkStatus = httpx.get(
+                 root_url + f"/rocrate/upload/status/{submissionUUID}",
+                 headers=authHeaders
+            )
 
-    # if upload is complete
+            assert checkStatus.status_code == 200 
+            statusJSON = checkStatus.json()
+            assert statusJSON
 
-    # wait until complete
-    pass
+            print(statusJSON)
+
+
+            # if time started and time finished is none job is still running
+            if not statusJSON.get("timeFinished"):
+                time.sleep(5)
+            else:
+                return statusJSON
+
+    statusJSON = loopStatus()
+    # check that job is marked as success
+    assert statusJSON.get("completed")
+    assert not statusJSON.get("error")
+
+    # get the crate guid
+    assert statusJSON.get("rocrateGUID")
+
+            
+
+
+
+
 
 def test_download_rocrate():
     pass

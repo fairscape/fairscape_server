@@ -1,7 +1,8 @@
 import fastapi
 from pydantic import (
     BaseModel,
-    Field
+    Field,
+		ValidationError
 )
 from typing import (
     Optional,
@@ -567,6 +568,7 @@ class ROCrateUploadRequest(BaseModel):
 	guid: str
 	permissions: Permissions
 	uploadPath: str
+	rocrateGUID: Optional[str] = Field(default=None)
 	timeStarted: Optional[datetime.datetime] = Field(default_factory=datetime.datetime.now)
 	timeFinished: Optional[datetime.datetime] = Field(default=None)
 	completed: Optional[bool] = Field(default=False)
@@ -581,7 +583,7 @@ class ROCrateUploadRequest(BaseModel):
 
 # ROCrate Helper Functions
 
-def getROCrateMetadata(s3Client, bucketName, uploadInstance):
+def GetROCrateMetadata(s3Client, bucketName, uploadInstance):
 
 	# TODO try both with stem and not stem
 	# TODO improve with searching for all ro-crate-metadata.json
@@ -896,31 +898,6 @@ def writeMetadataElements(
 	return guidList
 
 
-# helper function to get all contents inside a zipped crate when there are more than 1k objects
-def getROCrateContentsMinio(s3Client, bucketName, zipCratePath: str):
-	# list entire subdirectory for rocrate upload
-	listObjects = s3Client.list_objects_v2(
-			Bucket= bucketName,
-			Prefix= str(zipCratePath) + '/'
-	)
-
-	objectList = listObjects['Contents']
-
-	isTruncated = listObjects.get('IsTruncated')
-	nextContinueToken = listObjects.get('NextContinuationToken')
-
-	while isTruncated:
-
-		listObjects = s3Client.list_objects_v2(
-			Bucket = bucketName,
-			Prefix = str(zippedCratePath) + '/',
-			ContinuationToken = nextContinueToken
-		)
-		nextContinueToken = listObjects.get('NextContinuationToken')
-		isTruncated = listObjects.get('IsTruncated')
-		objectList= objectList + listObjects['Contents']
-
-	return objectList
 
 
 class ROCrateMetadataElemWrite(ROCrateMetadataElem):
@@ -987,9 +964,93 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		return response
 
 
+	def getROCrateContentsMinio(self, zipCratePath: str):
+		# helper function to get all contents inside a zipped crate when there are more than 1k objects
+		# list entire subdirectory for rocrate upload
+		listObjects = self.config.minioClient.list_objects_v2(
+				Bucket= self.config.minioBucket,
+				Prefix= str(zipCratePath) 	
+				)
+
+		objectList = listObjects['Contents']
+
+		isTruncated = listObjects.get('IsTruncated')
+		nextContinueToken = listObjects.get('NextContinuationToken')
+
+		while isTruncated:
+
+			listObjects = self.config.minioClient.list_objects_v2(
+				Bucket = self.config.minioBucket,
+				Prefix = zipCratePath,
+				ContinuationToken = nextContinueToken
+			)
+			nextContinueToken = listObjects.get('NextContinuationToken')
+			isTruncated = listObjects.get('IsTruncated')
+			objectList= objectList + listObjects['Contents']
+
+		return objectList
+
+
+	def processTaskGetInitialJobMetadata(self, transactionGUID: str):
+		uploadMetadata = self.config.asyncCollection.find_one(
+			{"guid": transactionGUID}, 
+			{"_id": 0}
+			)
+		
+		if uploadMetadata is None:
+			raise Exception('Upload Metadata not found')
+		
+		# TODO try and except for ROCrate Validation
+		uploadInstance = ROCrateUploadRequest.model_validate(uploadMetadata)
+		
+		# find the user uploading the ROCrate to set permissions
+		userMetadata = self.config.userCollection.find_one(
+				{"email": uploadInstance.permissions.owner }
+		)
+		
+		if userMetadata is None:
+			raise Exception('User Metadata not found')
+
+		# TODO try and except for user validation Validation
+		foundUser = UserWriteModel.model_validate(userMetadata)
+		
+		return foundUser, uploadInstance
+
+
+	def processTaskGetMetadata(self, rocrateContents):
+
+		storedROCrateMetadataFiles = list(
+			filter(
+				lambda elem: 'ro-crate-metadata.json' in elem.get("Key"), 
+				rocrateContents
+			)
+		)
+
+		# TODO handle multiple ROCrate metadata files 
+		if len(storedROCrateMetadataFiles)>1:
+			raise Exception('Multiple ROCrate Metadata Files not Supported')
+		elif len(storedROCrateMetadataFiles) == 0 :
+			raise Exception('ROCrate Metadata File is Not Included')	
+		else:
+			# get the metadata file 
+			metadataFile = storedROCrateMetadataFiles[0]
+			metadataFileKey = metadataFile.get("Key")
+
+			# get the object
+			s3Response = self.config.minioClient.get_object(
+				Bucket = self.config.minioBucket,
+				Key= metadataFileKey
+			)	
+
+			content = s3Response['Body'].read()
+			roCrateJSON = json.loads(content)
+
+			rocrateInstance = ROCrateV1_2.model_validate(roCrateJSON)
+			return rocrateInstance
+
+
 	def processROCrate(self, transactionGUID: str):
 		# get the current rocrate upload job
-		uploadMetadata = self.config.asyncCollection.find_one({"guid": transactionGUID}, {"_id": 0})
 
 		self.config.asyncCollection.update_one(
         	{"guid": transactionGUID},
@@ -1000,59 +1061,41 @@ class FairscapeROCrateRequest(FairscapeRequest):
         	}
     	)
 
-		if uploadMetadata is None:
-			raise Exception
-
-		uploadInstance = ROCrateUploadRequest.model_validate(uploadMetadata)
-		
-		# find the user uploading the ROCrate to set permissions
-		userMetadata = self.config.userCollection.find_one(
-				{"email": uploadInstance.permissions.owner }
-		)
-
-		foundUser = UserWriteModel.model_validate(userMetadata)
+		foundUser, uploadInstance = self.processTaskGetInitialJobMetadata(transactionGUID)
 		zippedCratePath = uploadInstance.uploadPath
 
-		# TODO getROCrateMetadata
-		roCrateMetadata = getROCrateMetadata(
-			self.config.minioClient, 
-			self.config.minioBucket, 
-			uploadInstance
-			)
+		# get ROCrateContents needs the path to terminate with / to get subcontents of Zip
+		if zippedCratePath.endswith("/"):
+			pass
+		else:
+			zippedCratePath = zippedCratePath + "/"
 
-		self.config.asyncCollection.update_one(
-			{"guid": transactionGUID},
-			{"$set": 
-				{
-					"stage": "found metadata"
-				}
-			}
-    )
-		
-		# parse the metadata into the rocrate
+		rocrateContents = self.getROCrateContentsMinio(
+			zippedCratePath
+		)
+
 		try:
-			roCrateModel = ROCrateV1_2.model_validate(roCrateMetadata)
+			roCrateModel = self.processTaskGetMetadata(rocrateContents)
 		except Exception as e:
 			print(f"ValidationError: {str(e)}")
 			import traceback
 			traceback.print_exc()
 			return None
 
-		# get list of the objects from minio
-		objectList = getROCrateContentsMinio(
-			self.config.minioClient, 
-			self.config.minioBucket, 
-			zippedCratePath
-			)
+		crateMetadataElem = roCrateModel.getCrateMetadata()
+		roCrateGUID = crateMetadataElem.guid
 
 		self.config.asyncCollection.update_one(
 			{"guid": transactionGUID},
 			{"$set": 
 				{
-					"stage": "publishing metadata"
+					"stage": "found metadata",
+					"rocrateGUID": roCrateGUID
 				}
 			}
     )
+		
+
   
 		# write dataset records
 		datasetGUIDS = writeDatasets(
@@ -1060,13 +1103,14 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				self.config.baseUrl,
 				foundUser, 
 				roCrateModel, 
-				objectList
+				rocrateContents
 		)
-
+		
 		self.config.asyncCollection.update_one(
 			{"guid": transactionGUID},
 			{"$set": 
 				{
+					"stage": "publishing metadata",
 					"identifiersMinted": datasetGUIDS
 				}
 			}
@@ -1102,8 +1146,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				"published": True,   
 			}
 		}
-		rocrateMetadataWrite = ROCrateMetadataElemWrite.model_validate(rocrate_metadata_elem_data['metadata'])
-		
+	
 		# dump into identifier collection and rocrate collection
 		self.config.identifierCollection.insert_one(rocrate_metadata_elem_data  )
 
@@ -1132,7 +1175,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		)
 
 		#TODO: check update result
-		return datasetGUIDS + nonDatasetGUIDS
+		return metadataElem.guid
 
 
 	def getUploadMetadata(self, requestingUser: UserWriteModel, transactionGUID: str):
