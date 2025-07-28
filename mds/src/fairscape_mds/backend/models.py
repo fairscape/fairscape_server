@@ -96,6 +96,7 @@ class FairscapeRequest():
 
 
 
+
 #######################
 #      User Models    #
 #######################
@@ -418,35 +419,46 @@ class FairscapeDatasetRequest(FairscapeRequest):
 		userInstance: UserWriteModel, 
 		datasetGUID: str,
 	):
-		datasetInstance = self.getDatasetMetadata(datasetGUID)
-		# check that datasetInstance has minio distribtuion
-		if datasetInstance.distribution.distributionType != DistributionTypeEnum.MINIO:
-			raise Exception
+		datasetMetadata = self.getMetadata(datasetGUID)
+		distribution = datasetMetadata.get('distribution')
+		datasetPermissions = datasetMetadata.get('permissions')
 
-		# check permissions
-		if checkPermissions(datasetInstance.permissions, userInstance):
+		if distribution:
+			distributionInstance = DatasetDistribution.model_validate(distribution)
+			permissionsInstance = Permissions.model_validate(datasetPermissions)
 
-			# get the distribution location from metadata
-			objectKey = datasetInstance.distribution.location.path
+			# check that datasetInstance has minio distribtuion
+			if distributionInstance.distributionType != DistributionTypeEnum.MINIO:
+				return FairscapeResponse(
+					success=False,
+					statusCode=400,
+					jsonResponse={"error": "Dataset Not Stored Locally"}
+				)
 
-			response = self.config.minioClient.get_object(
-				Bucket=self.config.minioBucket,
-				Key=objectKey
-			)
+			else:
+				# check permissions
+				if checkPermissions(permissionsInstance, userInstance):
 
-			return FairscapeResponse(
-				success=True,
-				statusCode=200,
-				fileResponse=response,
-				model=datasetInstance
-			)
+					# get the distribution location from metadata
+					objectKey = distributionInstance.location.path
 
-		else:
-			return FairscapeResponse(
-				success=False,
-				statusCode=401,
-				jsonResponse={"error": "user unauthorized"}
-			)
+					response = self.config.minioClient.get_object(
+						Bucket=self.config.minioBucket,
+						Key=objectKey
+					)
+
+					return FairscapeResponse(
+						success=True,
+						statusCode=200,
+						fileResponse=response,
+					)
+			
+				else:
+					return FairscapeResponse(
+						success=False,
+						statusCode=401,
+						jsonResponse={"error": "user unauthorized"}
+					)
 
  
 	def createDataset(
@@ -719,183 +731,7 @@ def writeROCrateDataset(
 	pass
 
 
-def writeDatasets(
-	identifierCollection, 
-	baseUrl: str,
-	userInstance: UserWriteModel, 
-	rocrateInstance, 
-	objectList
-):
-	""" Write ROCrate metadata to identifier collection for all dataset elements.
 
-	Args:
-			identifierCollection (pymongo.synchronous.collection.Collection): Collection to insert Identifier metadata
-			userInstance (UserWriteModel): User Record for the user inserting the metadata
-			rocrateInstance (fairscape_models.rocrate.ROCratev1_2): ROCrate Metadata as a pydantic model
-			objectList (List[dict]): Content for the Zipped ROCrate from the s3 object_list_v1 call 
-
-	Returns:
-			List[str]: List of All Dataset Identifiers Minted
-	"""
-	
-	datasetWriteList = []
-
-	# TODO: set to userInstance for method
-	permissionsSet = userInstance.getPermissions()
-
-	for datasetElem in rocrateInstance.getDatasets():
-		if not datasetElem.contentUrl or datasetElem.contentUrl == 'Embargoed':
-			outputDataset = DatasetWriteModel.model_validate({
-					**datasetElem.model_dump(by_alias=True),
-					"permissions": permissionsSet, 
-					"distribution": None,
-					"isPartOf": {
-							"@id": rocrateInstance.metadataGraph[1].guid,
-					},		
-			})
-			output_json = {                   
-                   "@id": outputDataset.guid,
-				   "@type": outputDataset.metadataType,
-				   "metadata":outputDataset.model_dump(by_alias=True, mode='json'),
-				   "permissions": permissionsSet.model_dump(mode='json', by_alias=True)
-       		}
-		else:
-
-			if 'http' in datasetElem.contentUrl:
-				# create distribution for metadata
-				distribution = DatasetDistribution.model_validate({
-						"distributionType": 'url',
-						"location": {"uri": datasetElem.contentUrl}
-						})
-				outputDataset = DatasetWriteModel.model_validate({
-						**datasetElem.model_dump(by_alias=True),
-						"permissions": permissionsSet, 
-						"distribution": None,
-						"isPartOf": {
-								"@id": rocrateInstance.metadataGraph[1].guid,
-						},		
-				})
-				output_json = {					
-                   "@id": outputDataset.guid,
-				   "@type": outputDataset.metadataType,
-				   "metadata":outputDataset.model_dump(by_alias=True, mode='json'),
-				   "permissions": permissionsSet.model_dump(mode='json', by_alias=True), 
-				   "distribution": distribution.model_dump(by_alias=True, mode='json'),
-       			}
-
-			else:	
-				# match the metadata path to content
-				datasetCratePath = datasetElem.contentUrl.lstrip('file:///')
-			
-				# filter function to match content url to key
-				matchedElementList = list(
-						filter(
-						lambda x: datasetCratePath in x.get('Key'),
-						objectList
-						)
-				)
-
-				if len(matchedElementList)>0:
-					matchedElement = matchedElementList[0]
-				else:
-					print(f"ContentNotFound: {datasetElem.guid}\tPath: {datasetElem.contentUrl}")
-					continue
-			
-				# create metadata record to insert 
-				objectSize = matchedElement.get('Size')
-				objectPath = matchedElement.get('Key')
-    
-				# Update contentUrl for created dataset
-				datasetElem.contentUrl = f"{baseUrl}/dataset/download/{datasetElem.guid}"
-				
-				# create distribution for metadata
-				distribution = DatasetDistribution.model_validate({
-						"distributionType": 'minio',
-						"location": {"path": objectPath}
-						})
-					
-				outputDataset = DatasetWriteModel.model_validate({
-						**datasetElem.model_dump(by_alias=True),
-						"permissions": permissionsSet, 
-						"distribution": distribution,
-						"size": objectSize,
-						"isPartOf": {
-								"@id": rocrateInstance.metadataGraph[1].guid,
-						},		
-				})
-
-				output_json = {
-					"@id": outputDataset.guid,
-					"@type": outputDataset.metadataType,
-							"metadata":outputDataset.model_dump(by_alias=True, mode='json'),
-								"permissions": permissionsSet.model_dump(mode='json', by_alias=True), 
-					"distribution": distribution.model_dump(by_alias=True, mode='json'),
-					}
-  
-		# insert all identifiers for datasets
-		insertResult = identifierCollection.insert_one(
-			output_json
-		)
-
-		# TODO: check insertResult for success
-
-		# append guid to dataset list
-		datasetWriteList.append(outputDataset.guid)
-	
-	return datasetWriteList
-
-
-def writeMetadataElements(
-	metadataCollection,
-	userInstance,
-	rocrateInstance
-):
-	""" Write ROCrate metadata for all elements excluding datasets
-
-	Args:
-			identifierCollection (pymongo.synchronous.collection.Collection): Collection to insert Identifier metadata
-			userInstance (UserWriteModel): User Record for the user inserting the metadata
-			rocrateInstance (fairscape_models.rocrate.ROCratev1_2): ROCrate Metadata as a pydantic model
-
-	Returns:
-			List[str]: List of all ARKs minted
-	"""
-	 
-	userPermissions = userInstance.getPermissions()
-	crateGUID = rocrateInstance.getCrateMetadata().guid
-	
-	# written identifiers
-	guidList = []
-
-	# mint all metadata elements
-	for metadataModel in rocrateInstance.metadataGraph:
-
-		if metadataModel.metadataType == "https://w3id.org/EVI#Dataset" or metadataModel.guid == 'ro-crate-metadata.json':
-			pass
-		if isinstance(metadataModel.metadataType,list):
-			if 'https://w3id.org/EVI#ROCrate' in metadataModel.metadataType:
-				continue
-		else:
-			insertDocument = {
-				"@id": metadataModel.guid,
-				"@type": metadataModel.metadataType,
-				"metadata": { 
-					**metadataModel.model_dump(by_alias=True, mode='json'),
-					"isPartOf": crateGUID
-				},
-				'permissions': userPermissions.model_dump(mode='json'),
-			}
-			
-			insertResult = metadataCollection.insert_one(
-				insertDocument
-			)
-
-			# TODO check insertResult
-			
-			guidList.append(metadataModel.guid)
-			
-
-	return guidList
 
 
 
@@ -962,6 +798,219 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			)
 
 		return response
+
+
+	def processTaskWriteDatasets(
+		self,
+		userInstance: UserWriteModel, 
+		rocrateInstance: ROCrateV1_2, 
+		objectList
+	):
+		""" Write ROCrate metadata to identifier collection for all dataset elements.
+
+		Args:
+				identifierCollection (pymongo.synchronous.collection.Collection): Collection to insert Identifier metadata
+				userInstance (UserWriteModel): User Record for the user inserting the metadata
+				rocrateInstance (fairscape_models.rocrate.ROCratev1_2): ROCrate Metadata as a pydantic model
+				objectList (List[dict]): Content for the Zipped ROCrate from the s3 object_list_v1 call 
+
+		Returns:
+				List[str]: List of All Dataset Identifiers Minted
+		"""
+
+		baseUrl = self.config.baseUrl	
+		datasetWriteList = []
+
+		# TODO: set to userInstance for method
+		permissionsSet = userInstance.getPermissions()
+
+		for datasetElem in rocrateInstance.getDatasets():
+			if not datasetElem.contentUrl or datasetElem.contentUrl == 'Embargoed':
+				outputDataset = DatasetWriteModel.model_validate({
+						**datasetElem.model_dump(by_alias=True),
+						"permissions": permissionsSet, 
+						"distribution": None,
+						"isPartOf": {
+								"@id": rocrateInstance.metadataGraph[1].guid,
+						},		
+				})
+
+				output_json = {                   
+						"@id": outputDataset.guid,
+						"@type": outputDataset.metadataType,
+						"metadata":outputDataset.model_dump(by_alias=True, mode='json'),
+						"permissions": permissionsSet.model_dump(mode='json', by_alias=True),
+						"distribution": None
+						}
+			else:
+
+				if 'ftp' in datasetElem.contentUrl:
+					distribution = DatasetDistribution.model_validate({
+							"distributionType": 'ftp',
+							"location": {"uri": datasetElem.contentUrl}
+							})
+					outputDataset = DatasetWriteModel.model_validate({
+							**datasetElem.model_dump(by_alias=True),
+							"permissions": permissionsSet, 
+							"distribution": None,
+							"isPartOf": {
+									"@id": rocrateInstance.metadataGraph[1].guid,
+							},		
+					})
+
+					# format as a write document
+					output_json = {					
+						"@id": outputDataset.guid,
+						"@type": outputDataset.metadataType,
+						"metadata":outputDataset.model_dump(by_alias=True, mode='json'),
+						"permissions": permissionsSet.model_dump(mode='json', by_alias=True), 
+						"distribution": distribution.model_dump(by_alias=True, mode='json'),
+					}
+
+				if 'http' in datasetElem.contentUrl:
+					# create distribution for metadata
+					distribution = DatasetDistribution.model_validate({
+							"distributionType": 'url',
+							"location": {"uri": datasetElem.contentUrl}
+							})
+					outputDataset = DatasetWriteModel.model_validate({
+							**datasetElem.model_dump(by_alias=True),
+							"permissions": permissionsSet, 
+							"distribution": None,
+							"isPartOf": {
+									"@id": rocrateInstance.metadataGraph[1].guid,
+							},		
+					})
+
+					# format as a write document
+					output_json = {					
+						"@id": outputDataset.guid,
+						"@type": outputDataset.metadataType,
+						"metadata":outputDataset.model_dump(by_alias=True, mode='json'),
+						"permissions": permissionsSet.model_dump(mode='json', by_alias=True), 
+						"distribution": distribution.model_dump(by_alias=True, mode='json'),
+					}
+
+				else:	
+					# match the metadata path to content
+					datasetCratePath = datasetElem.contentUrl.lstrip('file:///')
+				
+					# filter function to match content url to key
+					matchedElementList = list(
+							filter(
+							lambda x: datasetCratePath in x.get('Key'),
+							objectList
+							)
+					)
+
+					if len(matchedElementList)>0:
+						matchedElement = matchedElementList[0]
+					else:
+
+						# TODO handle error for content not found in the rocrate
+						print(f"ContentNotFound: {datasetElem.guid}\tPath: {datasetElem.contentUrl}")
+						continue
+				
+					# create metadata record to insert 
+					objectSize = matchedElement.get('Size')
+					objectPath = matchedElement.get('Key')
+			
+					# Update contentUrl for created dataset
+					datasetElem.contentUrl = f"{baseUrl}/dataset/download/{datasetElem.guid}"
+					
+					# create distribution for metadata
+					distribution = DatasetDistribution.model_validate({
+							"distributionType": 'minio',
+							"location": {"path": objectPath}
+							})
+						
+					outputDataset = DatasetWriteModel.model_validate({
+							**datasetElem.model_dump(by_alias=True),
+							"permissions": permissionsSet, 
+							"distribution": distribution,
+							"size": objectSize,
+							"isPartOf": {
+									"@id": rocrateInstance.metadataGraph[1].guid,
+							},		
+					})
+
+					# format as identifier write document
+					output_json = {
+						"@id": outputDataset.guid,
+						"@type": outputDataset.metadataType,
+						"metadata":outputDataset.model_dump(by_alias=True, mode='json'),
+						"permissions": permissionsSet.model_dump(mode='json', by_alias=True), 
+						"distribution": distribution.model_dump(by_alias=True, mode='json'),
+						}
+		
+			# insert all identifiers for datasets
+			insertResult = self.config.identifierCollection.insert_one(
+				output_json
+			)
+
+			# TODO: check insertResult for success
+			if insertResult.inserted_id:
+				print(f"error writing {output_json.get('@id')}")
+
+			# append guid to dataset list
+			datasetWriteList.append(outputDataset.guid)
+		
+		return datasetWriteList
+
+
+	def processTaskWriteMetadataElements(
+		self,
+		userInstance,
+		rocrateInstance
+	):
+		""" Write ROCrate metadata for all elements excluding datasets
+
+		Args:
+				identifierCollection (pymongo.synchronous.collection.Collection): Collection to insert Identifier metadata
+				userInstance (UserWriteModel): User Record for the user inserting the metadata
+				rocrateInstance (fairscape_models.rocrate.ROCratev1_2): ROCrate Metadata as a pydantic model
+
+		Returns:
+				List[str]: List of all ARKs minted
+		"""
+		metadataCollection = self.config.identifierCollection
+		
+		userPermissions = userInstance.getPermissions()
+		crateGUID = rocrateInstance.getCrateMetadata().guid
+		
+		# written identifiers
+		guidList = []
+
+		# mint all metadata elements
+		for metadataModel in rocrateInstance.metadataGraph:
+
+			if metadataModel.metadataType == "https://w3id.org/EVI#Dataset" or metadataModel.guid == 'ro-crate-metadata.json':
+				pass
+			if isinstance(metadataModel.metadataType,list):
+				if 'https://w3id.org/EVI#ROCrate' in metadataModel.metadataType:
+					continue
+			else:
+				insertDocument = {
+					"@id": metadataModel.guid,
+					"@type": metadataModel.metadataType,
+					"metadata": { 
+						**metadataModel.model_dump(by_alias=True, mode='json'),
+						"isPartOf": crateGUID
+					},
+					'permissions': userPermissions.model_dump(mode='json'),
+				}
+				
+				insertResult = metadataCollection.insert_one(
+					insertDocument
+				)
+
+				if not insertResult.inserted_id:
+					raise Exception(f"Writing Identifier To Mongo Failed id: {insertDocument.get('@id')}")
+				
+				guidList.append(metadataModel.guid)	
+
+		return guidList
+
 
 
 	def getROCrateContentsMinio(self, zipCratePath: str):
@@ -1083,6 +1132,12 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			return None
 
 		crateMetadataElem = roCrateModel.getCrateMetadata()
+
+		# if a terminating backslash is present on the identifier trim
+		# TODO apply to all identifiers
+		if crateMetadataElem.guid.endswith("/"):
+			crateMetadataElem.guid = crateMetadataElem.guid.rstrip("/")
+
 		roCrateGUID = crateMetadataElem.guid
 
 		self.config.asyncCollection.update_one(
@@ -1093,17 +1148,13 @@ class FairscapeROCrateRequest(FairscapeRequest):
 					"rocrateGUID": roCrateGUID
 				}
 			}
-    )
-		
+    )	
 
-  
 		# write dataset records
-		datasetGUIDS = writeDatasets(
-				self.config.identifierCollection, 
-				self.config.baseUrl,
-				foundUser, 
-				roCrateModel, 
-				rocrateContents
+		datasetGUIDS = self.processTaskWriteDatasets(
+			foundUser, 
+			roCrateModel, 
+			rocrateContents
 		)
 		
 		self.config.asyncCollection.update_one(
@@ -1117,8 +1168,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
     )
 
 		# write metadata elements
-		nonDatasetGUIDS = writeMetadataElements(
-				self.config.identifierCollection,
+		nonDatasetGUIDS = self.processTaskWriteMetadataElements(
 				foundUser,
 				roCrateModel
 		)
@@ -1174,7 +1224,10 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				}}
 		)
 
-		#TODO: check update result
+		# check update result
+		if updateResult.modified_count != 1:
+			raise Exception(f"Failed to Update Job Metadata: {uploadInstance.guid}")
+
 		return metadataElem.guid
 
 

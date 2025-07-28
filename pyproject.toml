@@ -45,3 +45,5 @@ Homepage = "https://fairscape.github.io"
 pythonpath = [
   "mds/src", 
 ]
+log_cli = true
+log_level = "INFO"
