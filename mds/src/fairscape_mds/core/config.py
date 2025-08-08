@@ -4,6 +4,9 @@ from pydantic import (
 )
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Optional
+from celery import Celery
+import pymongo
 
 
 
@@ -112,6 +115,14 @@ else:
     connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?retryWrites=true"
 
 
+mongoClient = pymongo.MongoClient(connection_string)
+mongoDB = mongoClient[mongoDatabaseName]
+userCollection = mongoDB[mongoUserCollection]
+identifierCollection = mongoDB[mongoIdentifierCollection]
+rocrateCollection = mongoDB[mongoROCrateCollection]
+asyncCollection = mongoDB[mongoAsyncCollection]
+tokensCollection = mongoDB[mongoTokensCollection]
+
 
 # create a boto s3 client
 s3 = boto3.client('s3',
@@ -122,11 +133,6 @@ s3 = boto3.client('s3',
         aws_session_token=None,
         region_name='us-east-1'
     )
-
-FAIRSCAPE_REDIS_HOST: str
-FAIRSCAPE_REDIS_PORT: str
-FAIRSCAPE_REDIS_JOB_DATABASE: str
-FAIRSCAPE_REDIS_RESULT_DATABASE: str
 
 
 celeryApp = Celery()
@@ -142,14 +148,14 @@ celeryApp.conf.update(
 
 appConfig = FairscapeConfig(
     minioClient=s3,
-    minioBucket=minioDefaultBucket,
-	minioDefaultPath=minioDefaultPath,
+    minioBucket=settings.FAIRSCAPE_MINIO_DEFAULT_BUCKET,
+	minioDefaultPath=settings.FAIRSCAPE_MINIO_DEFAULT_BUCKET_PATH,
 	userCollection=userCollection,
 	identifierCollection=identifierCollection,
 	asyncCollection=asyncCollection,
 	rocrateCollection=rocrateCollection,
 	tokensCollection=tokensCollection,
-    jwtSecret=jwtSecret,
-	adminGroup=adminGroup,
-    baseUrl=baseUrl
+    jwtSecret=settings.FAIRSCAPE_JWT_SECRET,
+	adminGroup=settings.FAIRSCAPE_ADMIN_GROUP,
+    baseUrl=settings.FAIRSCAPE_BASE_URL
 )

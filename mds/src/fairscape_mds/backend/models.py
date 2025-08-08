@@ -18,52 +18,14 @@ from pymongo.collection import Collection
 import struct
 import copy
 
+from fairscape_mds.core.config import FairscapeConfig
+
 from fairscape_models.computation import Computation
 from fairscape_models.software import Software
 from fairscape_models.schema import Schema
 from fairscape_models.dataset import Dataset
 
 ADMIN_GROUP_IDENTIFIER = "admin"
-
-class FairscapeConfig():
-	def __init__(
-			self,
-			minioClient, 
-			minioBucket: str, 
-			minioDefaultPath: str,
-			identifierCollection,
-			userCollection, 
-			asyncCollection,
-			rocrateCollection,
-			tokensCollection,
-			jwtSecret: str,
-			adminGroup: str,
-			baseUrl: str
-	):
-		self.minioClient=minioClient
-		self.minioBucket=minioBucket
-		self.minioDefaultPath=minioDefaultPath 
-		self.identifierCollection=identifierCollection
-		self.userCollection=userCollection
-		self.rocrateCollection=rocrateCollection
-		self.asyncCollection=asyncCollection
-		self.tokensCollection=tokensCollection
-		self.jwtSecret = jwtSecret
-		self.adminGroup = adminGroup
-		self.baseUrl = baseUrl
-  
-
-		
-		# set up support for compression headers
-		def _add_header(request, **kwargs):
-				request.headers.add_header('x-minio-extract', 'true')
-
-		self.s3_event_system = self.minioClient.meta.events
-		self.s3_event_system.register_first('before-sign.s3.*', _add_header)
-
-	def __str__(self):
-		minioStr = f"Minio:\n\tMinioClient: {self.minioClient}\n\tBucket: {self.minioBucket}\n\tDefaultPath: {self.minioDefaultPath}"
-		return f"Backend Configuration Object:\n{minioStr}"
 
 
 class FairscapeResponse():
