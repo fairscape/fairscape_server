@@ -2,12 +2,12 @@ from fastapi import (
 	APIRouter
 )
 from fastapi.responses import JSONResponse
-from fairscape_mds.backend.models import *
+from fairscape_mds.crud.resolver import FairscapeResolverRequest
 from fairscape_mds.core.config import appConfig
 
 
 resolverRequest = FairscapeResolverRequest(appConfig)
-resolverRouter = APIRouter(prefix="/", tags=['evi', 'rocrate'])
+resolverRouter = APIRouter(prefix="", tags=['evi', 'rocrate'])
 
 @resolverRouter.get("/ark:{NAAN}/{postfix}")
 def resolveARK(

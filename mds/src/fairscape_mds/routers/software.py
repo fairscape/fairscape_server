@@ -1,15 +1,16 @@
-from typing import Annotated
-from fairscape_mds.backend.models import *
+from fairscape_mds.crud.software import FairscapeSoftwareRequest
+from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.deps import getCurrentUser
 from fairscape_mds.core.config import appConfig
-from fairscape_models.software import Software 
+from fairscape_models.software import Software
 
+from typing import Annotated
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 softwareRequest = FairscapeSoftwareRequest(appConfig)
 
-softwareRouter = APIRouter(prefix="/", tags=['evi', 'software'])
+softwareRouter = APIRouter(prefix="", tags=['evi', 'software'])
 
 @softwareRouter.post("/software")
 def createSoftware(

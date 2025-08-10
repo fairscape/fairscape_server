@@ -3,10 +3,10 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse
-from fairscape_mds.backend.models import *
+from fairscape_mds.crud.user import FairscapeUserRequest
 from fairscape_mds.core.config import appConfig
 
-authRouter = APIRouter(prefix="/", tags=['auth'])
+authRouter = APIRouter(prefix="", tags=['auth'])
 userRequest = FairscapeUserRequest(appConfig)
 
 

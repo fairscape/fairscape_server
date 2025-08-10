@@ -2,14 +2,15 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from fairscape_mds.backend.models import *
+from fairscape_mds.crud.schema import FairscapeSchemaRequest
+from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.core.config import appConfig
 from fairscape_mds.deps import getCurrentUser
 from fairscape_models.schema import Schema
 
 schemaRequest = FairscapeSchemaRequest(appConfig)
 
-schemaRouter = APIRouter(prefix="/", tags=['evi', 'schema'])
+schemaRouter = APIRouter(prefix="", tags=['evi', 'schema'])
 
 
 @schemaRouter.post("/schema")

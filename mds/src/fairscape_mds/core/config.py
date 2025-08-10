@@ -4,6 +4,9 @@ from pydantic import (
 )
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import boto3
+from botocore.client import Config
+from urllib.parse import quote_plus
 from typing import Optional
 from celery import Celery
 import pymongo
@@ -109,19 +112,19 @@ mongoAuthDatabaseName = settings.FAIRSCAPE_MONGO_AUTH_DATABASE
 if "localhost" in settings.FAIRSCAPE_BASE_URL:
     connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?authSource=admin&retryWrites=true"
 
-if mongoAuthDatabaseName 
+if mongoAuthDatabaseName:
     connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?authSource={mongoAuthDatabaseName}&retryWrites=true"
 else:
     connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?retryWrites=true"
 
 
 mongoClient = pymongo.MongoClient(connection_string)
-mongoDB = mongoClient[mongoDatabaseName]
-userCollection = mongoDB[mongoUserCollection]
-identifierCollection = mongoDB[mongoIdentifierCollection]
-rocrateCollection = mongoDB[mongoROCrateCollection]
-asyncCollection = mongoDB[mongoAsyncCollection]
-tokensCollection = mongoDB[mongoTokensCollection]
+mongoDB = mongoClient[settings.FAIRSCAPE_MONGO_DATABASE]
+userCollection = mongoDB[settings.FAIRSCAPE_MONGO_USER_COLLECTION]
+identifierCollection = mongoDB[settings.FAIRSCAPE_MONGO_IDENTIFIER_COLLECTION]
+rocrateCollection = mongoDB[settings.FAIRSCAPE_MONGO_ROCRATE_COLLECTION]
+asyncCollection = mongoDB[settings.FAIRSCAPE_MONGO_ASYNC_COLLECTION]
+tokensCollection = mongoDB[settings.FAIRSCAPE_MONGO_TOKENS_COLLECTION]
 
 
 # create a boto s3 client

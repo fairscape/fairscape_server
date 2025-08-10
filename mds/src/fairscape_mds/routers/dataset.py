@@ -6,20 +6,23 @@ from fastapi import (
 	Form, 
 	UploadFile
 )
+from pydantic import ValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.encoders import jsonable_encoder
-from fairscape_mds.backend.models import *
+from typing import Optional, Annotated
+import mimetypes
+
+from fairscape_mds.models.user import UserWriteModel
+from fairscape_mds.crud.dataset import FairscapeDatasetRequest
 from fairscape_mds.core.config import appConfig
 from fairscape_models.dataset import Dataset
 from fairscape_mds.deps import getCurrentUser
 
-from typing import Annotated
-import mimetypes
 
 
 datasetRequest = FairscapeDatasetRequest(appConfig)
 
-datasetRouter = APIRouter(prefix="/", tags=['dataset'])
+datasetRouter = APIRouter(prefix="", tags=['dataset'])
 
 
 
@@ -60,7 +63,7 @@ def getDatasetMetadata(
 
 
 
-@app.get("/dataset/download/ark:{naan}/{postfix}")
+@datasetRouter.get("/dataset/download/ark:{naan}/{postfix}")
 def getDatasetContent(
 	naan: str,
 	postfix: str,

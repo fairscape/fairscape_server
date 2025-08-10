@@ -24,10 +24,11 @@ from fairscape_models.computation import Computation
 from fairscape_models.software import Software
 from fairscape_models.schema import Schema
 from fairscape_models.dataset import Dataset
+from enum import Enum
 
 ADMIN_GROUP_IDENTIFIER = "admin"
 
-class StoredIdentifer(BaseClass):
+class StoredIdentifer(BaseModel):
 	guid: str
 
 class PublicationStatusEnum(Enum):

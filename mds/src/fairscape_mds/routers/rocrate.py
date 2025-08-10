@@ -10,15 +10,19 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.encoders import jsonable_encoder
-from fairscape_mds.backend.models import *
+from fairscape_mds.crud.rocrate import FairscapeROCrateRequest
+
+from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.core.config import appConfig
 from fairscape_models.rocrate import ROCrateV1_2, ROCrateMetadataElem
 from fairscape_mds.deps import getCurrentUser
 from fairscape_mds.worker import processROCrate
 
+import pathlib
+
 rocrateRequest = FairscapeROCrateRequest(appConfig)
 
-rocrateRouter = APIRouter(prefix="/", tags=['evi', 'rocrate'])
+rocrateRouter = APIRouter(prefix="", tags=['evi', 'rocrate'])
 
 
 @rocrateRouter.post("/rocrate/upload-async")

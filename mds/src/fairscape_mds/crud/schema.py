@@ -23,6 +23,8 @@ class FairscapeSchemaRequest(FairscapeRequest):
 			writeModel.model_dump(by_alias=True, mode='json')
 		})
 
+		# TODO check that insert result is successfull
+
 		return FairscapeResponse(
 			success=True,
 			statusCode=201,

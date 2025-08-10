@@ -10,7 +10,7 @@ from fairscape_models.computation import Computation
 
 computationRequest = FairscapeComputationRequest(appConfig)
 
-computationRouter = APIRouter(prefix="/", tags=['evi', 'computation'])
+computationRouter = APIRouter(prefix="", tags=['evi', 'computation'])
 
 
 @computationRouter.post("/computation")
