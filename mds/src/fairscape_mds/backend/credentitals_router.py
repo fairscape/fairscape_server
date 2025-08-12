@@ -15,7 +15,7 @@ from fairscape_mds.backend.credentials_crud import (
     UserTokenUpdate
 )
 
-from fairscape_mds.backend.backend import config
+from fairscape_mds.core.config import appConfig
 from fairscape_mds.main import getCurrentUser
 
 router = APIRouter(
@@ -24,7 +24,7 @@ router = APIRouter(
 )
 
 
-credentials_request_handler = FairscapeCredentialsRequest(config)
+credentials_request_handler = FairscapeCredentialsRequest(appConfig)
 
 @router.get("", response_model=List[UserToken], summary="Get all API tokens for the current user")
 def get_user_api_tokens_route(

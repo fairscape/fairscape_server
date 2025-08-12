@@ -3,11 +3,11 @@ from fastapi.responses import JSONResponse
 from typing import Annotated, List, Dict
 import uuid
 
-from fairscape_mds.backend.models import UserWriteModel
+from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.backend.evidence_graph import EvidenceGraph, EvidenceGraphCreate, EvidenceGraphBuildRequest
 from fairscape_mds.backend.evidence_graph_crud import FairscapeEvidenceGraphRequest
 from fairscape_mds.main import getCurrentUser
-from fairscape_mds.backend.backend import (config)
+from fairscape_mds.core.config import appConfig
 from fairscape_mds.worker import build_evidence_graph_task
 
 
@@ -16,7 +16,7 @@ router = APIRouter(
     tags=["EvidenceGraph"]
 )
 
-evidence_graph_request_handler = FairscapeEvidenceGraphRequest(config)
+evidence_graph_request_handler = FairscapeEvidenceGraphRequest(appConfig)
 
 @router.post("", status_code=201, response_model=EvidenceGraph, summary="Create a new EvidenceGraph record")
 def create_evidence_graph_route(

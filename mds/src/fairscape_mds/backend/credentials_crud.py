@@ -4,13 +4,9 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
 # Assuming models are in fairscape_mds.backend.model
-from fairscape_mds.backend.models import (  
-    FairscapeResponse,
-    FairscapeRequest,
-    UserWriteModel,
-    #UserToken,
-    #UserTokenUpdate
-)
+from fairscape_mds.crud.fairscape_request import FairscapeRequest
+from fairscape_mds.crud.fairscape_response import FairscapeResponse
+from fairscape_mds.models.user import UserWriteModel
 
 ##########################
 # Move to models later

@@ -2,22 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body, Path as Fast
 from fastapi.responses import JSONResponse
 from typing import Annotated, Optional, Dict
 
-from fairscape_mds.backend.models import UserWriteModel
+from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.main import getCurrentUser 
 
-from fairscape_mds.backend.for_now.publish_crud import FairscapePublishRequest
-from fairscape_mds.backend.for_now.publish import DEFAULT_DATAVERSE_URL 
+from fairscape_mds.backend.publish_crud import FairscapePublishRequest
+from fairscape_mds.backend.publish import DEFAULT_DATAVERSE_URL 
 
-from fairscape_mds.backend.backend import (
-    s3,
-    minioDefaultBucket,
-    identifierCollection,
-    userCollection,
-    rocrateCollection,
-    asyncCollection,
-    tokensCollection,
-    jwtSecret
-)
+from fairscape_mds.core.config import appConfig
 
 
 router = APIRouter(
@@ -25,16 +16,7 @@ router = APIRouter(
     tags=["Publishing"],
 )
 
-publish_request_handler = FairscapePublishRequest(
-    minioClient=s3,
-    minioBucket=minioDefaultBucket,
-    identifierCollection=identifierCollection,
-    userCollection=userCollection,
-    rocrateCollection=rocrateCollection,
-    asyncCollection=asyncCollection,
-    tokensCollection=tokensCollection,
-    jwtSecret=jwtSecret
-)
+publish_request_handler = FairscapePublishRequest(appConfig)
 
 @router.post(
     "/create/ark:{NAAN}/{postfix}",

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query, HTTPException
 from typing import Annotated
 from fairscape_mds.backend.search_crud import FairscapeSearchRequest
 from fairscape_mds.backend.search_models import SearchResults, SearchResultItem
-from fairscape_mds.backend.backend import config
+from fairscape_mds.core.config import appConfig
 import httpx
 import asyncio
 
@@ -11,7 +11,7 @@ router = APIRouter(
     tags=["Search"]
 )
 
-search_request_handler = FairscapeSearchRequest(config)
+search_request_handler = FairscapeSearchRequest(appConfig)
 
 @router.get("/basic", response_model=SearchResults, summary="Perform a basic keyword search")
 def basic_search_route(

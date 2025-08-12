@@ -5,13 +5,10 @@ from pathlib import Path
 
 from pymongo.collection import Collection
 
-from fairscape_mds.backend.models import (
-    FairscapeRequest,
-    FairscapeResponse,
-    UserWriteModel,
-    Permissions, 
-    checkPermissions
-)
+from fairscape_mds.crud.fairscape_request import FairscapeRequest
+from fairscape_mds.crud.fairscape_response import FairscapeResponse
+from fairscape_mds.models.user import UserWriteModel, Permissions, checkPermissions
+
 from fairscape_mds.backend.credentials_crud import (
     FairscapeCredentialsRequest,
     UserToken 

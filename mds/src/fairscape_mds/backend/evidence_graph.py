@@ -2,7 +2,9 @@ from pydantic import BaseModel, Field, ValidationError
 from typing import Dict, List, Optional, Any, Union
 import pymongo
 import datetime
-from fairscape_mds.backend.models import FairscapeResponse, UserWriteModel
+from fairscape_mds.crud.fairscape_request import FairscapeRequest
+from fairscape_mds.crud.fairscape_response import FairscapeResponse
+from fairscape_mds.models.user import UserWriteModel
 
 
 class EvidenceNode: 
