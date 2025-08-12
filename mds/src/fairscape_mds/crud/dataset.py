@@ -7,9 +7,15 @@ from fairscape_mds.models.dataset import (
 	DatasetDistribution, 
 	DistributionTypeEnum
 )
+from fairscape_mds.models.identifier import (
+	PublicationStatusEnum, 
+	MetadataTypeEnum, 
+	StoredIdentifier
+)
 from fairscape_models.dataset import Dataset
 from typing import Optional
 from fastapi import UploadFile
+import datetime
 import pathlib
 
 
@@ -112,33 +118,36 @@ class FairscapeDatasetRequest(FairscapeRequest):
 		userInstance: UserWriteModel,
 		inputDataset: Dataset,
 		datasetContent: Optional[UploadFile]=None
-	):
+	)->FairscapeResponse:
 		# check if guid already exists
 		foundMetadata = self.getMetadata(inputDataset.guid)
 
-		if foundMetadata is not None:
-			raise Exception('GUID Already assigned')
+		if foundMetadata:
+			return FairscapeResponse(
+				success=False,
+				statusCode=400,
+				error={"error": "identifier already exists"}
+			)
 		
 		# if no content is passed
 		if datasetContent is None:
 			
+			if inputDataset.contentUrl is None:
+				distribution = None 
+			
 			# if http URI add url distribution
-			if 'http' in inputDataset.contentUrl:
+			elif 'http' in inputDataset.contentUrl:
 				distribution = DatasetDistribution.model_validate({
 						"distributionType": "url",
 						"location": {"uri": inputDataset.contentUrl}
 						})
 
-
 			# if ftp URI add url distribution
-			if 'ftp' in inputDataset.contentUrl:
+			elif 'ftp' in inputDataset.contentUrl:
 				distribution = DatasetDistribution.model_validate({
 					"distributionType": "ftp",
 					"location": {"uri": inputDataset.contentUrl}
 				})
-
-			if inputDataset.contentUrl is None:
-				distribution = None 
 
 		# upload dataset content to minio
 		else:
@@ -161,16 +170,23 @@ class FairscapeDatasetRequest(FairscapeRequest):
 		# set remainder of metadata for storage
 		permissionsSet = userInstance.getPermissions()
 
-		outputDataset = DatasetWriteModel.model_validate({
-			**inputDataset.model_dump(by_alias=True),
+		now = datetime.datetime.now()
+
+		# convert to stored identifier
+		outputDataset = StoredIdentifier.model_validate({
+			"@id": inputDataset.guid,
+			"@type": MetadataTypeEnum.DATASET,
+			"metadata": inputDataset,
 			"permissions": permissionsSet, 
 			"distribution": distribution,
-			"published": True
+			"publicationStatus": PublicationStatusEnum.DRAFT,
+			"dateCreated": now,
+			"dateModified": now
 			})
 
 		# insert identifier metadata into mongo
 		insertResult = self.config.identifierCollection.insert_one(
-			outputDataset.model_dump(by_alias=True)
+			outputDataset.model_dump(by_alias=True, mode="json")
 		)
 
 		# TODO handle insert errors

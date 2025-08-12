@@ -8,8 +8,14 @@ from fairscape_mds.models.rocrate import (
 	ROCrateUploadRequest, 
 	ROCrateMetadataElemWrite
 )
+from fairscape_mds.models.identifier import (
+	StoredIdentifier,
+	MetadataTypeEnum,
+	PublicationStatusEnum,
+	determineMetadataType
+)
 
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 from fairscape_models.rocrate import ROCrateV1_2
 
 import pymongo
@@ -121,27 +127,32 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		baseUrl = self.config.baseUrl	
 		datasetWriteList = []
 
-		# TODO: set to userInstance for method
 		permissionsSet = userInstance.getPermissions()
 
+		now = datetime.datetime.now()
+
 		for datasetElem in rocrateInstance.getDatasets():
+
+			# TODO set the set isPartOf for datasetElem
+
 			if not datasetElem.contentUrl or datasetElem.contentUrl == 'Embargoed':
-				outputDataset = DatasetWriteModel.model_validate({
-						**datasetElem.model_dump(by_alias=True),
-						"permissions": permissionsSet, 
-						"distribution": None,
-						"isPartOf": {
-								"@id": rocrateInstance.metadataGraph[1].guid,
-						},		
+
+				outputDataset = StoredIdentifier.model_validate({
+					"@id": datasetElem.guid,
+					"@type": MetadataTypeEnum.DATASET,
+					"metadata": datasetElem,
+					"permissions": permissionsSet, 
+					"distribution": None,	
+					"publicationStatus": PublicationStatusEnum.EMBARGOED,
+					"dateCreated": now,
+					"dateModified": now,
 				})
 
-				output_json = {                   
-						"@id": outputDataset.guid,
-						"@type": outputDataset.metadataType,
-						"metadata":outputDataset.model_dump(by_alias=True, mode='json'),
-						"permissions": permissionsSet.model_dump(mode='json', by_alias=True),
-						"distribution": None
-						}
+				output_json = outputDataset.model_dump(
+					by_alias=True,
+					mode='json'
+				)
+
 			else:
 
 				if 'ftp' in datasetElem.contentUrl:
@@ -149,23 +160,22 @@ class FairscapeROCrateRequest(FairscapeRequest):
 							"distributionType": 'ftp',
 							"location": {"uri": datasetElem.contentUrl}
 							})
-					outputDataset = DatasetWriteModel.model_validate({
-							**datasetElem.model_dump(by_alias=True),
-							"permissions": permissionsSet, 
-							"distribution": None,
-							"isPartOf": {
-									"@id": rocrateInstance.metadataGraph[1].guid,
-							},		
-					})
 
-					# format as a write document
-					output_json = {					
-						"@id": outputDataset.guid,
-						"@type": outputDataset.metadataType,
-						"metadata":outputDataset.model_dump(by_alias=True, mode='json'),
-						"permissions": permissionsSet.model_dump(mode='json', by_alias=True), 
-						"distribution": distribution.model_dump(by_alias=True, mode='json'),
-					}
+					outputDataset = StoredIdentifier.model_validate({
+						"@id": datasetElem.guid,
+						"@type": MetadataTypeEnum.DATASET,
+						"metadata": datasetElem,
+						"permissions": permissionsSet, 
+						"distribution": distribution,	
+						"publicationStatus": PublicationStatusEnum.DRAFT,
+						"dateCreated": now,
+						"dateModified": now,
+					})
+					
+					output_json = outputDataset.model_dump(
+						by_alias=True,
+						mode='json'
+					)
 
 				if 'http' in datasetElem.contentUrl:
 					# create distribution for metadata
@@ -173,23 +183,22 @@ class FairscapeROCrateRequest(FairscapeRequest):
 							"distributionType": 'url',
 							"location": {"uri": datasetElem.contentUrl}
 							})
-					outputDataset = DatasetWriteModel.model_validate({
-							**datasetElem.model_dump(by_alias=True),
-							"permissions": permissionsSet, 
-							"distribution": None,
-							"isPartOf": {
-									"@id": rocrateInstance.metadataGraph[1].guid,
-							},		
+
+					outputDataset = StoredIdentifier.model_validate({
+						"@id": datasetElem.guid,
+						"@type": MetadataTypeEnum.DATASET,
+						"metadata": datasetElem,
+						"permissions": permissionsSet, 
+						"distribution": distribution,	
+						"publicationStatus": PublicationStatusEnum.DRAFT,
+						"dateCreated": now,
+						"dateModified": now,
 					})
 
-					# format as a write document
-					output_json = {					
-						"@id": outputDataset.guid,
-						"@type": outputDataset.metadataType,
-						"metadata":outputDataset.model_dump(by_alias=True, mode='json'),
-						"permissions": permissionsSet.model_dump(mode='json', by_alias=True), 
-						"distribution": distribution.model_dump(by_alias=True, mode='json'),
-					}
+					output_json = outputDataset.model_dump(
+						by_alias=True,
+						mode='json'
+					)
 
 				else:	
 					# match the metadata path to content
@@ -203,12 +212,13 @@ class FairscapeROCrateRequest(FairscapeRequest):
 							)
 					)
 
+					# TODO handle errors for multiple files matching
+
+					# TODO handle errors for no file matching
 					if len(matchedElementList)>0:
 						matchedElement = matchedElementList[0]
 					else:
-
 						# TODO handle error for content not found in the rocrate
-						print(f"ContentNotFound: {datasetElem.guid}\tPath: {datasetElem.contentUrl}")
 						continue
 				
 					# create metadata record to insert 
@@ -224,32 +234,30 @@ class FairscapeROCrateRequest(FairscapeRequest):
 							"location": {"path": objectPath}
 							})
 						
-					outputDataset = DatasetWriteModel.model_validate({
-							**datasetElem.model_dump(by_alias=True),
-							"permissions": permissionsSet, 
-							"distribution": distribution,
-							"size": objectSize,
-							"isPartOf": {
-									"@id": rocrateInstance.metadataGraph[1].guid,
-							},		
+
+					outputDataset = StoredIdentifier.model_validate({
+						"@id": datasetElem.guid,
+						"@type": MetadataTypeEnum.DATASET,
+						"metadata": datasetElem,
+						"permissions": permissionsSet, 
+						"distribution": distribution,	
+						"publicationStatus": PublicationStatusEnum.DRAFT,
+						"dateCreated": now,
+						"dateModified": now,
 					})
 
-					# format as identifier write document
-					output_json = {
-						"@id": outputDataset.guid,
-						"@type": outputDataset.metadataType,
-						"metadata":outputDataset.model_dump(by_alias=True, mode='json'),
-						"permissions": permissionsSet.model_dump(mode='json', by_alias=True), 
-						"distribution": distribution.model_dump(by_alias=True, mode='json'),
-						}
-		
+					output_json = outputDataset.model_dump(
+						by_alias=True,
+						mode='json'
+					)
+	
 			# insert all identifiers for datasets
 			insertResult = self.config.identifierCollection.insert_one(
 				output_json
 			)
 
 			# TODO: check insertResult for success
-			if insertResult.inserted_id:
+			if not insertResult.inserted_id:
 				print(f"error writing {output_json.get('@id')}")
 
 			# append guid to dataset list
@@ -281,6 +289,8 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		# written identifiers
 		guidList = []
 
+		now = datetime.datetime.now()
+
 		# mint all metadata elements
 		for metadataModel in rocrateInstance.metadataGraph:
 
@@ -290,22 +300,31 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				if 'https://w3id.org/EVI#ROCrate' in metadataModel.metadataType:
 					continue
 			else:
-				insertDocument = {
+
+				processedMetadataType = determineMetadataType(metadataModel.metadataType)
+
+				insertIdentifier = StoredIdentifier.model_validate({
 					"@id": metadataModel.guid,
-					"@type": metadataModel.metadataType,
-					"metadata": { 
-						**metadataModel.model_dump(by_alias=True, mode='json'),
-						"isPartOf": crateGUID
-					},
-					'permissions': userPermissions.model_dump(mode='json'),
-				}
+					"@type": MetadataTypeEnum.DATASET,
+					"metadata": metadataModel,
+					"permissions": userPermissions, 
+					"distribution": None,	
+					"publicationStatus": PublicationStatusEnum.DRAFT,
+					"dateCreated": now,
+					"dateModified": now,
+				})
 				
 				insertResult = metadataCollection.insert_one(
-					insertDocument
+					insertIdentifier.model_dump(
+						by_alias=True,
+						mode='json'
+					)
 				)
 
 				if not insertResult.inserted_id:
-					raise Exception(f"Writing Identifier To Mongo Failed id: {insertDocument.get('@id')}")
+					raise Exception(
+						f"Writing Identifier To Mongo Failed id: {insertIdentifier.guid}"
+						)
 				
 				guidList.append(metadataModel.guid)	
 
@@ -401,6 +420,8 @@ class FairscapeROCrateRequest(FairscapeRequest):
 	def processROCrate(self, transactionGUID: str):
 		# get the current rocrate upload job
 
+		now = datetime.datetime.now()
+
 		self.config.asyncCollection.update_one(
         	{"guid": transactionGUID},
         	{"$set": 
@@ -481,21 +502,25 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			"distributionType": 'minio',
 			"location": {"path": uploadInstance.uploadPath}
 			})
-				
-		rocrate_metadata_elem_data = {
+
+		# TODO needs to be stored identifier		
+		rocrate_metadata_elem_data = StoredIdentifier.model_validate({
 			"@id": metadataElem.guid,
-			"@type": metadataElem.metadataType,
-			"owner": foundUser.email,                               
+			"@type": MetadataTypeEnum.ROCRATE,
 			"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True) ,              
-			"published": True,                                      
 			"metadata": {                                          
 				**metadataElem.model_dump(by_alias=True, exclude={'@id', '@type'}), 
-				"distribution": roCrateDistribution.model_dump(mode='json', by_alias=True),                
 				"hasPart": [{"@id": elem} for elem in nonDatasetGUIDS + datasetGUIDS] ,
     			"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True) ,              
-				"published": True,   
-			}
-		}
+			},
+			"distribution": roCrateDistribution.model_dump(
+				mode='json', 
+				by_alias=True
+			),                
+			"publicationStatus": PublicationStatusEnum.DRAFT,
+			"dateCreated": now,
+			"dateModified": now
+		})
 	
 		# dump into identifier collection and rocrate collection
 		self.config.identifierCollection.insert_one(rocrate_metadata_elem_data  )
@@ -612,18 +637,21 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		rocrateGUID: str
 	):
 
-		rocrateMetadata = self.config.identifierCollection.find_one(			{"$or": [
-				{"@id": rocrateGUID},
-				{"@id": f"{rocrateGUID}/"}
-			]},)['metadata']
+		rocrateIdentifier = self.config.identifierCollection.find_one({
+			"@id": rocrateGUID
+		})
+
+		
 
 		# if no metadata is found return 404
-		if not rocrateMetadata:
+		if not rocrateIdentifier:
 				return FairscapeResponse(
 						success=False,
 						statusCode=404,
 						error={"message": "rocrate not found"}
 				)
+
+		rocrateMetadata = rocrateIdentifier['metadata']
 
 		# TODO handle metadata failures
 		rocrateInstance = ROCrateMetadataElemWrite.model_validate(rocrateMetadata)
@@ -707,17 +735,25 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				)
 			root_guid = root_metadata_entity.guid
 			user_permissions = requestingUser.getPermissions()
+
+			now = datetime.datetime.now()
 		
 			# 1. Store the full RO-Crate dump in rocrateCollection
 			try:
-				full_crate_dump = crateModel.model_dump(by_alias=True, mode='json')
-				rocrate_doc_for_rocrate_collection = {
+
+				rocrate_doc_for_rocrate_collection = StoredIdentifier.model_validate({
 					"@id": root_guid,
-					"@type": ['Dataset', "https://w3id.org/EVI#ROCrate"],
-					"owner": requestingUser.email,
-					"metadata": full_crate_dump,
-				}
-				self.config.rocrateCollection.insert_one(rocrate_doc_for_rocrate_collection)
+					"@type": MetadataTypeEnum.ROCRATE,
+					"metadata": crateModel,
+					"permissions": user_permissions,
+					"distribution": None,
+					"publicationStatus": PublicationStatusEnum.DRAFT,
+					"dateCreated": now,
+					"dateModified": now
+				})
+				insertResult = self.config.rocrateCollection.insert_one(
+					rocrate_doc_for_rocrate_collection.model_dump(by_alias=True, mode="json")
+				)
 			except pymongo.errors.DuplicateKeyError:
 				return FairscapeResponse(
 					success=False, statusCode=409,
@@ -741,14 +777,20 @@ class FairscapeROCrateRequest(FairscapeRequest):
 					continue
 
 				try:
-					element_document_data = {
+
+					# TODO future proof for more list types
+					elemMetadataType = determineMetadataType(elem.metadataType)
+
+					element_document_data = StoredIdentifier.model_validate({
 						"@id": elem.guid,
-						"@type": elem.metadataType, 
+						"@type": elemMetadataType, 
 						"owner": requestingUser.email, 
 						"permissions": user_permissions,
-						"metadata": elem.model_dump(by_alias=True, mode='json'),
-						"distribution": None, 
-					}
+						"metadata": elem,
+						"distribution": None,	
+						"dateCreated": now,
+						"dateModified": now
+					})
 
 					documents_for_identifier_collection.append(element_document_data)
 					minted_element_guids.append(elem.guid)

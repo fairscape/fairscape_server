@@ -13,6 +13,7 @@ class FairscapeSchemaRequest(FairscapeRequest):
 		requestingUser: UserWriteModel,
 		schemaInstance: Schema
 	):
+
 		writeModel = SchemaWriteModel.model_validate({
 			**schemaInstance.model_dump(by_alias=True, mode='json'),
 			"permissions": requestingUser.getPermissions(),

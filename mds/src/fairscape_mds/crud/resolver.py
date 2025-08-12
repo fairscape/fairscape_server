@@ -5,10 +5,7 @@ class FairscapeResolverRequest(FairscapeRequest):
 
 	def resolveIdentifier(self, guid: str):	
 		foundMetadata = self.config.identifierCollection.find_one(
-			{"$or": [
-				{"@id": guid},
-				{"@id": f"{guid}/"}
-			]},
+			{"@id": guid},
 			projection={"_id": False}
 		)	
 
