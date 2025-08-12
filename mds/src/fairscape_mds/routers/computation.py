@@ -3,9 +3,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-from fairscape_mds.backend.models import *
 from fairscape_mds.deps import getCurrentUser
+from fairscape_mds.crud.computation import FairscapeComputationRequest
 from fairscape_mds.core.config import appConfig
+from fairscape_mds.models.user import UserWriteModel
 from fairscape_models.computation import Computation
 
 computationRequest = FairscapeComputationRequest(appConfig)

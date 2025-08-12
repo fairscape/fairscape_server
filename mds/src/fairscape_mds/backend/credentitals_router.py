@@ -3,11 +3,8 @@ from fastapi import APIRouter, Depends, Path, HTTPException
 from fastapi.responses import JSONResponse
 from typing import Annotated, List
 
-from fairscape_mds.backend.models import (
-    UserWriteModel,
-    #UserToken,
-    #UserTokenUpdate
-)
+
+from fairscape_mds.models.user import UserWriteModel
 
 from fairscape_mds.backend.credentials_crud import (
     FairscapeCredentialsRequest,

@@ -2,7 +2,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from fairscape_mds.core.config import appConfig
-from fairscape_mds.backend.models import *
+from fairscape_mds.crud.user import FairscapeUserRequest
 
 userRequest = FairscapeUserRequest(appConfig)
 

@@ -1,11 +1,14 @@
 from celery import Celery
 import datetime
-from fairscape_mds.backend.models import FairscapeConfig, FairscapeROCrateRequest, UserWriteModel
-from fairscape_mds.backend.evidence_graph_crud import FairscapeEvidenceGraphRequest
-from fairscape_mds.backend.backend import *
 
-rocrateRequests = FairscapeROCrateRequest(config)
-evidenceGraphRequests = FairscapeEvidenceGraphRequest(config)
+from fairscape_mds.core.config import appConfig, celeryApp
+from fairscape_mds.crud.rocrate import FairscapeROCrateRequest
+from fairscape_mds.models.user import UserWriteModel
+
+from fairscape_mds.backend.evidence_graph_crud import FairscapeEvidenceGraphRequest
+
+rocrateRequests = FairscapeROCrateRequest(appConfig)
+evidenceGraphRequests = FairscapeEvidenceGraphRequest(appConfig)
 
 @celeryApp.task(name='fairscape_mds.worker.processROCrate')
 def processROCrate(transactionGUID: str):

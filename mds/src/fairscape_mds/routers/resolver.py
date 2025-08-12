@@ -12,7 +12,8 @@ resolverRouter = APIRouter(prefix="", tags=['evi', 'rocrate'])
 @resolverRouter.get("/ark:{NAAN}/{postfix}")
 def resolveARK(
 	NAAN: str,
-	postfix: str
+	postfix: str,
+	#content: Annotated[str | Query()]
 ):
 
 	guid = f"ark:{NAAN}/{postfix}"
