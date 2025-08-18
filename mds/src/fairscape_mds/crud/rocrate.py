@@ -1,6 +1,6 @@
 
 from fairscape_mds.models.user import Permissions, UserWriteModel, checkPermissions
-from fairscape_mds.models.dataset import DatasetWriteModel, DatasetDistribution
+from fairscape_mds.models.dataset import DatasetWriteModel, DatasetDistribution, DistributionTypeEnum
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.crud.identifier import deleteIdentifier
@@ -303,9 +303,12 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 				processedMetadataType = determineMetadataType(metadataModel.metadataType)
 
+				if processedMetadataType == MetadataTypeEnum.CREATIVE_WORK:
+					continue
+
 				insertIdentifier = StoredIdentifier.model_validate({
 					"@id": metadataModel.guid,
-					"@type": MetadataTypeEnum.DATASET,
+					"@type": processedMetadataType,
 					"metadata": metadataModel,
 					"permissions": userPermissions, 
 					"distribution": None,	
@@ -503,16 +506,15 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			"location": {"path": uploadInstance.uploadPath}
 			})
 
+		# TODO set haspart for metadata element
+		metadataElem.hasPart = [{"@id": elem} for elem in nonDatasetGUIDS + datasetGUIDS] 
+
 		# TODO needs to be stored identifier		
-		rocrate_metadata_elem_data = StoredIdentifier.model_validate({
+		storedMetadataElem = StoredIdentifier.model_validate({
 			"@id": metadataElem.guid,
 			"@type": MetadataTypeEnum.ROCRATE,
 			"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True) ,              
-			"metadata": {                                          
-				**metadataElem.model_dump(by_alias=True, exclude={'@id', '@type'}), 
-				"hasPart": [{"@id": elem} for elem in nonDatasetGUIDS + datasetGUIDS] ,
-    			"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True) ,              
-			},
+			"metadata": metadataElem,
 			"distribution": roCrateDistribution.model_dump(
 				mode='json', 
 				by_alias=True
@@ -523,14 +525,21 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		})
 	
 		# dump into identifier collection and rocrate collection
-		self.config.identifierCollection.insert_one(rocrate_metadata_elem_data  )
+		insertResult = self.config.identifierCollection.insert_one(
+			storedMetadataElem.model_dump(
+				by_alias=True,
+				mode='json'
+				) 
+			)
+
+		# TODO check insert result is correct
 
 		# write the whole ROCrateV1_2 model into the rocrate collection
 		rocrate_doc_for_collection = {
 			"@id": metadataElem.guid,
 			"@type": ['Dataset', "https://w3id.org/EVI#ROCrate"], 
 			"owner": foundUser.email,
-   			"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True) ,                              
+   		"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True),
 			"metadata": roCrateModel.model_dump(mode='json', by_alias=True) 
 		}
 		self.config.rocrateCollection.insert_one(rocrate_doc_for_collection)
@@ -637,11 +646,10 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		rocrateGUID: str
 	):
 
-		rocrateIdentifier = self.config.identifierCollection.find_one({
-			"@id": rocrateGUID
-		})
-
-		
+		rocrateIdentifier = self.config.identifierCollection.find_one(
+			{"@id": rocrateGUID},
+			projection={"_id": False}
+		)	
 
 		# if no metadata is found return 404
 		if not rocrateIdentifier:
@@ -651,34 +659,43 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						error={"message": "rocrate not found"}
 				)
 
-		rocrateMetadata = rocrateIdentifier['metadata']
-
-		# TODO handle metadata failures
-		rocrateInstance = ROCrateMetadataElemWrite.model_validate(rocrateMetadata)
+		# TODO handle validation errors
+		storedROCrate = StoredIdentifier.model_validate(rocrateIdentifier)
 
 
-		if not checkPermissions(rocrateInstance.permissions, requestingUser):
+
+		if not checkPermissions(storedROCrate.permissions, requestingUser):
 			return FairscapeResponse(
 				success=False,
 				statusCode=401,
 				error={"message": "user unauthorized to download rocrate archive"}
 			)
 
-		# get the object from s3
-		# TODO handle key missing error
-		objectResponse = self.config.minioClient.get_object(
-				Bucket=self.config.minioBucket,
-				Key=rocrateInstance.distribution.location.path
+		if storedROCrate.distribution:
+			if storedROCrate.distribution.location:
+				if storedROCrate.distribution.distributionType==DistributionTypeEnum.MINIO:
+					# get the object from s3
+					# TODO handle key missing error
+					objectResponse = self.config.minioClient.get_object(
+							Bucket=self.config.minioBucket,
+							Key=storedROCrate.distribution.location.path
+					)
+
+					# create a FairscapeResponse with a fileResponse item
+					return FairscapeResponse(
+							success=True,
+							statusCode=200,
+							fileResponse=objectResponse.get('Body'),
+							model=storedROCrate
+					)
+
+		return FairscapeResponse(
+			success=False,
+			statusCode=400,
+			jsonResponse={"error": "Dataset Not Stored Locally"}
 		)
 
-		# create a FairscapeResponse with a fileResponse item
-		return FairscapeResponse(
-				success=True,
-				statusCode=200,
-				fileResponse=objectResponse.get('Body'),
-				model=rocrateInstance
-		)
-  
+
 	def _validateMetadataOnlyCrate(self, crateModel: ROCrateV1_2) -> Optional[dict]:
 		"""Checks for file:// contentUrls in Datasets."""
 		errors = {}

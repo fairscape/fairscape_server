@@ -2,9 +2,68 @@ from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.models.user import UserWriteModel, checkPermissions
 from fairscape_mds.models.identifier import StoredIdentifier, MetadataTypeEnum, PublicationStatusEnum, UpdatePublishRequest
+from fairscape_mds.models.dataset import DistributionTypeEnum
 from pydantic import ValidationError
+from typing import Optional
+
 
 class IdentifierRequest(FairscapeRequest):
+
+	def getContent(self, guid: str)->FairscapeResponse:
+		""" Get Operation for Published Only Content, returns a FairscapeResponse with the Content from minio
+		"""
+
+		# get the metadata
+		metadata = self.config.identifierCollection.find_one(
+			{"@id": guid},
+			projection={"_id": False}
+		)
+
+		if not metadata:
+			return FairscapeResponse(
+				success=False,
+				statusCode=404,
+				error={"error": "identifier not found"}
+			)
+		
+		identifier = StoredIdentifier.model_validate(metadata)
+
+		if identifier.publicationStatus != PublicationStatusEnum.PUBLISHED:
+			return FairscapeResponse(
+				success=False,
+				statusCode=401,
+				error={"error": "identifier not published"}
+			)
+
+		if identifier.metadataType != MetadataTypeEnum.DATASET and identifier.metadataType != MetadataTypeEnum.ROCRATE:
+			return FairscapeResponse(
+				success=False,
+				statusCode=400,
+				error={"error": "identified must be dataset or rocrate"}
+			)
+
+		# is distribution stored locally
+		if identifier.distribution.distributionType != DistributionTypeEnum.MINIO:
+			return FairscapeResponse(
+				success=False,
+				statusCode=404,
+				error={"error": "identifier content not stored locally"}
+			)
+		
+		# get distribution content
+		objectKey = identifier.distribution.location.path
+
+		response = self.config.minioClient.get_object(
+			Bucket=self.config.minioBucket,
+			Key=objectKey
+		)
+
+		return FairscapeResponse(
+			success=True,
+			statusCode=200,
+			fileResponse=response,
+			model=identifier
+		)
 
 	def updatePublicationStatus(
 		self, 
@@ -16,7 +75,7 @@ class IdentifierRequest(FairscapeRequest):
 		newStatus = publicationChange.publicationStatus
 
 		# get the identifier metadata
-		metadata = self.identifierCollection.find_one(
+		metadata = self.config.identifierCollection.find_one(
 			{"@id": guid}, 
 			projection={"_id": False}
 		)
@@ -38,26 +97,7 @@ class IdentifierRequest(FairscapeRequest):
 				error={"message": "validation error", "error": e}
 			)
 
-		if checkPermissions(foundIdentifier.permissions, requestingUser):
-
-			# update the permissions on
-			updateResult = self.identifierCollection.update_one(
-				{"@id": guid},
-				{"$set": {"publicationStatus": newStatus}}
-				)
-
-			# TODO check the update result
-
-			return FairscapeResponse(
-				success=True,
-				statusCode=200,
-				jsonResponse={
-					"@id": guid,
-					"publicationStatus": newStatus
-					}
-			)
-
-		else:
+		if not checkPermissions(foundIdentifier.permissions, requestingUser):
 			return FairscapeResponse(
 				success=False,
 				statusCode=401,
@@ -65,11 +105,52 @@ class IdentifierRequest(FairscapeRequest):
 			)
 
 
-	def listType(self, requestType: MetadataTypeEnum)->FairscapeResponse:
+		# TODO if its an ROCrate change all contained items to the new status
+		if foundIdentifier.metadataType == MetadataTypeEnum.ROCRATE:				
 
-		cursor = self.identifierCollection.find({"@type": requestType})
+			# TODO check that rocrate has part is set
+			if foundIdentifier.metadata.hasPart:
+				for crateMember in foundIdentifier.metadata.hasPart:
 
-		pass
+					updateResult = self.config.identifierCollection.update_one(
+						{"@id": crateMember.guid},
+						{"$set": {"publicationStatus": newStatus}}
+					)
+
+					# TODO check update result
+
+		# update the permissions on
+		updateResult = self.config.identifierCollection.update_one(
+			{"@id": guid},
+			{"$set": {"publicationStatus": newStatus}}
+			)
+
+		# TODO check the update result
+
+		return FairscapeResponse(
+			success=True,
+			statusCode=200,
+			jsonResponse={
+				"@id": guid,
+				"publicationStatus": newStatus
+				}
+		)
+
+
+
+	def listType(
+		self, 
+		requestType: MetadataTypeEnum, 
+		user: Optional[UserWriteModel]
+	)->FairscapeResponse:
+
+		#cursor = self.identifierCollection.find({"@type": requestType})
+
+		return FairscapeResponse(
+			success=False,
+			statusCode=400,
+			error={"error": "not implemented"}
+		)
 
 
 	def listPublished(self)->FairscapeResponse:

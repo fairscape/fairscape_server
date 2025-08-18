@@ -4,7 +4,9 @@ from fastapi import (
 	HTTPException, 
 	Form, 
 )
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from typing import Annotated
+import mimetypes
 
 from fairscape_mds.crud.identifier import IdentifierRequest
 from fairscape_mds.core.config import appConfig
@@ -37,6 +39,38 @@ def updatePublicationStatus(
 			content=response.error
 		)
 
-@publishRouter.get(path="/ark:{NAAN}/{postfix}?content")
-def resolveContent():
-	pass
+@publishRouter.get(path="/download/ark:{NAAN}/{postfix}")
+def resolveContent(
+	NAAN: str,
+	postfix: str
+):
+
+	guid = f"ark:{NAAN}/{postfix}"
+	response = identifierRequestFactory.getContent(guid)
+
+	if response.success:
+
+		dataset_instance = response.model
+		object_key = dataset_instance.distribution.location.path
+		filename = object_key.split("/")[-1]
+  
+		content_type, _ = mimetypes.guess_type(filename)
+
+		if content_type is None:
+			content_type = "application/octet-stream"
+
+		download_headers = {
+			"Content-Type": content_type,
+			"Content-Disposition": f'attachment; filename="{filename}"'
+   		}
+
+		return StreamingResponse(
+			response.fileResponse['Body'],
+			headers=download_headers
+		)
+
+	else:
+		return JSONResponse(
+			content=response.error,
+			status_code=response.status_code
+		)

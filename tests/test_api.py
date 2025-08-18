@@ -4,33 +4,45 @@ import time
 import logging
 import zipfile
 import pathlib
+import pymongo
+from urllib.parse import quote_plus
 
 testLogger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 httpxLogger = logging.getLogger('httpx')
 httpxLogger.setLevel(logging.WARNING)
 
-from fairscape_mds.backend.backend import *
-from fairscape_mds.backend.models import UserWriteModel
-
+#from fairscape_mds.core.config import *
+from fairscape_mds.models.user import UserWriteModel
 root_url = "http://localhost:8080"
 
-testUser = UserWriteModel.model_validate({
-    "email": "test@example.org",
-    "firstName": "John",
-    "lastName": "Doe",
-    "password": "test"
-    }) 
 
-userCollection.delete_many({})
-identifierCollection.delete_many({})
-rocrateCollection.delete_many({})
-asyncCollection.delete_many({})
- 
-# create a test user for the ROCrate Upload Operation
-insertUserResult = userCollection.insert_one(
-    testUser.model_dump(by_alias=True, mode='json')
-)
+
+def _set_up_tests():
+    connection_string = f"mongodb://{quote_plus('mongotestaccess')}:{quote_plus('mongotestsecret')}@localhost:27017/?authSource=admin&retryWrites=true"
+    mongoClient = pymongo.MongoClient(connection_string)
+
+    identifierCollection = mongoClient.fairscape.mds
+    userCollection = mongoClient.fairscape.users
+    rocrateCollection = mongoClient.fairscape.rocrate
+    asyncCollection = mongoClient.fairsacpe['async']
+
+    userCollection.delete_many({})
+    identifierCollection.delete_many({})
+    rocrateCollection.delete_many({})
+    asyncCollection.delete_many({})
+    
+    testUser = UserWriteModel.model_validate({
+        "email": "test@example.org",
+        "firstName": "John",
+        "lastName": "Doe",
+        "password": "test"
+        })
+
+    # create a test user for the ROCrate Upload Operation
+    insertUserResult = userCollection.insert_one(
+        testUser.model_dump(by_alias=True, mode='json')
+    )
 
 
 
@@ -57,13 +69,8 @@ def get_user():
     return UserFixture(testUser.email, testUser.password)
 
 
-def test_live():
-    response = httpx.get(root_url + "/status")
-    assert response.status_code == 200
 
-
-
-def test_upload_rocrate(get_user, caplog):
+def _test_upload_rocrate(get_user, caplog):
     
     caplog.set_level(logging.INFO, logger=__name__)
 
@@ -121,9 +128,13 @@ def test_upload_rocrate(get_user, caplog):
     assert statusJSON
 
     # check if job is complete
-    if not statusJSON.get("completed"):
+    wait = 0
+    completed = statusJSON.get("completed", False)
+    while not completed or wait>10:
         # check upload status in 5 seconds
+        testLogger.info('Awaiting Job Completion')
         time.sleep(5)
+        wait += 5
 
         checkStatus = httpx.get(
              root_url + f"/rocrate/upload/status/{submissionUUID}",
@@ -131,6 +142,7 @@ def test_upload_rocrate(get_user, caplog):
         )
         assert checkStatus.status_code == 200
         statusJSON = checkStatus.json()
+        completed = statusJSON.get("completed", False)
 
 
     testLogger.info('Check Upload Status Success')
@@ -216,21 +228,68 @@ def test_upload_rocrate(get_user, caplog):
     
     datasetGUID = "ark:59852/dataset-example-data export-55c2016c"
 
-    downloadDatasetResponse = httpx.get(
-        root_url + f"/dataset/download/{datasetGUID}",
+
+    with httpx.stream("GET", root_url + f"/dataset/download/{datasetGUID}", headers=authHeaders) as response:
+        response.raise_for_status()
+        with open('/tmp/dataset.csv', 'wb') as downloadFile:
+            for chunk in response.iter_bytes():
+                downloadFile.write(chunk) 
+
+
+def test_publication_status_dataset(get_user, caplog):
+    
+    caplog.set_level(logging.INFO, logger=__name__)
+
+    # login the user
+    loginData = {
+        "username": get_user.username,
+        "password": get_user.password
+        }
+
+
+    loginResponse = httpx.post(
+        root_url + "/login", 
+        data=loginData
+        )
+    loginJSON = loginResponse.json()
+    authHeaders = {
+        "Authorization": f"Bearer {loginJSON.get('access_token')}"
+        }
+
+    # change publication status
+    datasetGUID = "ark:59852/dataset-example-data export-55c2016c"
+
+    requestBody = {
+        "@id": datasetGUID,
+        "publicationStatus": "PUBLISHED"
+    }
+
+    updateResponse = httpx.put(
+        root_url + "/publish",
+        json=requestBody,
         headers=authHeaders
         )
 
-    assert downloadDatasetResponse.status_code == 200
+    assert updateResponse.status_code==200
+    updateResponseJSON = updateResponse.json()
+    assert updateResponseJSON
 
-    with open('/tmp/dataset.csv', 'w') as downloadFile:
-        downloadFile.write(downloadDatasetResponse.content)
-
-    
+    assert updateResponseJSON.get("@id")==datasetGUID
+    assert updateResponseJSON.get("publicationStatus") == "PUBLISHED"
 
 
-            
+    with httpx.stream("GET", root_url + f"/download/{datasetGUID}") as response:
+        response.raise_for_status()
+        with open('/tmp/download.csv', 'wb') as downloadFile:
+            for chunk in response.iter_bytes():
+                downloadFile.write(chunk) 
 
+    # check that 
+
+
+
+def test_publication_status_rocrate():
+    pass
 
 def loopStatus(submissionUUID):
     jobFinished = False

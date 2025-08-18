@@ -3,7 +3,7 @@ from typing import Optional, Union
 from fairscape_mds.models.user import Permissions
 from fairscape_mds.models.dataset import DatasetDistribution
 
-from fairscape_models.rocrate import ROCrateV1_2
+from fairscape_models.rocrate import ROCrateV1_2, ROCrateMetadataElem
 from fairscape_models.dataset import Dataset
 from fairscape_models.software import Software
 from fairscape_models.computation import Computation
@@ -20,10 +20,10 @@ import datetime
 from enum import Enum
 
 class PublicationStatusEnum(Enum):
-	DRAFT = 0
-	PUBLISHED = 1
-	EMBARGOED = 2
-	ARCHIVED = 3
+	DRAFT = "DRAFT"
+	PUBLISHED = "PUBLISHED"
+	EMBARGOED = "EMBARGOED"
+	ARCHIVED = "ARCHIVED"
 
 
 class MetadataTypeEnum(Enum):
@@ -33,10 +33,11 @@ class MetadataTypeEnum(Enum):
 	SCHEMA ="https://w3id.org/EVI#Schema" 
 	ROCRATE = ["https://w3id.org/EVI#Dataset", "https://w3id.org/EVI#ROCrate"]
 	SAMPLE = "https://w3id.org/EVI#Sample"
-	BIOCHEMENTITY = "https://schema.org/BioChemEntity"
+	BIOCHEM_ENTITY = "https://schema.org/BioChemEntity"
 	EXPERIMENT = "https://w3id.org/EVI#Experiment"
 	INSTRUMENT = "https://w3id.org/EVI#Instrument"
 	MEDICAL_CONDITION = "https://schema.org/MedicalCondition"
+	CREATIVE_WORK = "https://schema.org/CreativeWork"
 
 
 MetadataUnion = Union[
@@ -44,6 +45,7 @@ MetadataUnion = Union[
 	Software, 
 	Computation, 
 	ROCrateV1_2, 
+	ROCrateMetadataElem,
 	Schema, 
 	Sample,
 	BioChemEntity,
@@ -54,7 +56,7 @@ MetadataUnion = Union[
 
 class StoredIdentifier(BaseModel):
 	guid: str = Field(alias="@id")
-	metadataType: MetadataTypeEnum = Field(alias="@id")
+	metadataType: MetadataTypeEnum = Field(alias="@type")
 	metadata: MetadataUnion
 	publicationStatus: PublicationStatusEnum
 	permissions: Permissions
@@ -81,7 +83,7 @@ def determineMetadataType(inputType)->MetadataTypeEnum:
 	elif 'Schema' in inputType:
 		return MetadataTypeEnum.SCHEMA
 	elif 'BioChemEntity' in inputType:
-		return MetadataTypeEnum.BIOCHEMENTITY
+		return MetadataTypeEnum.BIOCHEM_ENTITY
 	elif 'Sample' in inputType:
 		return MetadataTypeEnum.SAMPLE
 	elif 'Experiment' in inputType:
@@ -90,6 +92,8 @@ def determineMetadataType(inputType)->MetadataTypeEnum:
 		return MetadataTypeEnum.INSTRUMENT
 	elif 'MedicalCondition' in inputType:
 		return MetadataTypeEnum.MEDICAL_CONDITION
+	elif 'CreativeWork' in inputType:
+		return MetadataTypeEnum.CREATIVE_WORK
 	else:
 		raise Exception(f"Type not found for value {inputType}")
 	

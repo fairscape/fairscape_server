@@ -9,6 +9,7 @@ from fairscape_mds.routers.resolver import resolverRouter
 from fairscape_mds.backend.credentitals_router import router as credentials_router
 from fairscape_mds.backend.evidence_graph_router import router as evidence_graph_router
 from fairscape_mds.backend.search_router import router as search_router
+from fairscape_mds.routers.publish import publishRouter
 
 from fastapi import FastAPI, Depends, HTTPException, Path, UploadFile, Form, File
 from fastapi.encoders import jsonable_encoder
@@ -46,6 +47,7 @@ app.include_router(schemaRouter)
 app.include_router(credentials_router)
 app.include_router(evidence_graph_router)
 app.include_router(search_router)
+app.include_router(publishRouter)
 
 
 @app.get("/healthz")

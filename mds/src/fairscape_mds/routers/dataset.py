@@ -93,7 +93,7 @@ def getDatasetContent(
    		}
 
 		return StreamingResponse(
-			datasetResponse.fileResponse,
+			datasetResponse.fileResponse['Body'],
 			headers=download_headers
 		)
 

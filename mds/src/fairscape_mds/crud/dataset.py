@@ -70,47 +70,60 @@ class FairscapeDatasetRequest(FairscapeRequest):
 		self, 
 		userInstance: UserWriteModel, 
 		datasetGUID: str,
-	):
-		datasetMetadata = self.getMetadata(datasetGUID)
-		distribution = datasetMetadata.get('distribution')
-		datasetPermissions = datasetMetadata.get('permissions')
+	)->FairscapeResponse:
+		# get the metadata for a stored identifier
+		datasetMetadata = self.config.identifierCollection.find_one(
+			{"@id": datasetGUID},
+			projection={"_id": False}
+		)
 
-		if distribution:
-			distributionInstance = DatasetDistribution.model_validate(distribution)
-			permissionsInstance = Permissions.model_validate(datasetPermissions)
+		if not datasetMetadata:
+				return FairscapeResponse(
+					success=False,
+					statusCode=404,
+					jsonResponse={"error": "Dataset not found"}
+				)
 
-			# check that datasetInstance has minio distribtuion
-			if distributionInstance.distributionType != DistributionTypeEnum.MINIO:
+		storedDataset = StoredIdentifier.model_validate(
+			datasetMetadata
+		)
+
+		if not checkPermissions(storedDataset.permissions, userInstance):
+			return FairscapeResponse(
+				success=False,
+				statusCode=401,
+				jsonResponse={"error": "user unauthorized"}
+			)
+
+		if storedDataset.distribution:
+			if storedDataset.distribution.distributionType == DistributionTypeEnum.MINIO:
+				# get the distribution location from metadata
+				objectKey = storedDataset.distribution.location.path
+
+				response = self.config.minioClient.get_object(
+					Bucket=self.config.minioBucket,
+					Key=objectKey
+				)
+
+				return FairscapeResponse(
+					success=True,
+					statusCode=200,
+					fileResponse=response,
+					model=storedDataset
+				)
+			else:
 				return FairscapeResponse(
 					success=False,
 					statusCode=400,
 					jsonResponse={"error": "Dataset Not Stored Locally"}
 				)
 
-			else:
-				# check permissions
-				if checkPermissions(permissionsInstance, userInstance):
-
-					# get the distribution location from metadata
-					objectKey = distributionInstance.location.path
-
-					response = self.config.minioClient.get_object(
-						Bucket=self.config.minioBucket,
-						Key=objectKey
-					)
-
-					return FairscapeResponse(
-						success=True,
-						statusCode=200,
-						fileResponse=response,
-					)
-			
-				else:
-					return FairscapeResponse(
-						success=False,
-						statusCode=401,
-						jsonResponse={"error": "user unauthorized"}
-					)
+		else:
+			return FairscapeResponse(
+				success=False,
+				statusCode=400,
+				jsonResponse={"error": "Dataset Not Stored Locally"}
+			)
 
  
 	def createDataset(
