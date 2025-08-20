@@ -305,11 +305,12 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 				if processedMetadataType == MetadataTypeEnum.CREATIVE_WORK:
 					continue
-
+				
+				metadataDict = metadataModel.model_dump(by_alias=True, mode="json")
 				insertIdentifier = StoredIdentifier.model_validate({
 					"@id": metadataModel.guid,
 					"@type": processedMetadataType,
-					"metadata": metadataModel,
+					"metadata": metadataDict,
 					"permissions": userPermissions, 
 					"distribution": None,	
 					"publicationStatus": PublicationStatusEnum.DRAFT,
@@ -797,20 +798,21 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 					# TODO future proof for more list types
 					elemMetadataType = determineMetadataType(elem.metadataType)
-
+					
+					metadataDict = elem.model_dump(by_alias=True, mode="json")
 					element_document_data = StoredIdentifier.model_validate({
 						"@id": elem.guid,
 						"@type": elemMetadataType, 
 						"owner": requestingUser.email, 
 						"permissions": user_permissions,
-						"metadata": elem,
+						"metadata": metadataDict,
 						"distribution": None,
       					"publicationStatus": PublicationStatusEnum.DRAFT,	
 						"dateCreated": now,
 						"dateModified": now
 					})
 
-					documents_for_identifier_collection.append(element_document_data)
+					documents_for_identifier_collection.append(element_document_data.model_dump(by_alias=True, mode="json"))
 					minted_element_guids.append(elem.guid)
 		
 				except Exception as e:
