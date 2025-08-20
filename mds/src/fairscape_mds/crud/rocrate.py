@@ -805,7 +805,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						"permissions": user_permissions,
 						"metadata": elem,
 						"distribution": None,
-      					"publicationStatus": PublicationStatusEnum.DRAFT	
+      					"publicationStatus": PublicationStatusEnum.DRAFT,	
 						"dateCreated": now,
 						"dateModified": now
 					})
