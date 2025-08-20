@@ -309,7 +309,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				insertIdentifier = StoredIdentifier.model_validate({
 					"@id": metadataModel.guid,
 					"@type": processedMetadataType,
-					"metadata": metadataModel,
+					"metadata": metadataModel.model_dump(by_alias=True, mode='json'),
 					"permissions": userPermissions, 
 					"distribution": None,	
 					"publicationStatus": PublicationStatusEnum.DRAFT,
@@ -506,8 +506,13 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			"location": {"path": uploadInstance.uploadPath}
 			})
 
-		# TODO set haspart for metadata element
-		metadataElem.hasPart = [{"@id": elem} for elem in nonDatasetGUIDS + datasetGUIDS] 
+		# set hasPart for metadata element
+		metadataElem.hasPart = [
+			{
+				"@id": elem.guid,
+				"@type": elem.metadataType,
+				"name": elem.name
+			} for elem in roCrateModel.metadataGraph if elem.guid != "ro-crate-metadata.json"] 
 
 		# TODO needs to be stored identifier		
 		storedMetadataElem = StoredIdentifier.model_validate({
@@ -534,15 +539,16 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 		# TODO check insert result is correct
 
+		# TODO documents too large causes errors 
 		# write the whole ROCrateV1_2 model into the rocrate collection
-		rocrate_doc_for_collection = {
-			"@id": metadataElem.guid,
-			"@type": ['Dataset', "https://w3id.org/EVI#ROCrate"], 
-			"owner": foundUser.email,
-   		"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True),
-			"metadata": roCrateModel.model_dump(mode='json', by_alias=True) 
-		}
-		self.config.rocrateCollection.insert_one(rocrate_doc_for_collection)
+		#rocrate_doc_for_collection = {
+		#	"@id": metadataElem.guid,
+		#	"@type": ['Dataset', "https://w3id.org/EVI#ROCrate"], 
+		#	"owner": foundUser.email,
+		#	"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True),
+		#	"metadata": roCrateModel.model_dump(mode='json', by_alias=True) 
+		#}
+		#self.config.rocrateCollection.insert_one(rocrate_doc_for_collection)
   
 		# update process as success
 		updateResult = self.config.asyncCollection.update_one(

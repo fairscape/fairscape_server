@@ -3,7 +3,7 @@ from typing import Optional, Union
 from fairscape_mds.models.user import Permissions
 from fairscape_mds.models.dataset import DatasetDistribution
 
-from fairscape_models.rocrate import ROCrateV1_2, ROCrateMetadataElem
+from fairscape_models.rocrate import ROCrateV1_2, ROCrateMetadataElem, GenericMetadataElem
 from fairscape_models.dataset import Dataset
 from fairscape_models.software import Software
 from fairscape_models.computation import Computation
@@ -19,11 +19,14 @@ import datetime
 
 from enum import Enum
 
-class PublicationStatusEnum(Enum):
+class PublicationStatusEnum(str, Enum):
 	DRAFT = "DRAFT"
 	PUBLISHED = "PUBLISHED"
 	EMBARGOED = "EMBARGOED"
 	ARCHIVED = "ARCHIVED"
+
+	def __repr__(self):
+		return self.value
 
 
 class MetadataTypeEnum(Enum):
@@ -51,7 +54,8 @@ MetadataUnion = Union[
 	BioChemEntity,
 	Experiment,
 	Instrument,
-	MedicalCondition
+	MedicalCondition,
+	GenericMetadataElem
 	]
 
 class StoredIdentifier(BaseModel):

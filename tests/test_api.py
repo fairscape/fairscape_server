@@ -5,7 +5,9 @@ import logging
 import zipfile
 import pathlib
 import pymongo
+import hashlib
 from urllib.parse import quote_plus
+from fairscape_mds.models.user import UserWriteModel
 
 testLogger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -13,37 +15,59 @@ httpxLogger = logging.getLogger('httpx')
 httpxLogger.setLevel(logging.WARNING)
 
 #from fairscape_mds.core.config import *
-from fairscape_mds.models.user import UserWriteModel
 root_url = "http://localhost:8080"
 
 
 
-def _set_up_tests():
-    connection_string = f"mongodb://{quote_plus('mongotestaccess')}:{quote_plus('mongotestsecret')}@localhost:27017/?authSource=admin&retryWrites=true"
-    mongoClient = pymongo.MongoClient(connection_string)
+connection_string = f"mongodb://{quote_plus('mongotestaccess')}:{quote_plus('mongotestsecret')}@localhost:27017/?authSource=admin&retryWrites=true"
+mongoClient = pymongo.MongoClient(connection_string)
 
-    identifierCollection = mongoClient.fairscape.mds
-    userCollection = mongoClient.fairscape.users
-    rocrateCollection = mongoClient.fairscape.rocrate
-    asyncCollection = mongoClient.fairsacpe['async']
+identifierCollection = mongoClient.fairscape.mds
+userCollection = mongoClient.fairscape.users
+rocrateCollection = mongoClient.fairscape.rocrate
+asyncCollection = mongoClient.fairsacpe['async']
 
-    userCollection.delete_many({})
-    identifierCollection.delete_many({})
-    rocrateCollection.delete_many({})
-    asyncCollection.delete_many({})
-    
-    testUser = UserWriteModel.model_validate({
-        "email": "test@example.org",
-        "firstName": "John",
-        "lastName": "Doe",
-        "password": "test"
-        })
+userCollection.delete_many({})
+identifierCollection.delete_many({})
+rocrateCollection.delete_many({})
+asyncCollection.delete_many({})
 
-    # create a test user for the ROCrate Upload Operation
-    insertUserResult = userCollection.insert_one(
-        testUser.model_dump(by_alias=True, mode='json')
-    )
+testUser = UserWriteModel.model_validate({
+    "email": "test@example.org",
+    "firstName": "John",
+    "lastName": "Doe",
+    "password": "test"
+    })
 
+# create a test user for the ROCrate Upload Operation
+insertUserResult = userCollection.insert_one(
+    testUser.model_dump(by_alias=True, mode='json')
+)
+
+
+def calculate_sha256_file_hash(filepath):
+    """
+    Calculates the SHA256 hash of a given file.
+
+    Args:
+        filepath (str): The path to the file.
+
+    Returns:
+        str: The hexadecimal SHA256 hash of the file, or None if an error occurs.
+    """
+    sha256_hash = hashlib.sha256()
+    try:
+        with open(filepath, "rb") as f:
+            # Read the file in chunks to handle large files efficiently
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
+    except FileNotFoundError:
+        print(f"Error: File not found at {filepath}")
+        return None
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
 
 
 class UserFixture:
@@ -70,8 +94,12 @@ def get_user():
 
 
 
-def _test_upload_rocrate(get_user, caplog):
-    
+def test_upload_rocrate(get_user, caplog):
+
+    rocratePath = "tests/data/Example.zip"
+    rocrateName = pathlib.Path(rocratePath).name
+    rocrateSHA256= calculate_sha256_file_hash(rocratePath)
+
     caplog.set_level(logging.INFO, logger=__name__)
 
     # login the user
@@ -99,8 +127,9 @@ def _test_upload_rocrate(get_user, caplog):
 
 
     rocrateFiles = {
-         "crate": ("Example.zip", open("tests/data/Example.zip", "rb"), "application/zip")
+         "crate": (rocrateName, open(rocratePath, "rb"), "application/zip")
     }
+
     
     # upload a test rocrate
     uploadResponse = httpx.post(
@@ -204,6 +233,9 @@ def _test_upload_rocrate(get_user, caplog):
         )
 
     assert downloadCrateResponse.status_code == 200
+    downloadedCrateSHA256 = calculate_sha256_file_hash("/tmp/Example.zip")
+
+    assert downloadedCrateSHA256 == rocrateSHA256
 
     # download the rocrate to tmp
     with open("/tmp/Example.zip", "wb") as crateFile:
@@ -236,14 +268,14 @@ def _test_upload_rocrate(get_user, caplog):
                 downloadFile.write(chunk) 
 
 
-def test_publication_status_dataset(get_user, caplog):
+def test_publication_status(caplog):
     
     caplog.set_level(logging.INFO, logger=__name__)
 
     # login the user
     loginData = {
-        "username": get_user.username,
-        "password": get_user.password
+        "username": "test@example.org",
+        "password": "test"
         }
 
 
@@ -251,7 +283,13 @@ def test_publication_status_dataset(get_user, caplog):
         root_url + "/login", 
         data=loginData
         )
+
+    assert loginResponse.status_code == 200
     loginJSON = loginResponse.json()
+
+    assert loginJSON 
+    assert loginJSON.get("access_token")
+
     authHeaders = {
         "Authorization": f"Bearer {loginJSON.get('access_token')}"
         }
@@ -284,12 +322,59 @@ def test_publication_status_dataset(get_user, caplog):
             for chunk in response.iter_bytes():
                 downloadFile.write(chunk) 
 
-    # check that 
+    # check download file exists 
+    assert pathlib.Path('/tmp/download.csv').exists()
 
+    # change publication status back to DRAFT
+    requestBody = {
+        "@id": datasetGUID,
+        "publicationStatus": "DRAFT"
+    }
 
+    updateResponse = httpx.put(
+        root_url + "/publish",
+        json=requestBody,
+        headers=authHeaders
+        )
 
-def test_publication_status_rocrate():
-    pass
+    rocrateGUID = "ark:59852/dataset-example-data export-55c2016c"
+    requestBody = {
+        "@id": rocrateGUID,
+        "publicationStatus": "PUBLISHED"
+    }
+
+    updateResponse = httpx.put(
+        root_url + "/publish",
+        json=requestBody,
+        headers=authHeaders
+        )
+
+    assert updateResponse.status_code==200
+    updateResponseJSON = updateResponse.json()
+    assert updateResponseJSON
+
+    assert updateResponseJSON.get("@id")==rocrateGUID
+    assert updateResponseJSON.get("publicationStatus") == "PUBLISHED"
+
+    rocrateDownloadPath = '/tmp/rocrate_download.zip'
+
+    # download rocrate from download endpoint
+    with httpx.stream("GET", root_url + f"/download/{rocrateGUID}") as response:
+        response.raise_for_status()
+        with open(rocrateDownloadPath, 'wb') as downloadFile:
+            for chunk in response.iter_bytes():
+                downloadFile.write(chunk) 
+
+    datasetDownloadPath = '/tmp/dataset_download.csv'
+
+    # check that dataset can be downloaded
+    with httpx.stream("GET", root_url + f"/download/{datasetGUID}") as response:
+        response.raise_for_status()
+        with open(datasetDownloadPath, 'wb') as downloadFile:
+            for chunk in response.iter_bytes():
+                downloadFile.write(chunk) 
+
+    assert pathlib.Path(datasetDownloadPath).exists()
 
 def loopStatus(submissionUUID):
     jobFinished = False
@@ -314,9 +399,3 @@ def loopStatus(submissionUUID):
             time.sleep(5)
         else:
             return statusJSON
-
-
-
-
-def test_download_rocrate():
-    pass

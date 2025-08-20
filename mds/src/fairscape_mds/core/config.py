@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def FAIRSCAPE_REDIS_BROKER_URL(self) -> str:
-        return f"{redisHost}:{redisPort}"
+        return f"{self.redisHost}:{self.redisPort}"
 
     FAIRSCAPE_JWT_SECRET: str 
     FAIRSCAPE_ADMIN_GROUP: str

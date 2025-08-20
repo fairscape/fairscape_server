@@ -94,7 +94,7 @@ class IdentifierRequest(FairscapeRequest):
 			return FairscapeResponse(
 				success=False,
 				statusCode=500,
-				error={"message": "validation error", "error": e}
+				error={"message": "validation error", "error": e.json()}
 			)
 
 		if not checkPermissions(foundIdentifier.permissions, requestingUser):
@@ -114,7 +114,7 @@ class IdentifierRequest(FairscapeRequest):
 
 					updateResult = self.config.identifierCollection.update_one(
 						{"@id": crateMember.guid},
-						{"$set": {"publicationStatus": newStatus}}
+						{"$set": {"publicationStatus": repr(newStatus)}}
 					)
 
 					# TODO check update result
@@ -122,7 +122,7 @@ class IdentifierRequest(FairscapeRequest):
 		# update the permissions on
 		updateResult = self.config.identifierCollection.update_one(
 			{"@id": guid},
-			{"$set": {"publicationStatus": newStatus}}
+			{"$set": {"publicationStatus": repr(newStatus)}}
 			)
 
 		# TODO check the update result
@@ -132,7 +132,7 @@ class IdentifierRequest(FairscapeRequest):
 			statusCode=200,
 			jsonResponse={
 				"@id": guid,
-				"publicationStatus": newStatus
+				"publicationStatus": repr(newStatus)
 				}
 		)
 
