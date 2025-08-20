@@ -20,16 +20,16 @@ def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, 
     print(f"Starting Evidence Graph Build Job: Task GUID {task_guid} for ark:{naan}/{postfix}")
 
     try:
-        config.asyncCollection.update_one(
+        appConfig.asyncCollection.update_one(
             {"guid": task_guid},
             {"$set": {"status": "PROCESSING", "time_started": datetime.datetime.utcnow()}}
         )
 
-        user_data = config.userCollection.find_one({"email": user_email})
+        user_data = appConfig.userCollection.find_one({"email": user_email})
         if not user_data:
             error_msg = f"User {user_email} not found."
             print(error_msg)
-            config.asyncCollection.update_one(
+            appConfig.asyncCollection.update_one(
                 {"guid": task_guid},
                 {"$set": {
                     "status": "FAILURE",
@@ -50,7 +50,7 @@ def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, 
         if response.success:
             evidence_graph_id = response.model.guid if response.model else None
             print(f"Successfully built evidence graph {evidence_graph_id} for Task GUID {task_guid}")
-            config.asyncCollection.update_one(
+            appConfig.asyncCollection.update_one(
                 {"guid": task_guid},
                 {"$set": {
                     "status": "SUCCESS",
@@ -62,7 +62,7 @@ def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, 
         else:
             error_detail = response.error if isinstance(response.error, dict) else {"message": str(response.error)}
             print(f"Failed to build evidence graph for Task GUID {task_guid}: {error_detail}")
-            config.asyncCollection.update_one(
+            appConfig.asyncCollection.update_one(
                 {"guid": task_guid},
                 {"$set": {
                     "status": "FAILURE",
@@ -77,7 +77,7 @@ def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, 
         error_msg = f"Unexpected error in build_evidence_graph_task (Task GUID {task_guid}): {str(e)}"
         print(error_msg)
         traceback.print_exc()
-        config.asyncCollection.update_one(
+        appConfig.asyncCollection.update_one(
             {"guid": task_guid},
             {"$set": {
                 "status": "FAILURE",

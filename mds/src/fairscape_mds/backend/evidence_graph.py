@@ -2,9 +2,7 @@ from pydantic import BaseModel, Field, ValidationError
 from typing import Dict, List, Optional, Any, Union
 import pymongo
 import datetime
-from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
-from fairscape_mds.models.user import UserWriteModel
 
 
 class EvidenceNode: 
@@ -40,6 +38,63 @@ class EvidenceGraph(BaseModel):
                 if key not in flattened:
                     flattened[key] = value
         return flattened
+
+    def _is_rocrate(self, node_type_field: Any) -> bool:
+        if isinstance(node_type_field, list):
+            return any("ROCrate" in str(t) for t in node_type_field)
+        elif isinstance(node_type_field, str):
+            return "ROCrate" in node_type_field
+        return False
+
+    def _get_rocrate_outputs(self, node: Dict) -> List[Dict]:
+        output_fields = ["https://w3id.org/EVI#outputs", "EVI:outputs", "outputs"]
+        
+        for field in output_fields:
+            if field in node:
+                outputs = node[field]
+                if isinstance(outputs, list):
+                    return outputs
+                elif isinstance(outputs, dict):
+                    return [outputs]
+        return []
+
+    def _process_used_dataset(self, dataset_info: Any, collection: pymongo.collection.Collection, processed: dict) -> List[Dict]:
+        datasets_to_process = []
+        
+        if isinstance(dataset_info, list):
+            datasets_to_process = dataset_info
+        elif isinstance(dataset_info, dict):
+            datasets_to_process = [dataset_info]
+        else:
+            return []
+        
+        result_datasets = []
+        
+        for dataset_ref in datasets_to_process:
+            if not dataset_ref.get("@id"):
+                continue
+                
+            dataset_id = dataset_ref.get("@id")
+            dataset_node = collection.find_one({"@id": dataset_id}, {"_id": 0})
+            
+            if dataset_node:
+                dataset_node = self._flatten_metadata(dataset_node)
+                node_type = dataset_node.get("@type", "")
+                
+                if self._is_rocrate(node_type):
+                    outputs = self._get_rocrate_outputs(dataset_node)
+                    if outputs:
+                        for output_ref in outputs:
+                            if output_ref.get("@id"):
+                                result_datasets.append(self._build_graph_recursive(output_ref.get("@id"), collection, processed))
+                    else:
+                        result_datasets.append(self._build_graph_recursive(dataset_id, collection, processed))
+                else:
+                    result_datasets.append(self._build_graph_recursive(dataset_id, collection, processed))
+            else:
+                result_datasets.append(self._build_graph_recursive(dataset_id, collection, processed))
+                
+        return result_datasets
 
     def _build_graph_recursive(self, node_id: str, collection: pymongo.collection.Collection, processed: dict) -> Dict:
         if node_id in processed:
@@ -99,11 +154,9 @@ class EvidenceGraph(BaseModel):
              "Experiment" in current_node_type_str: 
             used_dataset_info = node.get("usedDataset")
             if used_dataset_info:
-                if isinstance(used_dataset_info, list):
-                    result_node["usedDataset"] = [self._build_graph_recursive(item.get("@id"), collection, processed) for item in used_dataset_info if item.get("@id")]
-                elif isinstance(used_dataset_info, dict) and used_dataset_info.get("@id"):
-                     result_node["usedDataset"] = [self._build_graph_recursive(used_dataset_info.get("@id"), collection, processed)]
-
+                processed_datasets = self._process_used_dataset(used_dataset_info, collection, processed)
+                if processed_datasets:
+                    result_node["usedDataset"] = processed_datasets
 
             used_software_info = node.get("usedSoftware")
             if used_software_info:

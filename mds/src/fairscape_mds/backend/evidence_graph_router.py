@@ -106,7 +106,7 @@ def initiate_build_evidence_graph_for_node_route(
     
     try:
         task_request_model = EvidenceGraphBuildRequest.model_validate(task_request_data)
-        config.asyncCollection.insert_one(task_request_model.model_dump(by_alias=True))
+        appConfig.asyncCollection.insert_one(task_request_model.model_dump(by_alias=True))
     except Exception as e:
         print(f"Failed to create task record for evidence graph build: {e}")
         raise HTTPException(
@@ -131,7 +131,7 @@ def initiate_build_evidence_graph_for_node_route(
 def get_build_evidence_graph_status_route(
     task_id: Annotated[str, Path(description="The ID of the build task")],
 ):
-    task_status_doc = config.asyncCollection.find_one({"guid": task_id}, {"_id": 0})
+    task_status_doc = appConfig.asyncCollection.find_one({"guid": task_id}, {"_id": 0})
 
     if not task_status_doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found.")
