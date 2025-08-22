@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException
 from typing import Annotated
-from mds.src.fairscape_mds.crud.search import FairscapeSearchRequest
-from mds.src.fairscape_mds.models.search import SearchResults, SearchResultItem
+from fairscape_mds.crud.search import FairscapeSearchRequest
+from fairscape_mds.models.search import SearchResults, SearchResultItem
 from fairscape_mds.core.config import appConfig
 import httpx
 import asyncio

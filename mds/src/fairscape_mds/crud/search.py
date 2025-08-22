@@ -5,7 +5,7 @@ from typing import List
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.core.config import FairscapeConfig
-from mds.src.fairscape_mds.models.search import SearchResultItem, SearchResults
+from fairscape_mds.models.search import SearchResultItem, SearchResults
 
 
 class FairscapeSearchRequest(FairscapeRequest):
