@@ -5,7 +5,7 @@ import uuid
 
 from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.backend.evidence_graph import EvidenceGraph, EvidenceGraphCreate, EvidenceGraphBuildRequest
-from fairscape_mds.backend.evidence_graph_crud import FairscapeEvidenceGraphRequest
+from mds.src.fairscape_mds.crud.evidence_graph import FairscapeEvidenceGraphRequest
 from fairscape_mds.main import getCurrentUser
 from fairscape_mds.core.config import appConfig
 from fairscape_mds.worker import build_evidence_graph_task

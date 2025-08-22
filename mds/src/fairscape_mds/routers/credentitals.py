@@ -6,7 +6,7 @@ from typing import Annotated, List
 
 from fairscape_mds.models.user import UserWriteModel
 
-from fairscape_mds.backend.credentials_crud import (
+from mds.src.fairscape_mds.crud.credentials import (
     FairscapeCredentialsRequest,
     UserToken,
     UserTokenUpdate

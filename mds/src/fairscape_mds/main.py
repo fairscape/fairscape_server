@@ -6,9 +6,9 @@ from fairscape_mds.routers.computation import computationRouter
 from fairscape_mds.routers.rocrate import rocrateRouter
 from fairscape_mds.routers.schema import schemaRouter
 from fairscape_mds.routers.resolver import resolverRouter
-from fairscape_mds.backend.credentitals_router import router as credentials_router
-from fairscape_mds.backend.evidence_graph_router import router as evidence_graph_router
-from fairscape_mds.backend.search_router import router as search_router
+from fairscape_mds.routers.credentitals import router as credentials_router
+from fairscape_mds.routers.evidence_graph import router as evidence_graph_router
+from fairscape_mds.routers.search import router as search_router
 from fairscape_mds.routers.publish import publishRouter
 
 from fastapi import FastAPI, Depends, HTTPException, Path, UploadFile, Form, File

@@ -5,7 +5,7 @@ from fairscape_mds.core.config import appConfig, celeryApp
 from fairscape_mds.crud.rocrate import FairscapeROCrateRequest
 from fairscape_mds.models.user import UserWriteModel
 
-from fairscape_mds.backend.evidence_graph_crud import FairscapeEvidenceGraphRequest
+from fairscape_mds.crud.evidence_graph import FairscapeEvidenceGraphRequest
 
 rocrateRequests = FairscapeROCrateRequest(appConfig)
 evidenceGraphRequests = FairscapeEvidenceGraphRequest(appConfig)

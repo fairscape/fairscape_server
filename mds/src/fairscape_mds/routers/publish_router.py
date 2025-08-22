@@ -5,8 +5,8 @@ from typing import Annotated, Optional, Dict
 from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.main import getCurrentUser 
 
-from fairscape_mds.backend.publish_crud import FairscapePublishRequest
-from fairscape_mds.backend.publish import DEFAULT_DATAVERSE_URL 
+from mds.src.fairscape_mds.crud.publish import FairscapePublishRequest
+from mds.src.fairscape_mds.models.publish import DEFAULT_DATAVERSE_URL 
 
 from fairscape_mds.core.config import appConfig
 

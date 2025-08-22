@@ -1,4 +1,3 @@
-# File: mds/src/fairscape_mds/backend/search_crud.py
 import re
 import time
 from typing import List
@@ -6,7 +5,7 @@ from typing import List
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.core.config import FairscapeConfig
-from fairscape_mds.backend.search_models import SearchResultItem, SearchResults
+from mds.src.fairscape_mds.models.search import SearchResultItem, SearchResults
 
 
 class FairscapeSearchRequest(FairscapeRequest):
