@@ -23,8 +23,8 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
             "name": evi_graph_create_model.name,
             "description": evi_graph_create_model.description,
             "owner": requesting_user.email,
-            "@type": "evi:EvidenceGraph", # Default from model, can be explicit
-            "graph": None # Default state, graph is built separately
+            "@type": "evi:EvidenceGraph", 
+            "graph": None 
         }
 
         try:

@@ -1,5 +1,3 @@
-# fairscape_mds/crud/publish_crud.py
-
 from typing import Dict, Any, Optional
 from pathlib import Path
 
@@ -9,12 +7,12 @@ from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.models.user import UserWriteModel, Permissions, checkPermissions
 
-from fairscape_mds.backend.credentials_crud import (
+from mds.src.fairscape_mds.crud.credentials import (
     FairscapeCredentialsRequest,
     UserToken 
 )
 
-from fairscape_mds.backend.publish import (
+from mds.src.fairscape_mds.models.publish import (
     PublishingService,
     DataversePublisher,
     ZenodoPublisher,
