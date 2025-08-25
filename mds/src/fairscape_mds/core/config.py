@@ -86,12 +86,6 @@ class FairscapeConfig():
   
 
 		
-		# set up support for compression headers
-		def _add_header(request, **kwargs):
-				request.headers.add_header('x-minio-extract', 'true')
-
-		self.s3_event_system = self.minioClient.meta.events
-		self.s3_event_system.register_first('before-sign.s3.*', _add_header)
 
 	def __str__(self):
 		minioStr = f"Minio:\n\tMinioClient: {self.minioClient}\n\tBucket: {self.minioBucket}\n\tDefaultPath: {self.minioDefaultPath}"
@@ -136,6 +130,13 @@ s3 = boto3.client('s3',
         aws_session_token=None,
         region_name='us-east-1'
     )
+
+# set up support for compression headers
+def _add_header(request, **kwargs):
+    request.headers.add_header('x-minio-extract', 'true')
+
+s3_event_system = s3.meta.events
+s3_event_system.register_first('before-sign.s3.*', _add_header)
 
 
 celeryApp = Celery()

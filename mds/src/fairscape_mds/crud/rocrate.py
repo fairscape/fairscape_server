@@ -16,7 +16,7 @@ from fairscape_mds.models.identifier import (
 )
 
 from typing import Optional, Dict, Any
-from fairscape_models.rocrate import ROCrateV1_2
+from fairscape_models import ROCrateV1_2, ROCrateMetadataElem, Dataset, GenericMetadataElem
 
 import pymongo
 import fastapi
@@ -34,7 +34,7 @@ def userPath(inputEmail):
 	if searchResults is None:
 			raise Exception
 	else:
-			return searchResults.group(0)
+			return searchResults.group(1)
 
 
 def setDatasetObjectKey(
@@ -131,9 +131,18 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 		now = datetime.datetime.now()
 
-		for datasetElem in rocrateInstance.getDatasets():
+		rocrateElem = rocrateInstance.getCrateMetadata()
+		rocrateGUID = rocrateElem.guid
 
-			# TODO set the set isPartOf for datasetElem
+		datasetList = []
+
+		for elem in rocrateInstance.metadataGraph:
+			if isinstance(elem, Dataset):
+				datasetList.append(elem)
+			elif isinstance(elem, GenericMetadataElem) and 'Dataset' in elem.metadataType:
+				datasetList.append(elem)
+
+		for datasetElem in datasetList:
 
 			if not datasetElem.contentUrl or datasetElem.contentUrl == 'Embargoed':
 
@@ -155,7 +164,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 			else:
 
-				if 'ftp' in datasetElem.contentUrl:
+				if 'ftp://' in datasetElem.contentUrl:
 					distribution = DatasetDistribution.model_validate({
 							"distributionType": 'ftp',
 							"location": {"uri": datasetElem.contentUrl}
@@ -177,7 +186,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						mode='json'
 					)
 
-				if 'http' in datasetElem.contentUrl:
+				if 'http://' in datasetElem.contentUrl:
 					# create distribution for metadata
 					distribution = DatasetDistribution.model_validate({
 							"distributionType": 'url',
@@ -200,7 +209,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						mode='json'
 					)
 
-				else:	
+				if 'file:///' in datasetElem.contentUrl:	
 					# match the metadata path to content
 					datasetCratePath = datasetElem.contentUrl.lstrip('file:///')
 				
@@ -219,7 +228,8 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						matchedElement = matchedElementList[0]
 					else:
 						# TODO handle error for content not found in the rocrate
-						continue
+						# continue
+						pass
 				
 					# create metadata record to insert 
 					objectSize = matchedElement.get('Size')
@@ -234,11 +244,18 @@ class FairscapeROCrateRequest(FairscapeRequest):
 							"location": {"path": objectPath}
 							})
 						
-
 					outputDataset = StoredIdentifier.model_validate({
 						"@id": datasetElem.guid,
 						"@type": MetadataTypeEnum.DATASET,
-						"metadata": datasetElem,
+						"metadata": {
+							**datasetElem.model_dump(by_alias=True, mode='json'),
+							"size": objectSize,
+							"isPartOf": {
+							"@id": rocrateGUID,
+							"@type": MetadataTypeEnum.ROCRATE,
+							"name": rocrateElem.name
+							}
+						},
 						"permissions": permissionsSet, 
 						"distribution": distribution,	
 						"publicationStatus": PublicationStatusEnum.DRAFT,
@@ -262,7 +279,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 			# append guid to dataset list
 			datasetWriteList.append(outputDataset.guid)
-		
+
 		return datasetWriteList
 
 
@@ -293,12 +310,12 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 		# mint all metadata elements
 		for metadataModel in rocrateInstance.metadataGraph:
-
-			if metadataModel.metadataType == "https://w3id.org/EVI#Dataset" or metadataModel.guid == 'ro-crate-metadata.json':
-				pass
 			if isinstance(metadataModel.metadataType,list):
-				if 'https://w3id.org/EVI#ROCrate' in metadataModel.metadataType:
-					continue
+				#if 'https://w3id.org/EVI#ROCrate' in metadataModel.metadataType:
+				continue
+
+			if 'Dataset' in metadataModel.metadataType or metadataModel.guid == 'ro-crate-metadata.json':
+				continue
 			else:
 
 				processedMetadataType = determineMetadataType(metadataModel.metadataType)
@@ -603,11 +620,8 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 
 	def getROCrateMetadata(self, rocrateGUID: str):
-		rocrateMetadata = self.config.rocrateCollection.find_one({
-				"$or":[
-        			{"@id": rocrateGUID},
-         			{"@id":f"{rocrateGUID}/"}]
-		},
+		rocrateMetadata = self.config.identifierCollection.find_one(
+        {"@id": rocrateGUID},
         projection={"_id": False}
         )
 		
@@ -868,7 +882,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		requestingUser: UserWriteModel, 
 		guid: str
 	):
-		""" Mark ROCrate as 
+		""" Mark ROCrate as status ARCHIVED
 		"""
 
 		return deleteIdentifier(

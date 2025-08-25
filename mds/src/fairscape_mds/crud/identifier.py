@@ -106,7 +106,7 @@ class IdentifierRequest(FairscapeRequest):
 
 
 		# TODO if its an ROCrate change all contained items to the new status
-		if foundIdentifier.metadataType == MetadataTypeEnum.ROCRATE:				
+		if foundIdentifier.metadataType == MetadataTypeEnum.ROCRATE:
 
 			# TODO check that rocrate has part is set
 			if foundIdentifier.metadata.hasPart:
@@ -119,6 +119,14 @@ class IdentifierRequest(FairscapeRequest):
 
 					# TODO check update result
 
+		# update all members
+		updateMembersResult = self.config.identifierCollection.update_many(
+			{"metadata.isPartOf.@id": guid},
+			{"$set": {"publicationStatus": repr(newStatus)}}
+		)
+
+		# TODO check the update result
+
 		# update the permissions on
 		updateResult = self.config.identifierCollection.update_one(
 			{"@id": guid},
@@ -126,6 +134,7 @@ class IdentifierRequest(FairscapeRequest):
 			)
 
 		# TODO check the update result
+
 
 		return FairscapeResponse(
 			success=True,

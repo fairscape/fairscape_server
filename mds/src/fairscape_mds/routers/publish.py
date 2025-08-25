@@ -61,8 +61,13 @@ def resolveContent(
 
 		download_headers = {
 			"Content-Type": content_type,
-			"Content-Disposition": f'attachment; filename="{filename}"'
    		}
+
+		# display images download all else
+		if 'image' in download_headers['Content-Type']:
+			download_headers["Content-Disposition"] = 'inline;'
+		else:
+			download_headers["Content-Disposition"] = f'attachment; filename="{filename}"'
 
 		return StreamingResponse(
 			response.fileResponse['Body'],
@@ -72,5 +77,5 @@ def resolveContent(
 	else:
 		return JSONResponse(
 			content=response.error,
-			status_code=response.status_code
+			status_code=response.statusCode
 		)
