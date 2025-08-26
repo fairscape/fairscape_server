@@ -1,0 +1,10 @@
+{
+	"@id": "ark:59853/computation-test-solo",
+	"@type": "https://w3id.org/EVI#Computation",
+	"name": "Test Computation",
+	"runBy": "John Doe",
+	"description": "A single Computation node testing for crud",
+	"dateCreated": "08/25/2025",
+	"associatedPublication": null,
+	"command": ["echo", "'hello world'"]
+}

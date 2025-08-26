@@ -1,0 +1,18 @@
+[
+	{
+		"@id": "ark:59853/computation-reasoning",
+		"@type": "https://w3id.org/EVI#Computation"
+	},
+	{
+		"@id": "ark:59853/software-reasoning",
+		"@type": "https://w3id.org/EVI#Software"
+	},
+	{
+		"@id": "ark:59853/input-dataset",
+		"@type": "https://w3id.org/EVI#Dataset"
+	},
+	{
+		"@id": "ark:59853/output-dataset",
+		"@type": "https://w3id.org/EVI#Dataset"
+	}
+]
