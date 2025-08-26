@@ -620,7 +620,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 
 	def getROCrateMetadata(self, rocrateGUID: str):
-		rocrateMetadata = self.config.identifierCollection.find_one(
+		rocrateMetadata = self.config.rocrateCollection.find_one(
         {"@id": rocrateGUID},
         projection={"_id": False}
         )
