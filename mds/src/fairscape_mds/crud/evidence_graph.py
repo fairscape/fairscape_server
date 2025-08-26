@@ -84,21 +84,36 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
 
         source_node_data = self.config.identifierCollection.find_one({"@id": node_id})
         if not source_node_data:
-            return FairscapeResponse(success=False, statusCode=404, error={"message": f"Source node {node_id} not found."})
+            return FairscapeResponse(
+                success=False,
+                statusCode=404,
+                error={"message": f"Source node {node_id} not found."}
+            )
 
-        existing_graph_id_from_node = source_node_data.get("metadata", {}).get("hasEvidenceGraph", {}).get("@id")
-        existing_graph_with_target_id = self.config.identifierCollection.find_one({"@id": evidence_graph_id})
-
-        ids_to_delete = set()
-        if existing_graph_id_from_node:
-            ids_to_delete.add(existing_graph_id_from_node)
-        if existing_graph_with_target_id:
-            ids_to_delete.add(evidence_graph_id)
-
-        for graph_id_to_delete in ids_to_delete:
-            delete_resp = self.delete_evidence_graph(requesting_user, graph_id_to_delete)
-            if not delete_resp.success and delete_resp.statusCode != 404:
-                print(f"Warning: Could not delete existing evidence graph {graph_id_to_delete}: {delete_resp.error}")
+        existing_graph_id = (
+            source_node_data.get("metadata", {})
+            .get("hasEvidenceGraph", {})
+            .get("@id")
+        )
+        if existing_graph_id:
+            existing_graph_data = self.config.identifierCollection.find_one(
+                {"@id": existing_graph_id}, {"_id": 0}
+            )
+            if existing_graph_data:
+                try:
+                    print("Returning existing graph")
+                    existing_graph = EvidenceGraph.model_validate(existing_graph_data)
+                    return FairscapeResponse(
+                        success=True,
+                        statusCode=200,
+                        model=existing_graph
+                    )
+                except Exception as e:
+                    return FairscapeResponse(
+                        success=False,
+                        statusCode=500,
+                        error={"message": f"Error validating existing EvidenceGraph {existing_graph_id}: {str(e)}"}
+                    )
 
         evidence_graph_data_to_validate = {
             "@id": evidence_graph_id,
@@ -108,20 +123,32 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
             "@type": "evi:EvidenceGraph",
             "graph": None
         }
-        
+
         try:
             evidence_graph = EvidenceGraph.model_validate(evidence_graph_data_to_validate)
             evidence_graph.build_graph(node_id, self.config.identifierCollection)
         except Exception as e:
-            return FairscapeResponse(success=False, statusCode=500, error={"message": f"Error building evidence graph: {str(e)}"})
+            return FairscapeResponse(
+                success=False,
+                statusCode=500,
+                error={"message": f"Error building evidence graph: {str(e)}"}
+            )
 
         try:
             insert_data = evidence_graph.model_dump(by_alias=True)
             self.config.identifierCollection.insert_one(insert_data)
         except pymongo.errors.DuplicateKeyError:
-            return FairscapeResponse(success=False, statusCode=409, error={"message": f"EvidenceGraph with @id '{evidence_graph_id}' already exists (race condition or failed cleanup)."})
+            return FairscapeResponse(
+                success=False,
+                statusCode=409,
+                error={"message": f"EvidenceGraph with @id '{evidence_graph_id}' already exists (race condition)."}
+            )
         except Exception as e:
-            return FairscapeResponse(success=False, statusCode=500, error={"message": f"Error storing new evidence graph: {str(e)}"})
+            return FairscapeResponse(
+                success=False,
+                statusCode=500,
+                error={"message": f"Error storing new evidence graph: {str(e)}"}
+            )
 
         try:
             self.config.identifierCollection.update_one(
