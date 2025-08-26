@@ -21,7 +21,8 @@ class EvidenceGraph(BaseModel):
     owner: str 
     description: str
     name: str = Field(default="Evidence Graph")
-    graph: Optional[Dict[str, Any]] = Field(default=None, alias="@graph")
+    outputs: Optional[List[Dict[str, str]]] = Field(default=None)
+    graph: Optional[Dict[str, Dict[str, Any]]] = Field(default=None, alias="@graph")
 
     class Config:
         extra = 'allow' 
@@ -58,7 +59,7 @@ class EvidenceGraph(BaseModel):
                     return [outputs]
         return []
 
-    def _process_used_dataset(self, dataset_info: Any, collection: pymongo.collection.Collection, processed: dict) -> List[Dict]:
+    def _process_used_dataset(self, dataset_info: Any, collection: pymongo.collection.Collection, graph_dict: Dict[str, Dict]) -> List[Dict[str, str]]:
         datasets_to_process = []
         
         if isinstance(dataset_info, list):
@@ -68,7 +69,7 @@ class EvidenceGraph(BaseModel):
         else:
             return []
         
-        result_datasets = []
+        result_refs = []
         
         for dataset_ref in datasets_to_process:
             if not dataset_ref.get("@id"):
@@ -86,38 +87,39 @@ class EvidenceGraph(BaseModel):
                     if outputs:
                         for output_ref in outputs:
                             if output_ref.get("@id"):
-                                result_datasets.append(self._build_graph_recursive(output_ref.get("@id"), collection, processed))
+                                self._add_node_to_graph(output_ref.get("@id"), collection, graph_dict)
+                                result_refs.append({"@id": output_ref.get("@id")})
                     else:
-                        result_datasets.append(self._build_graph_recursive(dataset_id, collection, processed))
+                        self._add_node_to_graph(dataset_id, collection, graph_dict)
+                        result_refs.append({"@id": dataset_id})
                 else:
-                    result_datasets.append(self._build_graph_recursive(dataset_id, collection, processed))
+                    self._add_node_to_graph(dataset_id, collection, graph_dict)
+                    result_refs.append({"@id": dataset_id})
             else:
-                result_datasets.append(self._build_graph_recursive(dataset_id, collection, processed))
+                self._add_node_to_graph(dataset_id, collection, graph_dict)
+                result_refs.append({"@id": dataset_id})
                 
-        return result_datasets
+        return result_refs
 
-    def _build_graph_recursive(self, node_id: str, collection: pymongo.collection.Collection, processed: dict) -> Dict:
-        if node_id in processed:
-            cached_node = processed[node_id]
-            return {
-                "@id": cached_node.get("@id"),
-                "@type": cached_node.get("@type"),
-                "name": cached_node.get("name")
-            }
+    def _add_node_to_graph(self, node_id: str, collection: pymongo.collection.Collection, graph_dict: Dict[str, Dict]) -> None:
+        if node_id in graph_dict:
+            return
 
         node_data = collection.find_one({"@id": node_id}, {"_id": 0})
         if not node_data:
-            return {"@id": node_id, "error": "not found"}
+            graph_dict[node_id] = {"@id": node_id, "error": "not found"}
+            return
 
         node = self._flatten_metadata(node_data)
-        processed[node_id] = node
-
+        
         result_node = {
             "@id": node.get("@id"),
             "@type": node.get("@type"),
             "name": node.get("name"),
             "description": node.get("description")
         }
+
+        graph_dict[node_id] = result_node
 
         node_type_field = node.get("@type", "")
         current_node_type_str = ""
@@ -130,7 +132,6 @@ class EvidenceGraph(BaseModel):
             elif node_type_field: current_node_type_str = node_type_field[0]
         elif isinstance(node_type_field, str):
             current_node_type_str = node_type_field
-
 
         if "Dataset" in current_node_type_str or \
            "Sample" in current_node_type_str or \
@@ -146,46 +147,93 @@ class EvidenceGraph(BaseModel):
                     comp_id = None
 
                 if comp_id:
-                    result_node["generatedBy"] = self._build_graph_recursive(comp_id, collection, processed)
-                elif generated_by_info : 
-                    result_node["generatedBy"] = generated_by_info 
+                    self._add_node_to_graph(comp_id, collection, graph_dict)
+                    result_node["generatedBy"] = {"@id": comp_id}
+                elif generated_by_info:
+                    result_node["generatedBy"] = generated_by_info
 
         elif "Computation" in current_node_type_str or \
              "Experiment" in current_node_type_str: 
             used_dataset_info = node.get("usedDataset")
             if used_dataset_info:
-                processed_datasets = self._process_used_dataset(used_dataset_info, collection, processed)
-                if processed_datasets:
-                    result_node["usedDataset"] = processed_datasets
+                dataset_refs = self._process_used_dataset(used_dataset_info, collection, graph_dict)
+                if dataset_refs:
+                    result_node["usedDataset"] = dataset_refs
 
             used_software_info = node.get("usedSoftware")
             if used_software_info:
+                software_refs = []
                 if isinstance(used_software_info, list):
-                    result_node["usedSoftware"] = [self._build_graph_recursive(item.get("@id"), collection, processed) for item in used_software_info if item.get("@id")]
+                    for item in used_software_info:
+                        if item.get("@id"):
+                            self._add_node_to_graph(item.get("@id"), collection, graph_dict)
+                            software_refs.append({"@id": item.get("@id")})
                 elif isinstance(used_software_info, dict) and used_software_info.get("@id"):
-                    result_node["usedSoftware"] = [self._build_graph_recursive(used_software_info.get("@id"), collection, processed)]
-
+                    self._add_node_to_graph(used_software_info.get("@id"), collection, graph_dict)
+                    software_refs.append({"@id": used_software_info.get("@id")})
+                if software_refs:
+                    result_node["usedSoftware"] = software_refs
 
             used_sample_info = node.get("usedSample")
             if used_sample_info:
+                sample_refs = []
                 if isinstance(used_sample_info, list):
-                    result_node["usedSample"] = [self._build_graph_recursive(item.get("@id"), collection, processed) for item in used_sample_info if item.get("@id")]
+                    for item in used_sample_info:
+                        if item.get("@id"):
+                            self._add_node_to_graph(item.get("@id"), collection, graph_dict)
+                            sample_refs.append({"@id": item.get("@id")})
                 elif isinstance(used_sample_info, dict) and used_sample_info.get("@id"):
-                    result_node["usedSample"] = [self._build_graph_recursive(used_sample_info.get("@id"), collection, processed)]
-
+                    self._add_node_to_graph(used_sample_info.get("@id"), collection, graph_dict)
+                    sample_refs.append({"@id": used_sample_info.get("@id")})
+                if sample_refs:
+                    result_node["usedSample"] = sample_refs
 
             used_instrument_info = node.get("usedInstrument")
             if used_instrument_info:
+                instrument_refs = []
                 if isinstance(used_instrument_info, list):
-                    result_node["usedInstrument"] = [self._build_graph_recursive(item.get("@id"), collection, processed) for item in used_instrument_info if item.get("@id")]
+                    for item in used_instrument_info:
+                        if item.get("@id"):
+                            self._add_node_to_graph(item.get("@id"), collection, graph_dict)
+                            instrument_refs.append({"@id": item.get("@id")})
                 elif isinstance(used_instrument_info, dict) and used_instrument_info.get("@id"):
-                    result_node["usedInstrument"] = [self._build_graph_recursive(used_instrument_info.get("@id"), collection, processed)]
+                    self._add_node_to_graph(used_instrument_info.get("@id"), collection, graph_dict)
+                    instrument_refs.append({"@id": used_instrument_info.get("@id")})
+                if instrument_refs:
+                    result_node["usedInstrument"] = instrument_refs
 
-        return result_node
+        graph_dict[node_id] = result_node
 
     def build_graph(self, start_node_id: str, mongo_collection: pymongo.collection.Collection):
-        processed_nodes = {}
-        self.graph = [self._build_graph_recursive(start_node_id, mongo_collection, processed_nodes)]
+        graph_dict = {}
+        output_nodes = []
+        
+        start_node = mongo_collection.find_one({"@id": start_node_id}, {"_id": 0})
+        
+        if start_node:
+            start_node = self._flatten_metadata(start_node)
+            node_type = start_node.get("@type", "")
+            
+            if self._is_rocrate(node_type):
+                rocrate_outputs = self._get_rocrate_outputs(start_node)
+                if rocrate_outputs:
+                    for output_ref in rocrate_outputs:
+                        if output_ref.get("@id"):
+                            output_id = output_ref.get("@id")
+                            output_nodes.append({"@id": output_id})
+                            self._add_node_to_graph(output_id, mongo_collection, graph_dict)
+                else:
+                    output_nodes.append({"@id": start_node_id})
+                    self._add_node_to_graph(start_node_id, mongo_collection, graph_dict)
+            else:
+                output_nodes.append({"@id": start_node_id})
+                self._add_node_to_graph(start_node_id, mongo_collection, graph_dict)
+        else:
+            output_nodes.append({"@id": start_node_id})
+            graph_dict[start_node_id] = {"@id": start_node_id, "error": "not found"}
+        
+        self.outputs = output_nodes
+        self.graph = graph_dict
 
 
 class EvidenceGraphCreate(BaseModel):
