@@ -2,7 +2,7 @@ import pymongo
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.models.user import UserWriteModel
-from fairscape_mds.backend.evidence_graph import EvidenceGraph, EvidenceGraphCreate
+from fairscape_mds.models.evidence_graph import EvidenceGraph, EvidenceGraphCreate
 
 class FairscapeEvidenceGraphRequest(FairscapeRequest):
 

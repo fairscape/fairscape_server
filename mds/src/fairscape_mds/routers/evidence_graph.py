@@ -4,7 +4,7 @@ from typing import Annotated, List, Dict
 import uuid
 
 from fairscape_mds.models.user import UserWriteModel
-from fairscape_mds.backend.evidence_graph import EvidenceGraph, EvidenceGraphCreate, EvidenceGraphBuildRequest
+from fairscape_mds.models.evidence_graph import EvidenceGraph, EvidenceGraphCreate, EvidenceGraphBuildRequest
 from fairscape_mds.crud.evidence_graph import FairscapeEvidenceGraphRequest
 from fairscape_mds.main import getCurrentUser
 from fairscape_mds.core.config import appConfig
