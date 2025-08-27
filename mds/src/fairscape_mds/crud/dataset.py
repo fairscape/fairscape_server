@@ -5,7 +5,8 @@ from fairscape_mds.models.user import UserWriteModel, Permissions, checkPermissi
 from fairscape_mds.models.dataset import (
 	DatasetWriteModel, 
 	DatasetDistribution, 
-	DistributionTypeEnum
+	DistributionTypeEnum,
+	DatasetUpdateModel,
 )
 from fairscape_mds.models.identifier import (
 	PublicationStatusEnum, 
@@ -233,3 +234,13 @@ class FairscapeDatasetRequest(FairscapeRequest):
 			DatasetWriteModel,
 			guid
 		)
+
+
+	def updateDataset(
+			self,
+			requestingUser: UserWriteModel,
+			updateInstance: DatasetUpdateModel
+	):
+		""" Update Dataset Metadata
+		"""
+		pass

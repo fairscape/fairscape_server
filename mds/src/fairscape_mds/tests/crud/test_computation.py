@@ -4,20 +4,12 @@ from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.core.config import appConfig
 from fairscape_mds.models.user import UserWriteModel
 from fairscape_models.computation import Computation
-import json
+from fairscape_mds.tests.crud.utils import load_test_data
 import pytest
-import os
 
 appConfig.identifierCollection.delete_many({})
 
-def load_test_data(filename):
-	filepath = os.path.join(os.path.dirname(__file__), "data", filename)
-	with open(filepath, 'r') as f:
-		return json.load(f)
 
-@pytest.fixture(scope="module")
-def computation_request():
-	return FairscapeComputationRequest(appConfig)
 
 @pytest.fixture(scope="module")
 def current_user():
@@ -27,6 +19,10 @@ def current_user():
 			"lastName": "Doe",
 			"password": "test"
 			})
+
+@pytest.fixture(scope="module")
+def computation_request():
+	return FairscapeComputationRequest(appConfig)
 
 
 def test_computation_0_create(computation_request, current_user):
