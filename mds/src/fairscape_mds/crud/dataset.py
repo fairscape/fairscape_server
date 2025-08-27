@@ -18,6 +18,7 @@ from typing import Optional
 from fastapi import UploadFile
 import datetime
 import pathlib
+from pymongo import ReturnDocument
 
 
 def setDatasetObjectKey(
@@ -243,4 +244,66 @@ class FairscapeDatasetRequest(FairscapeRequest):
 	):
 		""" Update Dataset Metadata
 		"""
-		pass
+
+		identifierMetadata = self.config.identifierCollection.find_one(
+			{"@id": updateInstance.guid},
+			projection={"_id": False}
+		)
+
+		if not identifierMetadata:
+			# TODO raise fastapi httpexception 
+			raise Exception
+
+		# validate into storedidentifier
+		storedIdentifier = StoredIdentifier.model_validate(identifierMetadata)
+
+		# if an identifier is published changes can be made to identifiers 
+		if storedIdentifier.publicationStatus != PublicationStatusEnum.PUBLISHED:
+			# if not published than 
+			if not checkPermissions(storedIdentifier.permissions, requestingUser):
+				return FairscapeResponse(
+					success=False,
+					statusCode=401,
+					jsonResponse={"error": "user unauthorized to edit dataset metadata"}
+				)
+		
+		setUpdateValues = updateInsance.set.model_dump(mode="json", exclude_unset=True)
+		pushUpdateValues = updateInsance.push.model_dump(mode="json", exclude_unset=True)
+
+		# push cannot overwrite null fields
+		# check that no push updates are on fields set to none
+		identifierMetadata = storedIdentifier.metadata.model_dump(by_alias=True, mode='json')
+
+
+		keysToTransfer = []
+		for key in pushUpdateValues.keys():
+			if not identifierMetadata.get("key"):
+				keysToTransfer.append(key)
+
+		for key in keysToTransfer:
+				setUpdateValues[key] = pushUpdateValues[key]
+				del pushUpdateValues[key]
+
+		setUpdatePrepped = { f"metadata.{key}": value for key, value in setUpdateValues.items() }
+		pushUpdatePrepped = { f"metadata.{key}": value for key, value in pushUpdateValues.items() }
+
+		# set update
+		setUpdatePrepped['dateModified'] = datetime.datetime.now()
+
+		updateResponse = self.config.identifierCollection.find_one_and_update(
+			{"@id": updateInstance.guid},
+			{
+				"$set": setUpdatePrepped,
+				"$push": pushUpdatePrepped
+			},
+			projection={"_id": False},
+			return_document=ReturnDocument.AFTER
+		)
+
+		newModel = StoredIdentifier.model_validate(updateResponse)
+
+		return FairscapeResponse(
+			success=True,
+			statusCode=201,
+			model=newModel	
+		)
