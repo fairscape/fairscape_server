@@ -5,7 +5,7 @@ from fastapi import (
 	APIRouter, 
 	Depends, 
 	HTTPException, 
-	Form, 
+	Request, 
 	UploadFile
 )
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -17,6 +17,9 @@ from fairscape_mds.core.config import appConfig
 from fairscape_models.rocrate import ROCrateV1_2, ROCrateMetadataElem
 from fairscape_mds.deps import getCurrentUser
 from fairscape_mds.worker import processROCrate
+
+from fairscape_models.conversion.converter import ROCToTargetConverter
+from fairscape_models.conversion.mapping.croissant import MAPPING_CONFIGURATION as CROISSANT_MAPPING
 
 import pathlib
 
@@ -166,17 +169,46 @@ def getROCrateArchive(
 
 @rocrateRouter.get("/rocrate/ark:{NAAN}/{postfix}")
 def getROCrateMetadata(
-	NAAN: str,
-	postfix: str
+    request: Request,
+    NAAN: str,
+    postfix: str,
+    currentUser: UserWriteModel = Depends(getCurrentUser),
 ):
-	guid = f"ark:{NAAN}/{postfix}"
-	response = rocrateRequest.getROCrateMetadata(guid)
+    """
+    Retrieve RO-Crate metadata.  
+    Supports content negotiation:  
+    - `application/json` (default, raw RO-Crate JSON)  
+    - `application/vnd.mlcommons-croissant+json` (Croissant JSON-LD)  
+    """
+    guid = f"ark:{NAAN}/{postfix}"
+    response = rocrateRequest.getROCrateMetadata(guid)
 
-	if response.success:
-		return response.model
+    if not response.success:
+        return JSONResponse(
+            status_code=response.statusCode,
+            content=response.error
+        )
 
-	else:
-		return JSONResponse(
-			status_code = response.statusCode,
-			content = response.error
-		)
+    accept_header = request.headers.get("accept", "application/json")
+
+    if "application/vnd.mlcommons-croissant+json" in accept_header.lower():
+        try:
+            source_crate = ROCrateV1_2(**response.model["metadata"])
+            croissant_converter = ROCToTargetConverter(source_crate, CROISSANT_MAPPING)
+            croissant_result = croissant_converter.convert()
+
+            return JSONResponse(
+                status_code=200,
+                content=croissant_result.model_dump(by_alias=True, exclude_none=True),
+                media_type="application/vnd.mlcommons-croissant+json"
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error converting RO-Crate to Croissant: {str(e)}"
+            )
+
+    return JSONResponse(
+        status_code=200,
+        content=response.model
+    )
