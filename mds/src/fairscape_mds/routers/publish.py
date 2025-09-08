@@ -39,8 +39,9 @@ def updatePublicationStatus(
 			content=response.error
 		)
 
-@publishRouter.get(path="/download/ark:{NAAN}/{postfix}")
-def resolveContent(
+
+@publishRouter.get(path="/view/ark:{NAAN}/{postfix}")
+def viewContent(
 	NAAN: str,
 	postfix: str
 ):
@@ -61,13 +62,45 @@ def resolveContent(
 
 		download_headers = {
 			"Content-Type": content_type,
+			"Content-Disposition": "inline"
    		}
 
-		# display images download all else
-		if 'image' in download_headers['Content-Type']:
-			download_headers["Content-Disposition"] = 'inline;'
-		else:
-			download_headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+		return StreamingResponse(
+			response.fileResponse['Body'],
+			headers=download_headers
+		)
+
+	else:
+		return JSONResponse(
+			content=response.error,
+			status_code=response.statusCode
+		)
+
+
+@publishRouter.get(path="/download/ark:{NAAN}/{postfix}")
+def downloadContent(
+	NAAN: str,
+	postfix: str
+):
+
+	guid = f"ark:{NAAN}/{postfix}"
+	response = identifierRequestFactory.getContent(guid)
+
+	if response.success:
+
+		dataset_instance = response.model
+		object_key = dataset_instance.distribution.location.path
+		filename = object_key.split("/")[-1]
+  
+		content_type, _ = mimetypes.guess_type(filename)
+
+		if content_type is None:
+			content_type = "application/octet-stream"
+
+		download_headers = {
+			"Content-Type": content_type,
+			"Content-Disposition": f'attachment; filename="{filename}"'
+		}
 
 		return StreamingResponse(
 			response.fileResponse['Body'],
