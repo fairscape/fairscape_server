@@ -115,7 +115,7 @@ class IdentifierRequest(FairscapeRequest):
 			)
 
 			# TODO check the update result
-			updateMembersResult.modified_count = len
+			# updateMembersResult.modified_count == len
 
 		# update the permissions on
 		updateResult = self.config.identifierCollection.update_one(

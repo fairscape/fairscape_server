@@ -6,6 +6,7 @@ import pytest
 from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.crud.dataset import FairscapeDatasetRequest
 from fairscape_models.dataset import Dataset
+import fastapi
 
 
 @pytest.fixture(scope="module")
@@ -39,17 +40,34 @@ def test_0_create_dataset_metadata_only(dataset_request, current_user):
 	assert datasetCreateResponse.model
 
 
-def test_1_create_dataset_with_file():
+def test_1_create_dataset_with_file(dataset_request, current_user):
+	datasetMetadata = load_test_data("single_content.json")
+	datasetFile = "data/example.csv"
+
+	with open(datasetFile, "rb") as datafile:
+
+		inputFile = fastapi.UploadFile(
+			file=datafile
+		)
+
+		createResponse = dataset_request.createDataset(
+			userInstance=current_user,
+			inputDataset=datasetMetadata,
+			datasetContent=inputFile
+		)
+
+	assert createResponse.success
+	assert createResponse.statusCode == 201
+	assert createResponse.model
+
+
+def test_2_resolve_dataset(dataset_request, current_user):
 	pass
 
 
-def test_2_resolve_dataset():
+def test_3_download_content(dataset_request, current_user):
 	pass
 
-
-def test_3_download_content():
-	pass
-
-def test_4_change_publication_status():
+def test_4_change_publication_status(dataset_request, current_user):
 	pass
 
