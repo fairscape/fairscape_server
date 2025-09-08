@@ -716,7 +716,7 @@ requires-dist = [
 
 [[package]]
 name = "fairscape-models"
-version = "1.0.6"
+version = "1.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mongomock" },
@@ -726,9 +726,9 @@ dependencies = [
     { name = "pymongo", version = "4.13.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "typing" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/da/8d/1fed083ae676fa618765bc7ce7f9072aaacfed1f7158f1aed6d29ceb73d2/fairscape_models-1.0.6.tar.gz", hash = "sha256:29ff7c41d2753df120c6f1d49ce0ef103d6a80d95ce6bad586a326fd7020b371", size = 11034, upload-time = "2025-07-16T18:17:29.547Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4b/b0/d4e2d3ad8f7849dc2ec60a24424a3b2a3b612ac6687cc8fdab912cb471a8/fairscape_models-1.0.10.tar.gz", hash = "sha256:a498617ae591ceb8997678922f1dac4e360decc959b4fc0c616f4899a630237c", size = 27509, upload-time = "2025-09-08T17:05:29.436Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/32/db/3aa5ba302d92cfbb451171850207046d984485a7b554e6c968e3fcbd7d4b/fairscape_models-1.0.6-py3-none-any.whl", hash = "sha256:231c455461f7c779dc363558b262b9279e1bc530c33dff6ea1cc9654387905b5", size = 15168, upload-time = "2025-07-16T18:17:28.726Z" },
+    { url = "https://files.pythonhosted.org/packages/72/7d/3c01cd1050c5424466b878107d5d9be5484725af317cc826b7017dac63cf/fairscape_models-1.0.10-py3-none-any.whl", hash = "sha256:c012fda0abca79908047b9501b5d8c9090e81a8b5beb1785cd574bf5edde239d", size = 30692, upload-time = "2025-09-08T17:05:28.301Z" },
 ]
 
 [[package]]
