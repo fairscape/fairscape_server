@@ -172,7 +172,6 @@ def getROCrateMetadata(
     request: Request,
     NAAN: str,
     postfix: str,
-    currentUser: UserWriteModel = Depends(getCurrentUser),
 ):
     """
     Retrieve RO-Crate metadata.  
