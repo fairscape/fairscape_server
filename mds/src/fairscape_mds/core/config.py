@@ -10,12 +10,13 @@ from urllib.parse import quote_plus
 from typing import Optional
 from celery import Celery
 import pymongo
+import pathlib
 
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-            env_file=".env",
+            #env_file=".env",
             env_ignore_empty=True,
             extra="ignore"
         )
@@ -52,8 +53,10 @@ class Settings(BaseSettings):
 
     FAIRSCAPE_BASE_URL: str
 
-
-
+# TODO handle .env file for settings
+#if pathlib.Path("~/.env").exists():
+#   dotenv.load_env("~/.env")
+#   Settings(**os.env)
 settings = Settings()
 
 
@@ -107,10 +110,13 @@ if "localhost" in settings.FAIRSCAPE_BASE_URL:
     connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?authSource=admin&retryWrites=true"
 
 if mongoAuthDatabaseName:
-    connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?authSource={mongoAuthDatabaseName}&retryWrites=true"
+    #connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?authSource={mongoAuthDatabaseName}&retryWrites=true"
+    connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/admin?retryWrites=true"
 else:
     connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?retryWrites=true"
 
+# Overwrite the existing 
+connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/admin?retryWrites=true"
 
 mongoClient = pymongo.MongoClient(connection_string)
 mongoDB = mongoClient[settings.FAIRSCAPE_MONGO_DATABASE]
@@ -153,7 +159,7 @@ celeryApp.conf.update(
 appConfig = FairscapeConfig(
     minioClient=s3,
     minioBucket=settings.FAIRSCAPE_MINIO_DEFAULT_BUCKET,
-	minioDefaultPath=settings.FAIRSCAPE_MINIO_DEFAULT_BUCKET_PATH,
+    minioDefaultPath=settings.FAIRSCAPE_MINIO_DEFAULT_BUCKET_PATH,
 	userCollection=userCollection,
 	identifierCollection=identifierCollection,
 	asyncCollection=asyncCollection,

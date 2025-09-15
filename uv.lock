@@ -695,7 +695,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.34.26" },
     { name = "celery", extras = ["redis"], specifier = ">=5.3.6" },
     { name = "docker", specifier = ">=7.0.0" },
-    { name = "fairscape-models", specifier = ">=1.0.6" },
+    { name = "fairscape-models", specifier = ">=1.0.8" },
     { name = "fastapi", specifier = ">=0.109.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "ipykernel", specifier = ">=6.29.0" },

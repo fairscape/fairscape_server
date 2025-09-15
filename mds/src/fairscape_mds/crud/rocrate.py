@@ -17,7 +17,9 @@ from fairscape_mds.models.identifier import (
 
 from typing import Optional, Dict, Any
 from fairscape_models import ROCrateV1_2, ROCrateMetadataElem, Dataset, GenericMetadataElem
+import traceback
 
+import pydantic
 import pymongo
 import fastapi
 import json
@@ -352,7 +354,6 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		return guidList
 
 
-
 	def getROCrateContentsMinio(self, zipCratePath: str):
 		# helper function to get all contents inside a zipped crate when there are more than 1k objects
 		# list entire subdirectory for rocrate upload
@@ -431,8 +432,12 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				Key= metadataFileKey
 			)	
 
-			content = s3Response['Body'].read()
-			roCrateJSON = json.loads(content)
+			try:
+				content = s3Response['Body'].read()
+				roCrateJSON = json.loads(content)
+
+			except json.JSONDecodeError:
+				raise Exception("Error Reading ro-crate-metadata.json")
 
 			rocrateInstance = ROCrateV1_2.model_validate(roCrateJSON)
 			return rocrateInstance
@@ -467,10 +472,42 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 		try:
 			roCrateModel = self.processTaskGetMetadata(rocrateContents)
-		except Exception as e:
+
+		except json.JSONDecodeError as e:
+			print(f"JSONDecodeError: {str(e)}")
+
+			self.config.asyncCollection.update_one(
+				{"guid": transactionGUID},
+				{"$set": 
+					{
+						"stage": "reading metadata",
+						"error": str(e),
+						"timeFinished": datetime.datetime.now(),
+						"success": False,
+						"completed": True
+					}
+				}
+			)	
+			return None
+
+		except pydantic.ValidationError as e:
 			print(f"ValidationError: {str(e)}")
-			import traceback
 			traceback.print_exc()
+
+			# update job as failure
+			self.config.asyncCollection.update_one(
+				{"guid": transactionGUID},
+				{"$set": 
+					{
+						"stage": "reading metadata",
+						"error": json.loads(e.json()),
+						"timeFinished": datetime.datetime.now(),
+						"success": False,
+						"completed": True
+					}
+				}
+			)	
+
 			return None
 
 		crateMetadataElem = roCrateModel.getCrateMetadata()
@@ -490,7 +527,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 					"rocrateGUID": roCrateGUID
 				}
 			}
-    )	
+		)	
 
 		# write dataset records
 		datasetGUIDS = self.processTaskWriteDatasets(
@@ -546,12 +583,16 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			"dateCreated": now,
 			"dateModified": now
 		})
+
+		# suppresses warnings from serializer handling nested models
+		storedMetadataElem.model_rebuild()
 	
 		# dump into identifier collection and rocrate collection
 		insertResult = self.config.identifierCollection.insert_one(
 			storedMetadataElem.model_dump(
 				by_alias=True,
-				mode='json'
+				mode='json',
+				warnings=False
 				) 
 			)
 
