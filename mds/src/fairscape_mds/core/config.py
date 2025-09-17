@@ -116,7 +116,7 @@ else:
     connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?retryWrites=true"
 
 # Overwrite the existing 
-connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/admin?retryWrites=true"
+connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{settings.FAIRSCAPE_MONGO_DATABASE}?retryWrites=true"
 
 mongoClient = pymongo.MongoClient(connection_string)
 mongoDB = mongoClient[settings.FAIRSCAPE_MONGO_DATABASE]
