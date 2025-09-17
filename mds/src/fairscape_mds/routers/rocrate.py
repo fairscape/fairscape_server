@@ -10,13 +10,17 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.encoders import jsonable_encoder
+
+import uuid
+import datetime
+
 from fairscape_mds.crud.rocrate import FairscapeROCrateRequest
 
 from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.core.config import appConfig
 from fairscape_models.rocrate import ROCrateV1_2, ROCrateMetadataElem
 from fairscape_mds.deps import getCurrentUser
-from fairscape_mds.worker import processROCrate
+from fairscape_mds.worker import processROCrate, score_ai_ready_task
 
 from fairscape_models.conversion.converter import ROCToTargetConverter
 from fairscape_models.conversion.mapping.croissant import MAPPING_CONFIGURATION as CROISSANT_MAPPING
@@ -212,143 +216,109 @@ def getROCrateMetadata(
         content=response.model
     )
 
-@rocrateRouter.get("/rocrate/ai-ready-score/ark:{NAAN}/{postfix}")
-def getAIReadyScore(
+@rocrateRouter.get(
+    "/rocrate/ai-ready-score/ark:{NAAN}/{postfix}",
+    summary="Get or initiate AI-Ready Score for an RO-Crate (Public)",
+    response_description="AI-Ready Score or task status"
+)
+def get_or_create_ai_ready_score(
     NAAN: str,
     postfix: str
 ):
+    ark_id = f"ark:{NAAN}/{postfix}"
     
-    hard_coded_score = {
-        'name': 'CM4AI June 2025 Release',
-        'characterization': {
-            'data_quality': {
-                'details': 'Data quality procedures not documented',
-                'has_content': False
-            },
-            'potential_sources_of_bias': {
-                'details': 'Data in this release was derived from commercially available de-identified human cell lines, and does not represent all biological variants which may be seen in the population at large. ',
-                'has_content': True
-            },
-            'semantics': {
-                'details': 'Data is semantically described using the schema.org vocabulary within a machine-readable RO-Crate.',
-                'has_content': True
-            },
-            'standards': {
-                'details': 'This dataset adheres to the RO-Crate 1.2 and Croissant RAI 1.0 community standards.',
-                'has_content': True
-            },
-            'statistics': {
-                'details': 'Total size: 54.5 TB, Summary statistics available for 1 dataset(s)',
-                'has_content': True
+    entity = appConfig.identifierCollection.find_one({"@id": ark_id}, {"_id": 0})
+    if not entity:
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"Entity {ark_id} not found"}
+        )
+    
+    entity_type = entity.get("@type", [])
+    if isinstance(entity_type, str):
+        entity_type = [entity_type]
+    
+    if "AIReadyScore" in entity_type:
+        return JSONResponse(
+            status_code=200,
+            content=entity
+        )
+    
+    is_rocrate = any("ROCrate" in t for t in entity_type)
+    if not is_rocrate:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Entity is not an RO-Crate or AI-Ready Score"}
+        )
+    
+    if entity.get("metadata", {}).get("hasAIReadyScore"):
+        score_id = entity["metadata"]["hasAIReadyScore"].get("@id")
+        score_entity = appConfig.identifierCollection.find_one({"@id": score_id}, {"_id": 0})
+        if score_entity:
+            return JSONResponse(
+                status_code=200,
+                content=score_entity
+            )
+    
+    task_doc = appConfig.asyncCollection.find_one({
+        "task_type": "AIReadyScoring",
+        "rocrate_id": ark_id,
+        "status": {"$in": ["PENDING", "PROCESSING"]}
+    }, {"_id": 0})
+    
+    if task_doc:
+        return JSONResponse(
+            status_code=202,
+            content={
+                "message": "AI-Ready scoring in progress",
+                "task_id": task_doc["guid"],
+                "status": task_doc["status"],
+                "status_endpoint": f"/rocrate/ai-ready-score/status/{task_doc['guid']}"
             }
-        },
-        'computability': {
-            'computationally_accessible': {
-                'details': 'Data is hosted in public repositories (e.g., NCBI, MassIVE, Dataverse) that support programmatic access.',
-                'has_content': True
-            },
-            'contextualized': {
-                'details': "Context is provided by the RO-Crate's graph structure and detailed in properties such as rai:dataLimitations.",
-                'has_content': True
-            },
-            'portable': {
-                'details': 'The dataset is packaged as a self-contained RO-Crate, a standard designed for portability across systems.',
-                'has_content': True
-            },
-            'standardized': {
-                'details': 'Formats: .d, .d directory group, .tsv, .xml, TSV...',
-                'has_content': True
-            }
-        },
-        'ethics': {
-            'ethically_acquired': {
-                'details': 'Human subject info: No',
-                'has_content': True
-            },
-            'ethically_disseminated': {
-                'details': 'License: https://creativecommons.org/licenses/by-nc-sa/4.0/, Prohibited uses: These laboratory data are not to be used in clinical decision-making or in any context involving patient care without appropriate regulatory oversight and approval.',
-                'has_content': True
-            },
-            'ethically_managed': {
-                'details': 'Ethical review: Vardit Ravistky ravitskyv@thehastingscenter.org and Jean-Christophe Belisle-Pipon jean-christophe_belisle-pipon@sfu.ca., Governance: Jillian Parker; jillianparker@health.ucsd.edu',
-                'has_content': True
-            },
-            'secure': {
-                'details': 'Confidentiality level: Unrestricted',
-                'has_content': True
-            }
-        },
-        'fairness': {
-            'accessible': {
-                'details': "The RO-Crate's JSON-LD metadata is machine-readable and publicly accessible by design.",
-                'has_content': True
-            },
-            'findable': {
-                'details': 'Dataset has DOI: https://doi.org/10.18130/V3/B35XWX',
-                'has_content': True
-            },
-            'interoperable': {
-                'details': 'The dataset uses the schema.org vocabulary within the RO-Crate framework and conforms to the Croissant RAI specification for interoperability.',
-                'has_content': True
-            },
-            'reusable': {
-                'details': 'License: https://creativecommons.org/licenses/by-nc-sa/4.0/',
-                'has_content': True
-            }
-        },
-        'pre_model_explainability': {
-            'data_documentation_template': {
-                'details': "Documentation is provided via the RO-Crate's structured JSON-LD metadata, this HTML Datasheet, and Croissant RAI properties.",
-                'has_content': True
-            },
-            'fit_for_purpose': {
-                'details': 'Use cases: AI-ready datasets to support research in functional genomics, AI model training, cellular process analysis, cell architectural changes, and interactions in presence of specific disease processes, treatment conditions, or genetic perturbations. A major goal is to enable visible machine learning applications, as proposed in Ma et al. (2018) Nature Methods., Limitations: This is an interim release. It does not contain predicted cell maps, which will be added in future releases. The current release is most suitable for bioinformatics analysis of the individual datasets. Requires domain expertise for meaningful analysis.',
-                'has_content': True
-            },
-            'verifiable': {
-                'details': '0% of files have checksums (16/51797)',
-                'has_content': True
-            }
-        },
-        'provenance': {
-            'interpretable': {
-                'details': '11 software instances documented',
-                'has_content': True
-            },
-            'key_actors_identified': {
-                'details': 'Author specified, Publisher: https://dataverse.lib.virginia.edu/, PI: Trey Ideker',
-                'has_content': True
-            },
-            'traceable': {
-                'details': '1716 computation/experiment steps documented',
-                'has_content': True
-            },
-            'transparent': {
-                'details': '51771 dataset(s) documented',
-                'has_content': True
-            }
-        },
-        'sustainability': {
-            'associated': {
-                'details': "All data, software, and computations are explicitly linked within the RO-Crate's provenance graph.",
-                'has_content': True
-            },
-            'domain_appropriate': {
-                'details': 'Maintenance plan: Dataset will be regularly updated and augmented through the end of the project in November 2026, on a quarterly basis. Long term preservation in the https://dataverse.lib.virginia.edu/, supported by committed institutional funds.',
-                'has_content': True
-            },
-            'persistent': {
-                'details': 'Dataset has DOI: https://doi.org/10.18130/V3/B35XWX',
-                'has_content': True
-            },
-            'well_governed': {
-                'details': 'Governance committee: Jillian Parker; jillianparker@health.ucsd.edu',
-                'has_content': True
-            }
-        }
+        )
+    
+    task_guid = str(uuid.uuid4())
+    task_data = {
+        "guid": task_guid,
+        "task_type": "AIReadyScoring",
+        "rocrate_id": ark_id,
+        "owner_email": "system@fairscape.org",
+        "status": "PENDING",
+        "time_created": datetime.datetime.utcnow()
     }
+    
+    appConfig.asyncCollection.insert_one(task_data)
+    
+    score_ai_ready_task.delay(
+        task_guid=task_guid,
+        rocrate_id=ark_id
+    )
+    
+    return JSONResponse(
+        status_code=202,
+        content={
+            "message": "AI-Ready scoring initiated",
+            "task_id": task_guid,
+            "status_endpoint": f"/rocrate/ai-ready-score/status/{task_guid}"
+        }
+    )
+
+@rocrateRouter.get(
+    "/rocrate/ai-ready-score/status/{task_id}",
+    summary="Get status of AI-Ready Score task (Public)"
+)
+def get_ai_ready_score_status(
+    task_id: str
+):
+    task_doc = appConfig.asyncCollection.find_one({"guid": task_id}, {"_id": 0})
+    
+    if not task_doc:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Task not found"}
+        )
     
     return JSONResponse(
         status_code=200,
-        content=hard_coded_score
+        content=task_doc
     )
