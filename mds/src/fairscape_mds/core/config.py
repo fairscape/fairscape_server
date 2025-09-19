@@ -13,7 +13,6 @@ import pymongo
 import pathlib
 
 
-
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
             #env_file=".env",
@@ -52,12 +51,6 @@ class Settings(BaseSettings):
     FAIRSCAPE_ADMIN_GROUP: str
 
     FAIRSCAPE_BASE_URL: str
-
-# TODO handle .env file for settings
-#if pathlib.Path("~/.env").exists():
-#   dotenv.load_env("~/.env")
-#   Settings(**os.env)
-settings = Settings()
 
 
 class FairscapeConfig():
