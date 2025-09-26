@@ -27,6 +27,7 @@ import uuid
 import pathlib
 import datetime
 import re
+import botocore
 
 # ROCrate Helper Functions
 
@@ -72,47 +73,69 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		
 		uploadPath = f"{self.config.minioDefaultPath}/{userEmailPath}/rocrates/{rocrateFilename}"
 
-		# upload zip to minio
-		# Reset file position to beginning before upload
-		rocrate.file.seek(0)
-		
-		uploadOperationResult = self.config.minioClient.upload_fileobj(
-				Bucket = self.config.minioBucket,
-				Key = str(uploadPath),
-				Fileobj = rocrate.file,
-				ExtraArgs = {'ContentType': 'application/zip'}
-		)
-
-		transactionGUID = uuid.uuid4()
-		
-		uploadRequestInstance = ROCrateUploadRequest.model_validate({
-			"guid": str(transactionGUID),
-   		"transactionFolder": str(transactionGUID),
-			"permissions": userInstance.getPermissions(),
-			"uploadPath": str(uploadPath)
-		})
-		# create record in the async collection
-		insertResult = self.config.asyncCollection.insert_one(
-			uploadRequestInstance.model_dump(mode='json')
-		)
-
-		# TODO check insert result
-
-		# return a response
-		response = FairscapeResponse(
-			success=True, 
-			statusCode=200, 
-			model=uploadRequestInstance
+		# check that object doesn't already exist
+		try:
+			self.config.minioClient.head_object(
+				Bucket=self.config.minioBucket,
+				Key=uploadPath
 			)
 
-		return response
+		# minio should not have an existing rocrate on this path
+		except botocore.exceptions.ClientError:	
+
+			# create a metadata record
+			transactionGUID = uuid.uuid4()
+			
+			uploadRequestInstance = ROCrateUploadRequest.model_validate({
+				"guid": str(transactionGUID),
+				"transactionFolder": str(transactionGUID),
+				"permissions": userInstance.getPermissions(),
+				"uploadPath": str(uploadPath)
+			})
+
+			# TODO check insert result
+			# create record in the async collection
+			insertResult = self.config.asyncCollection.insert_one(
+				uploadRequestInstance.model_dump(mode='json')
+			)
+			
+			rocrate.file.seek(0)
+			
+			uploadOperationResult = self.config.minioClient.upload_fileobj(
+					Bucket = self.config.minioBucket,
+					Key = str(uploadPath),
+					Fileobj = rocrate.file,
+					ExtraArgs = {'ContentType': 'application/zip'}
+			)
+
+
+			# return a response
+			response = FairscapeResponse(
+				success=True, 
+				statusCode=200, 
+				model=uploadRequestInstance
+				)
+
+			return response
+
+		else:
+			return FairscapeResponse(
+				success=False, 
+				statusCode=400, 
+				error={
+					"message": "rocrate already exists, rename rocrate",
+					"path": uploadPath
+				})
+
 
 
 	def processTaskWriteDatasets(
 		self,
 		userInstance: UserWriteModel, 
 		rocrateInstance: ROCrateV1_2, 
-		objectList
+		uploadPath: str,
+		includeStem: bool,
+		stem: str = None
 	):
 		""" Write ROCrate metadata to identifier collection for all dataset elements.
 
@@ -120,7 +143,8 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				identifierCollection (pymongo.synchronous.collection.Collection): Collection to insert Identifier metadata
 				userInstance (UserWriteModel): User Record for the user inserting the metadata
 				rocrateInstance (fairscape_models.rocrate.ROCratev1_2): ROCrate Metadata as a pydantic model
-				objectList (List[dict]): Content for the Zipped ROCrate from the s3 object_list_v1 call 
+				includeStem (bool):  look for object keys at the stemmed path
+				stem (str): the stem of the folder path, the name of the top level folder
 
 		Returns:
 				List[str]: List of All Dataset Identifiers Minted
@@ -188,7 +212,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						mode='json'
 					)
 
-				if 'http://' in datasetElem.contentUrl:
+				if 'http://' in datasetElem.contentUrl or 'https://' in datasetElem.contentUrl:
 					# create distribution for metadata
 					distribution = DatasetDistribution.model_validate({
 							"distributionType": 'url',
@@ -213,37 +237,32 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 				if 'file:///' in datasetElem.contentUrl:	
 					# match the metadata path to content
-					datasetCratePath = datasetElem.contentUrl.lstrip('file:///')
-				
-					# filter function to match content url to key
-					matchedElementList = list(
-							filter(
-							lambda x: datasetCratePath in x.get('Key'),
-							objectList
-							)
-					)
+					contentUrlKey = datasetElem.contentUrl.lstrip("file:///")
 
-					# TODO handle errors for multiple files matching
-
-					# TODO handle errors for no file matching
-					if len(matchedElementList)>0:
-						matchedElement = matchedElementList[0]
+					# if file in datasetInstance
+					if includeStem:
+						objectKey = f"{uploadPath}/{stem}/{contentUrlKey}"
 					else:
-						# TODO handle error for content not found in the rocrate
-						# continue
-						pass
-				
-					# create metadata record to insert 
-					objectSize = matchedElement.get('Size')
-					objectPath = matchedElement.get('Key')
-			
+						objectKey = f"{uploadPath}/{contentUrlKey}"
+
+					try:
+						response = self.config.minioClient.head_object(
+							Bucket= self.config.minioBucket,
+							Key=objectKey
+						)
+						
+					except botocore.exceptions.ClientError as e:	
+						raise Exception(f"message: Object Key Not Found\tkey: {objectKey}\tbucket: {self.config.minioBucket}")
+
+					objectSize = response.get("ContentLength")
+						
 					# Update contentUrl for created dataset
 					datasetElem.contentUrl = f"{baseUrl}/dataset/download/{datasetElem.guid}"
 					
 					# create distribution for metadata
 					distribution = DatasetDistribution.model_validate({
 							"distributionType": 'minio',
-							"location": {"path": objectPath}
+							"location": {"path": objectKey}
 							})
 						
 					outputDataset = StoredIdentifier.model_validate({
@@ -452,7 +471,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
         	{"guid": transactionGUID},
         	{"$set": 
             	{
-                	"stage": "processing metadata"
+                	"stage": "starting job"
             	}
         	}
     	)
@@ -466,30 +485,73 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		else:
 			zippedCratePath = zippedCratePath + "/"
 
-		rocrateContents = self.getROCrateContentsMinio(
-			zippedCratePath
-		)
+		# get rocrate metadata
+		uploadPathString = uploadInstance.uploadPath
 
-		try:
-			roCrateModel = self.processTaskGetMetadata(rocrateContents)
+		if not uploadPathString:
+			raise Exception(
+				"ROCrate Upload Job Missing Upload Path Property"
+				)
 
-		except json.JSONDecodeError as e:
-			print(f"JSONDecodeError: {str(e)}")
 
-			self.config.asyncCollection.update_one(
-				{"guid": transactionGUID},
-				{"$set": 
-					{
-						"stage": "reading metadata",
-						"error": str(e),
-						"timeFinished": datetime.datetime.now(),
-						"success": False,
-						"completed": True
+		jobUploadPath = pathlib.PurePosixPath(uploadInstance.uploadPath)
+		baseDirectory = uploadInstance.uploadPath 
+		metadataKey = baseDirectory + "/ro-crate-metadata.json"
+		metadataFound = False
+		stem = jobUploadPath.stem
+		includeStem = False
+
+
+		try: 
+			s3Response = self.config.minioClient.get_object(
+				Bucket = self.config.minioBucket,
+				Key = metadataKey
+			)
+			metadataFound = True
+		except self.config.minioClient.exceptions.NoSuchKey:
+			metadataFound = False
+
+		if not metadataFound:
+
+			metadataKey = f"{baseDirectory}/{jobUploadPath.stem}/ro-crate-metadata.json"
+
+			try: 
+				s3Response = self.config.minioClient.get_object(
+					Bucket = self.config.minioBucket,
+					Key = metadataKey
+				)
+				metadataFound = True
+			except self.config.minioClient.exceptions.NoSuchKey:
+				metadataFound = False
+
+		if metadataFound:
+			includeStem = True
+			try:
+				content = s3Response['Body']
+				roCrateJSON = json.loads(content.read())
+
+			except json.JSONDecodeError as e:
+
+				self.config.asyncCollection.update_one(
+					{"guid": transactionGUID},
+					{"$set": 
+						{
+							"stage": "reading metadata",
+							"error": str(e),
+							"timeFinished": datetime.datetime.now(),
+							"success": False,
+							"completed": True
+						}
 					}
-				}
-			)	
-			return None
+				)	
+				raise Exception("Failed to Decode Metadata JSON")
 
+		else:
+			raise Exception("Metadata Not Found in RO-Crate")
+
+		# validate
+		try:
+			roCrateModel = ROCrateV1_2.model_validate(roCrateJSON)
 		except pydantic.ValidationError as e:
 			print(f"ValidationError: {str(e)}")
 			traceback.print_exc()
@@ -512,6 +574,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 		crateMetadataElem = roCrateModel.getCrateMetadata()
 
+
 		# if a terminating backslash is present on the identifier trim
 		# TODO apply to all identifiers
 		if crateMetadataElem.guid.endswith("/"):
@@ -529,23 +592,62 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			}
 		)	
 
-		# write dataset records
-		datasetGUIDS = self.processTaskWriteDatasets(
-			foundUser, 
-			roCrateModel, 
-			rocrateContents
-		)
-		
+		# check identifier conflicts	
 		self.config.asyncCollection.update_one(
 			{"guid": transactionGUID},
 			{"$set": 
 				{
-					"stage": "publishing metadata",
-					"identifiersMinted": datasetGUIDS
+					"stage": "checking for identifier conflicts",
 				}
 			}
-    )
+		)	
 
+		# check for ROCrate identifier conflict
+		foundROCrateMetadata = self.config.identifierCollection.find_one({
+			"@id": roCrateGUID
+		})
+
+		if foundROCrateMetadata:
+			# check identifier conflicts	
+			self.config.asyncCollection.update_one(
+				{"guid": transactionGUID},
+				{"$set": 
+					{
+						"timeFinished": datetime.datetime.now(),
+						"complete": "True",
+						"success": "False",
+						"error": "Found Identifier Conflict for ROCrate"
+					}
+				}
+			)	
+
+			# clean up job
+			self.config.minioClient.delete_object(
+				Bucket=self.config.minioBucket,
+				Key=uploadInstance.uploadPath
+			)
+
+			raise Exception(f"ROCrate Identifier Conflict: {roCrateGUID}")
+
+
+		self.config.asyncCollection.update_one(
+			{"guid": transactionGUID},
+			{"$set": 
+				{
+					"stage": "minting datasets",
+				}
+			}
+		)	
+
+		# write dataset records
+		datasetGUIDS = self.processTaskWriteDatasets(
+			foundUser, 
+			roCrateModel, 
+			uploadInstance.uploadPath,
+			includeStem,
+			stem
+		)
+		
 		# write metadata elements
 		nonDatasetGUIDS = self.processTaskWriteMetadataElements(
 				foundUser,

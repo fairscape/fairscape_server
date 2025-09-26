@@ -17,4 +17,4 @@ ENV PATH="/fairscape/src/.venv/bin:$PATH"
 WORKDIR /fairscape/src/
 
 # run using uvicorn
-CMD ["uv", "run", "uvicorn", "fairscape_mds.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uv", "run", "uvicorn", "fairscape_mds.main:app","--no-access-log", "--host", "0.0.0.0", "--port", "8080"]

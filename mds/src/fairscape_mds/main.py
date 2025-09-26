@@ -11,15 +11,10 @@ from fairscape_mds.routers.evidence_graph import router as evidence_graph_router
 from fairscape_mds.routers.search import router as search_router
 from fairscape_mds.routers.publish import publishRouter
 
-from fastapi import FastAPI, Depends, HTTPException, Path, UploadFile, Form, File
-from fastapi.encoders import jsonable_encoder
-from fastapi.exceptions import HTTPException
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
-from fastapi.responses import JSONResponse, StreamingResponse
+from fairscape_mds.core.logging import requestLogger
+
 from fastapi.middleware.cors import CORSMiddleware 
-from typing import Annotated
-import pathlib
-import mimetypes
+from fastapi import FastAPI, Request
 
 
 app = FastAPI(
@@ -36,6 +31,26 @@ app.add_middleware(
     allow_methods=["*"], 
     allow_headers=["*"],
 )
+
+
+@app.middleware('http')
+def LogRequestMiddleware(
+    request: Request,
+    call_next
+):
+    # track user agent
+    requestPath = request.url.path
+    requestUserAgent = request.headers.get("User-Agent")
+    if request.client:
+        requestClientAddress = request.client.host
+    else:
+        requestClientAddress = None
+
+    #log the request
+    requestLogger.info(f"Path: {requestPath}\tUserAgent: {requestUserAgent}\tIP: {requestClientAddress}")
+
+    response = call_next(request)
+    return response
 
 app.include_router(resolverRouter)
 app.include_router(authRouter)

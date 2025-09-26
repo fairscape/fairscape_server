@@ -15,7 +15,7 @@ import pathlib
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-            #env_file=".env",
+            env_file=".env",
             env_ignore_empty=True,
             extra="ignore"
         )
@@ -87,7 +87,7 @@ class FairscapeConfig():
 		minioStr = f"Minio:\n\tMinioClient: {self.minioClient}\n\tBucket: {self.minioBucket}\n\tDefaultPath: {self.minioDefaultPath}"
 		return f"Backend Configuration Object:\n{minioStr}"
 
-
+settings = Settings()
 
 # TODO clean up client string generation
 mongoUser = settings.FAIRSCAPE_MONGO_ACCESS_KEY
@@ -108,8 +108,11 @@ if mongoAuthDatabaseName:
 else:
     connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?retryWrites=true"
 
-# Overwrite the existing 
+# Overwrite the existing connection
 connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{settings.FAIRSCAPE_MONGO_DATABASE}?retryWrites=true"
+
+# local overwrite
+connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/"
 
 mongoClient = pymongo.MongoClient(connection_string)
 mongoDB = mongoClient[settings.FAIRSCAPE_MONGO_DATABASE]
