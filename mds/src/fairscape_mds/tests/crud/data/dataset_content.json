@@ -1,0 +1,23 @@
+{
+	"@id": "ark:59853/dataset-content-test-example",
+	"@type": "https://w3id.org/EVI#Dataset",
+	"name": "Example Metadata Only Dataset",
+	"author": "John Doe",
+	"datePublished": "08/27/2025",
+	"additionalType": "Dataset",
+	"version": "0.1.0",
+	"description": "A blank dataset metadata example",
+	"keywords": [
+		"test",
+		"example",
+		"FAIR"
+	],
+	"associatedPublication": null,
+	"additionalDocumentation": null,
+	"format": "text/csv",
+	"evi:Schema": null,
+	"generatedBy": [],
+	"derivedFrom": [],
+	"usedByComputation": [],
+	"contentUrl": null
+}
