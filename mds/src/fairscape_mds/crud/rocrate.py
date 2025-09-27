@@ -784,9 +784,12 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 
 	def getROCrateMetadataElem(self, rocrateGUID: str):
-		rocrateMetadata = self.config.identifierCollection.find_one({
+		rocrateMetadata = self.config.identifierCollection.find_one(
+			{
 				"@id": rocrateGUID
-		})
+			},
+			projection={"_id": False}
+		)
 		
 		# if no metadata is found return 404
 		if not rocrateMetadata:
