@@ -1,12 +1,20 @@
-from fastapi import APIRouter, Header
+from fastapi import (
+	APIRouter, 
+	Header,
+    Depends
+)
 from fastapi.responses import JSONResponse, Response
 from fairscape_mds.crud.resolver import FairscapeResolverRequest
 from fairscape_mds.core.config import appConfig
-from typing import Optional
+from fairscape_mds.crud.identifier import IdentifierRequest, MetadataUnion
+from fairscape_mds.models.user import UserWriteModel
+from fairscape_mds.deps import getCurrentUser
+from typing import Optional, Annotated
 import json
 from rdflib import Graph
 
 resolverRequest = FairscapeResolverRequest(appConfig)
+identifierRequest = IdentifierRequest(appConfig)
 resolverRouter = APIRouter(prefix="", tags=['evi', 'rocrate'])
 
 @resolverRouter.get("/ark:{NAAN}/{postfix}")
@@ -55,3 +63,65 @@ def resolveARK(
             status_code=response.statusCode,
             media_type="application/json"
         )
+
+
+@resolverRouter.put("/ark:{NAAN}/{postfix}")
+def updateARK(
+	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
+    NAAN: str,
+    postfix: str,
+    newMetadata: MetadataUnion
+):
+    fullArk = f"ark:{NAAN}/{postfix}"
+
+    updateResponse = identifierRequest.updateMetadata(
+        guid=fullArk,
+        user=currentUser,
+        newMetadata=newMetadata
+    )
+
+    if not updateResponse.success:
+        return JSONResponse(
+            status_code = updateResponse.statusCode,
+            content = updateResponse.error
+        )
+
+    else:
+        return JSONResponse(
+            status_code = updateResponse.statusCode,
+            content = updateResponse.jsonResponse
+        )
+
+
+@resolverRouter.delete("/ark:{NAAN}/{postfix}")
+def deleteARK(
+	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
+    NAAN: str,
+    postfix: str,
+    force: str | None = None,
+):
+    fullArk = f"ark:{NAAN}/{postfix}"
+
+    if force == "true":
+        queryForceDelete = True
+    else:
+        queryForceDelete = False
+
+    deleteResponse = identifierRequest.deleteIdentifier(
+        guid = fullArk,
+        forceDelete = queryForceDelete, 
+        user = currentUser
+    )
+
+    if deleteResponse.success:
+        return JSONResponse(
+            status_code = deleteResponse.statusCode,
+            content= deleteResponse.jsonResponse
+        )
+    else:
+        return JSONResponse(
+            status_code = deleteResponse.statusCode,
+            content= deleteResponse.error
+        )
+
+

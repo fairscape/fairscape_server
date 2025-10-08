@@ -1,10 +1,18 @@
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.models.user import UserWriteModel, checkPermissions
-from fairscape_mds.models.identifier import StoredIdentifier, MetadataTypeEnum, PublicationStatusEnum, UpdatePublishRequest
+from fairscape_mds.models.identifier import (
+	StoredIdentifier, 
+	MetadataTypeEnum, 
+	PublicationStatusEnum, 
+	UpdatePublishRequest, 
+	determineMetadataType
+)
 from fairscape_mds.models.dataset import DistributionTypeEnum
 from pydantic import ValidationError
 from typing import Optional
+import datetime
+from pymongo import ReturnDocument
 
 
 class IdentifierRequest(FairscapeRequest):
@@ -136,31 +144,177 @@ class IdentifierRequest(FairscapeRequest):
 		)
 
 
-
 	def listType(
 		self, 
 		requestType: MetadataTypeEnum, 
 		user: Optional[UserWriteModel]
 	)->FairscapeResponse:
 
-		#cursor = self.identifierCollection.find({"@type": requestType})
+		# public identifiers
+		publishedIdentifiers = self.config.identifierCollection.find(
+			{
+				"@type": requestType, 
+				"publicationStatus": PublicationStatusEnum.PUBLISHED 
+			},
+			projection={"_id": False}
+		)
+
+		if user:
+			# users identifiers
+			usersIdentifiers = self.config.identifierCollection.find(
+				{
+					"@type": requestType, 
+					"permissions.owner": user.email
+				},
+				projection={"_id": False}
+			)
+
+			identifiers = list(usersIdentifiers) +  list(publishedIdentifiers)
+		
+		else:
+			identifiers = list(publishedIdentifiers)
 
 		return FairscapeResponse(
-			success=False,
-			statusCode=400,
-			error={"error": "not implemented"}
+			success=True,
+			statusCode=200,
+			model=identifiers
 		)
 
 
 	def listPublished(self)->FairscapeResponse:
-		pass
+		identifiers = self.config.identifierCollection.find(
+			{"publicationStatus": PublicationStatusEnum.PUBLISHED}, 
+			projection={"_id": False}
+		)
+
+		return FairscapeResponse(success=True, statusCode=200, model=list(identifiers))
 
 
-	def updateMetadata(self):
-		pass
+	def updateMetadata(
+			self, 
+			guid: str,
+			user: UserWriteModel,
+			newMetadata
+		):
 
-	def deleteIdentifier(self):
-		pass
+		# check if identifier exists
+		foundMetadata = self.config.identifierCollection.find_one(
+			{"@id": guid},
+			projection={"_id": False}
+		)
+
+		if not foundMetadata:
+			return FairscapeResponse(
+				statusCode=404,
+				success=False,
+				error= {"error": "identifier not found"}
+			)
+
+		# check if user can update the identifier
+		metadataOwner = foundMetadata.get("permissions", {}).get("owner")
+
+		if user.email != metadataOwner:
+			return FairscapeResponse(
+				statusCode=401,
+				success=False,
+				error={"error": "unauthorized to update"}
+			)
+
+		# TODO set up validation for specific types
+		newMetadataType = newMetadata.metadataType
+		if not newMetadataType:
+			return FairscapeResponse(
+				statusCode=400,
+				success=False,
+				error={"error": "replacement metadata missing '@type' property"}
+			)
+
+		try:
+			metadataType = determineMetadataType(newMetadataType)
+		except:
+			return FairscapeResponse(
+				statusCode=400,
+				success=False,
+				error={"error": "replacement metadata missing '@type' property"}
+			)
+
+		# TODO validate metadata type of update
+
+		updateResult = self.config.identifierCollection.find_one_and_update(
+			{"@id": guid},
+			{
+				"$set": {
+					"metadata": newMetadata.model_dump(by_alias=True, mode="json"),
+					"dateModified": datetime.datetime.now()
+				}
+			},
+			return_document=ReturnDocument.AFTER
+		)
+
+		return FairscapeResponse(
+			statusCode=200,
+			success=True,
+			jsonResponse=updateResult
+		)
+
+
+
+	def deleteIdentifier(
+		self,
+		guid: str,
+		forceDelete: bool, 
+		user: UserWriteModel
+		)->FairscapeResponse:
+
+		# check if identifier exists
+		foundMetadata = self.config.identifierCollection.find_one(
+			{"@id": guid},
+			projection={"_id": False}
+		)
+
+		if not foundMetadata:
+			return FairscapeResponse(
+				statusCode=404,
+				success=False,
+				error= {"error": "identifier not found"}
+			)
+
+		# check if user has permissions
+		metadataOwner = foundMetadata.get("permissions", {}).get("owner")
+
+		if user.email != metadataOwner:
+			return FairscapeResponse(
+				statusCode=401,
+				success=False,
+				error={"error": "user not allowed to delete identifier"}
+			)
+
+		if forceDelete:
+
+			# depending on metadata type 
+
+			# if rocrate
+
+			# if dataset
+
+			# else
+
+
+			return FairscapeResponse(
+				success=True,
+				statusCode=200,
+				jsonResponse=foundMetadata
+			)
+
+		else:
+			# set the metadata to publication status archive	
+
+			return FairscapeResponse(
+				success=True,
+				statusCode=200,
+				jsonResponse=foundMetadata
+			)
+
 
 
 def getStoredIdentifier(identifierCollection, guid: str)->FairscapeResponse:
