@@ -6,6 +6,14 @@ from fairscape_mds.crud.rocrate import FairscapeROCrateRequest
 from fairscape_mds.models.user import UserWriteModel
 
 from fairscape_mds.crud.evidence_graph import FairscapeEvidenceGraphRequest
+from fairscape_mds.crud.AIReady import FairscapeAIReadyScoreRequest
+
+from fairscape_models.conversion.models.AIReady import AIReadyScore
+from fairscape_models.conversion.mapping.AIReady import (
+    _score_fairness, _score_provenance, _score_characterization,
+    _score_pre_model, _score_ethics, _score_sustainability,
+    _score_computability
+)
 
 rocrateRequests = FairscapeROCrateRequest(appConfig)
 evidenceGraphRequests = FairscapeEvidenceGraphRequest(appConfig)
@@ -87,6 +95,107 @@ def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, 
         )
         return {"status": "FAILURE", "error": {"message": "An unexpected server error occurred."}}
 
+@celeryApp.task(name='fairscape_mds.worker.score_ai_ready_task', bind=True)
+def score_ai_ready_task(self, task_guid: str, rocrate_id: str):
+    print(f"Starting AI-Ready Scoring Task: {task_guid} for {rocrate_id}")
+    
+    try:
+        appConfig.asyncCollection.update_one(
+            {"guid": task_guid},
+            {"$set": {
+                "status": "PROCESSING",
+                "time_started": datetime.datetime.utcnow()
+            }}
+        )
+        
+        ai_ready_request = FairscapeAIReadyScoreRequest(appConfig)
+        
+        metadata_graph = ai_ready_request.build_metadata_graph_for_rocrate(rocrate_id)
+        
+        if not metadata_graph:
+            error_msg = f"No metadata found for RO-Crate {rocrate_id}"
+            appConfig.asyncCollection.update_one(
+                {"guid": task_guid},
+                {"$set": {
+                    "status": "FAILURE",
+                    "error": {"message": error_msg},
+                    "time_finished": datetime.datetime.utcnow()
+                }}
+            )
+            return {"status": "FAILURE", "error": error_msg}
+        
+        root_data = None
+        for entity in metadata_graph:
+            if entity.get("@id") == rocrate_id:
+                root_data = entity
+                break
+        
+        if not root_data:
+            error_msg = f"Root entity not found for {rocrate_id}"
+            appConfig.asyncCollection.update_one(
+                {"guid": task_guid},
+                {"$set": {
+                    "status": "FAILURE",
+                    "error": {"message": error_msg},
+                    "time_finished": datetime.datetime.utcnow()
+                }}
+            )
+            return {"status": "FAILURE", "error": error_msg}
+        
+        score = AIReadyScore()
+        _score_fairness(score.fairness, root_data)
+        _score_provenance(score.provenance, root_data, metadata_graph)
+        _score_characterization(score.characterization, root_data, metadata_graph)
+        _score_pre_model(score.pre_model_explainability, root_data, metadata_graph)
+        _score_ethics(score.ethics, root_data)
+        _score_sustainability(score.sustainability, root_data)
+        _score_computability(score.computability, metadata_graph)
+        
+        response = ai_ready_request.create_ai_ready_score(
+            rocrate_id=rocrate_id,
+            score=score,
+            owner_email="system@fairscape.org"
+        )
+        
+        if response.success:
+            score_id = response.model["@id"]
+            print(f"Successfully created AI-Ready Score {score_id} for {rocrate_id}")
+            appConfig.asyncCollection.update_one(
+                {"guid": task_guid},
+                {"$set": {
+                    "status": "SUCCESS",
+                    "result": {"ai_ready_score_id": score_id},
+                    "time_finished": datetime.datetime.utcnow()
+                }}
+            )
+            return {"status": "SUCCESS", "ai_ready_score_id": score_id}
+        else:
+            error_detail = response.error if isinstance(response.error, dict) else {"message": str(response.error)}
+            print(f"Failed to create AI-Ready Score for {rocrate_id}: {error_detail}")
+            appConfig.asyncCollection.update_one(
+                {"guid": task_guid},
+                {"$set": {
+                    "status": "FAILURE",
+                    "error": error_detail,
+                    "time_finished": datetime.datetime.utcnow()
+                }}
+            )
+            return {"status": "FAILURE", "error": error_detail}
+        
+    except Exception as e:
+        import traceback
+        error_msg = f"Unexpected error in score_ai_ready_task: {str(e)}"
+        print(error_msg)
+        traceback.print_exc()
+        appConfig.asyncCollection.update_one(
+            {"guid": task_guid},
+            {"$set": {
+                "status": "FAILURE",
+                "error": {"message": "An unexpected error occurred", "details": str(e)},
+                "time_finished": datetime.datetime.utcnow()
+            }}
+        )
+        return {"status": "FAILURE", "error": {"message": "An unexpected server error occurred"}}
 
 if __name__ == '__main__':
     args = ['worker', '--loglevel=INFO']

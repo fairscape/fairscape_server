@@ -10,13 +10,17 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.encoders import jsonable_encoder
+
+import uuid
+import datetime
+
 from fairscape_mds.crud.rocrate import FairscapeROCrateRequest
 
 from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.core.config import appConfig
 from fairscape_models.rocrate import ROCrateV1_2, ROCrateMetadataElem
 from fairscape_mds.deps import getCurrentUser
-from fairscape_mds.worker import processROCrate
+from fairscape_mds.worker import processROCrate, score_ai_ready_task
 
 from fairscape_models.conversion.converter import ROCToTargetConverter
 from fairscape_models.conversion.mapping.croissant import MAPPING_CONFIGURATION as CROISSANT_MAPPING
@@ -210,4 +214,111 @@ def getROCrateMetadata(
     return JSONResponse(
         status_code=200,
         content=response.model
+    )
+
+@rocrateRouter.get(
+    "/rocrate/ai-ready-score/ark:{NAAN}/{postfix}",
+    summary="Get or initiate AI-Ready Score for an RO-Crate (Public)",
+    response_description="AI-Ready Score or task status"
+)
+def get_or_create_ai_ready_score(
+    NAAN: str,
+    postfix: str
+):
+    ark_id = f"ark:{NAAN}/{postfix}"
+    
+    entity = appConfig.identifierCollection.find_one({"@id": ark_id}, {"_id": 0})
+    if not entity:
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"Entity {ark_id} not found"}
+        )
+    
+    entity_type = entity.get("@type", [])
+    if isinstance(entity_type, str):
+        entity_type = [entity_type]
+    
+    if "AIReadyScore" in entity_type:
+        return JSONResponse(
+            status_code=200,
+            content=entity
+        )
+    
+    is_rocrate = any("ROCrate" in t for t in entity_type)
+    if not is_rocrate:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Entity is not an RO-Crate or AI-Ready Score"}
+        )
+    
+    if entity.get("metadata", {}).get("hasAIReadyScore"):
+        score_id = entity["metadata"]["hasAIReadyScore"].get("@id")
+        score_entity = appConfig.identifierCollection.find_one({"@id": score_id}, {"_id": 0})
+        if score_entity:
+            return JSONResponse(
+                status_code=200,
+                content=score_entity
+            )
+    
+    task_doc = appConfig.asyncCollection.find_one({
+        "task_type": "AIReadyScoring",
+        "rocrate_id": ark_id,
+        "status": {"$in": ["PENDING", "PROCESSING"]}
+    }, {"_id": 0})
+    
+    if task_doc:
+        return JSONResponse(
+            status_code=202,
+            content={
+                "message": "AI-Ready scoring in progress",
+                "task_id": task_doc["guid"],
+                "status": task_doc["status"],
+                "status_endpoint": f"/rocrate/ai-ready-score/status/{task_doc['guid']}"
+            }
+        )
+    
+    task_guid = str(uuid.uuid4())
+    task_data = {
+        "guid": task_guid,
+        "task_type": "AIReadyScoring",
+        "rocrate_id": ark_id,
+        "owner_email": "system@fairscape.org",
+        "status": "PENDING",
+        "time_created": datetime.datetime.utcnow()
+    }
+    
+    appConfig.asyncCollection.insert_one(task_data)
+    
+    score_ai_ready_task.delay(
+        task_guid=task_guid,
+        rocrate_id=ark_id
+    )
+    
+    return JSONResponse(
+        status_code=202,
+        content={
+            "message": "AI-Ready scoring initiated",
+            "task_id": task_guid,
+            "status_endpoint": f"/rocrate/ai-ready-score/status/{task_guid}"
+        }
+    )
+
+@rocrateRouter.get(
+    "/rocrate/ai-ready-score/status/{task_id}",
+    summary="Get status of AI-Ready Score task (Public)"
+)
+def get_ai_ready_score_status(
+    task_id: str
+):
+    task_doc = appConfig.asyncCollection.find_one({"guid": task_id}, {"_id": 0})
+    
+    if not task_doc:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Task not found"}
+        )
+    
+    return JSONResponse(
+        status_code=200,
+        content=task_doc
     )
