@@ -78,6 +78,9 @@ def test_update_identifier(
 	assert response.success
 	assert response.statusCode == 200
 
+	assert isinstance(response.model, StoredIdentifier)
+	assert response.model
+
 
 #def test_delete_identifier():
 #	pass

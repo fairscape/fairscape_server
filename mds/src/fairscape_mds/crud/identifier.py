@@ -248,13 +248,16 @@ class IdentifierRequest(FairscapeRequest):
 					"dateModified": datetime.datetime.now()
 				}
 			},
+			projection = {"_id": False},
 			return_document=ReturnDocument.AFTER
 		)
+
+		updatedIdentifier = StoredIdentifier.model_validate(updateResult)
 
 		return FairscapeResponse(
 			statusCode=200,
 			success=True,
-			jsonResponse=updateResult
+			model=updatedIdentifier
 		)
 
 
@@ -279,8 +282,10 @@ class IdentifierRequest(FairscapeRequest):
 				error= {"error": "identifier not found"}
 			)
 
+		foundIdentifier = StoredIdentifier.validate(foundMetadata)
+
 		# check if user has permissions
-		metadataOwner = foundMetadata.get("permissions", {}).get("owner")
+		metadataOwner = foundIdentifier.permissions.owner
 
 		if user.email != metadataOwner:
 			return FairscapeResponse(

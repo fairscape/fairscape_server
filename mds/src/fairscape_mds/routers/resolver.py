@@ -89,7 +89,7 @@ def updateARK(
     else:
         return JSONResponse(
             status_code = updateResponse.statusCode,
-            content = updateResponse.jsonResponse
+            content = updateResponse.model.model_dump(by_alias=True, mode="json")
         )
 
 
