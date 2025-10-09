@@ -761,26 +761,75 @@ class FairscapeROCrateRequest(FairscapeRequest):
 					error={"message": "user unauthorized to view upload status"}
 			)
 
+	def _build_rocrate_structure(self, root_guid: str, root_metadata: dict, parts: list) -> dict:
+		context = {
+			"@vocab": "https://schema.org/",
+			"EVI": "https://w3id.org/EVI#",
+			"rai":"http://mlcommons.org/croissant/RAI/"
+		}
+		
+		graph = [
+			{
+				"@id": "ro-crate-metadata.json",
+				"@type": "CreativeWork",
+				"conformsTo": {"@id": "https://w3id.org/ro/crate/1.2"},
+				"about": {"@id": root_guid}
+			},
+			root_metadata
+		]
+		
+		graph.extend(parts)
+		
+		return {
+			"@context": context,
+			"@graph": graph
+		}
 
 	def getROCrateMetadata(self, rocrateGUID: str):
-		rocrateMetadata = self.config.rocrateCollection.find_one(
-        {"@id": rocrateGUID},
-        projection={"_id": False}
-        )
+		root_doc = self.config.identifierCollection.find_one(
+			{"@id": rocrateGUID},
+			projection={"_id": False}
+		)
 		
-		# if no metadata is found return 404
-		if not rocrateMetadata:
+		if not root_doc:
 			return FairscapeResponse(
-					success=False,
-					statusCode=404,
-					error={"message": "rocrate not found"}
+				success=False,
+				statusCode=404,
+				error={"message": "rocrate not found"}
 			)
-		else:
+		
+		root_metadata = root_doc.get("metadata", {})
+		
+		has_part = root_metadata.get("hasPart", [])
+		
+		if not has_part:
+			rocrate_doc = self._build_rocrate_structure(rocrateGUID, root_metadata, [])
 			return FairscapeResponse(
-					success=True,
-					model=rocrateMetadata,
-					statusCode=200
+				success=True,
+				statusCode=200,
+				model=rocrate_doc
 			)
+		
+		part_guids = [part.get("@id") for part in has_part if part.get("@id")]
+		
+		parts_cursor = self.config.identifierCollection.find(
+			{"@id": {"$in": part_guids}},
+			projection={"_id": False}
+		)
+		
+		parts_metadata = []
+		for part_doc in parts_cursor:
+			part_metadata = part_doc.get("metadata", {})
+			if part_metadata:
+				parts_metadata.append(part_metadata)
+		
+		rocrate_doc = self._build_rocrate_structure(rocrateGUID, root_metadata, parts_metadata)
+		
+		return FairscapeResponse(
+			success=True,
+			statusCode=200,
+			model=rocrate_doc
+		)
 
 
 	def getROCrateMetadataElem(self, rocrateGUID: str):
