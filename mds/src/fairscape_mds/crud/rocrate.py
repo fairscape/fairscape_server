@@ -1096,20 +1096,23 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			Lists RO-Crates based on user permissions.
 			Admins see all crates. Regular users see crates they own or that belong to their primary group.
 			"""
-			query: Dict[str, Any] = {}
+			query: Dict[str, Any] = {
+				"@type": "https://w3id.org/EVI#ROCrate"
+			}
+			
 			is_admin = self.config.adminGroup in requestingUser.groups
 
 			if not is_admin:
 				user_primary_group = requestingUser.groups[0] if requestingUser.groups else None
 				
-				or_conditions = [{"owner": requestingUser.email}]
+				or_conditions = [{"permissions.owner": requestingUser.email}]
 				if user_primary_group:
 					or_conditions.append({"permissions.group": user_primary_group})
 				
 				query["$or"] = or_conditions
 			
 			try:
-				cursor = self.config.rocrateCollection.find(
+				cursor = self.config.identifierCollection.find(
 					query,
 					projection={
 						"_id": 0,
@@ -1120,12 +1123,11 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 				crates_list = []
 				for crate_doc in cursor:
-					crate_id = crate_doc.get("@id")
+					metadata = crate_doc.get("metadata", {})
 					crates_list.append({
-						"@id": crate_id,
-						"name": crate_doc.get('metadata',{}).get("@graph",[{},{}])[1].get("name"),
-						"description": crate_doc.get('metadata',{}).get("@graph",[{},{}])[1].get("description"),
-						"@graph": []
+						"@id": crate_doc.get("@id"),
+						"name": metadata.get("name"),
+						"description": metadata.get("description")
 					})
 
 				return FairscapeResponse(

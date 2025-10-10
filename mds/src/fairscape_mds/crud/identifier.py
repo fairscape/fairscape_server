@@ -245,7 +245,7 @@ class IdentifierRequest(FairscapeRequest):
 			{
 				"$set": {
 					"metadata": newMetadata.model_dump(by_alias=True, mode="json"),
-					"dateModified": datetime.datetime.now()
+					"dateModified": datetime.datetime.now().isoformat()
 				}
 			},
 			projection = {"_id": False},

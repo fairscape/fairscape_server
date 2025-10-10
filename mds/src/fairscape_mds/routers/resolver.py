@@ -6,7 +6,8 @@ from fastapi import (
 from fastapi.responses import JSONResponse, Response
 from fairscape_mds.crud.resolver import FairscapeResolverRequest
 from fairscape_mds.core.config import appConfig
-from fairscape_mds.crud.identifier import IdentifierRequest, MetadataUnion
+from fairscape_mds.crud.identifier import IdentifierRequest
+from fairscape_mds.models.identifier import MetadataUnion
 from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.deps import getCurrentUser
 from typing import Optional, Annotated
