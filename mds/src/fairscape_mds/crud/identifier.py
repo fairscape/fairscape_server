@@ -261,7 +261,6 @@ class IdentifierRequest(FairscapeRequest):
 		)
 
 
-
 	def deleteIdentifier(
 		self,
 		guid: str,
@@ -294,6 +293,30 @@ class IdentifierRequest(FairscapeRequest):
 				error={"error": "user not allowed to delete identifier"}
 			)
 
+		match foundIdentifier.metadataType:
+			case PublicationStatusEnum.ROCRATE:
+				# delete all identifiers
+
+				pass
+			case PublicationStatusEnum.DATASET:
+				# delete identifier
+
+				if foundIdentifier.distribution:
+					# identifier can't be part of an ROCrate
+
+					if foundIdentifier.distribution.distributionType == DistributionTypeEnum.MINIO:
+						# remove from minio
+						pass
+
+					# remove metadata from mds
+
+
+
+				pass
+			case _:
+				pass
+
+
 		if forceDelete:
 
 			# depending on metadata type 
@@ -319,7 +342,6 @@ class IdentifierRequest(FairscapeRequest):
 				statusCode=200,
 				jsonResponse=foundMetadata
 			)
-
 
 
 def getStoredIdentifier(identifierCollection, guid: str)->FairscapeResponse:
@@ -353,7 +375,6 @@ def getStoredIdentifier(identifierCollection, guid: str)->FairscapeResponse:
 		)
 
 
-
 def getMetadata(
 	mongoCollection, 
 	passedModel, 
@@ -378,6 +399,24 @@ def getMetadata(
 		statusCode=200,
 		model=modelInstance
 	)
+
+
+class DeleteIdentifier():
+	def __init__(self, guid, identifierCollection):
+		self.guid = guid
+		self.identifierCollection = identifierCollection
+
+	def delete(self):
+		pass
+
+	def findIdentifier(self):
+		pass
+
+	def deleteROCrateIdentifier(self):
+		pass
+
+	def deleteDatasetIdentifier(self):
+		pass
 
 
 

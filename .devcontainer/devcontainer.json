@@ -12,6 +12,16 @@
 	"image": "mcr.microsoft.com/devcontainers/python:3",
 	"workspaceFolder": "/workspace",
 	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+	"customizations": {
+		"extensions": [
+			"ms-toolsai.jupyter",
+			"ms-python.python",
+			"ms-python.debugpy"
+		],
+		"settings": {
+			"python.defaultInterpreterPath": "/usr/local/bin/python3"
+		}
+	},
 	"runArgs": [
 		"--network=host"
 	]
