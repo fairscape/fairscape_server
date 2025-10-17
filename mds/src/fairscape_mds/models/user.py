@@ -4,9 +4,9 @@ from typing import Literal, Optional, List
 class Permissions(BaseModel):
 	owner: str
 	group: Optional[str] = Field(default=None)
-	read: Optional[List[str]] = Field(default = [])
-	write: Optional[List[str]] =  Field(default = [])
-	delete: Optional[List[str]] = Field(default = [])
+	#read: Optional[List[str]] = Field(default = [])
+	#write: Optional[List[str]] =  Field(default = [])
+	#delete: Optional[List[str]] = Field(default = [])
 
 
 class UpdatePermissionsRequest(BaseModel):
