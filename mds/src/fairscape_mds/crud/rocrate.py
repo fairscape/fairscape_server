@@ -669,7 +669,8 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				"@id": elem.guid,
 				"@type": elem.metadataType,
 				"name": elem.name
-			} for elem in roCrateModel.metadataGraph if elem.guid != "ro-crate-metadata.json"] 
+			} for elem in roCrateModel.metadataGraph if elem.guid != "ro-crate-metadata.json" and elem.guid != roCrateGUID
+]
 
 		# TODO needs to be stored identifier		
 		storedMetadataElem = StoredIdentifier.model_validate({
