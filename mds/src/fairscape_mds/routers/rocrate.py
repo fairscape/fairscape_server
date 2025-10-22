@@ -196,14 +196,13 @@ def getROCrateMetadata(
 
     if "application/vnd.mlcommons-croissant+json" in accept_header.lower():
         try:
-            source_crate = ROCrateV1_2(**response.model["metadata"])
+            source_crate = ROCrateV1_2(**response.model)
             croissant_converter = ROCToTargetConverter(source_crate, CROISSANT_MAPPING)
             croissant_result = croissant_converter.convert()
 
             return JSONResponse(
                 status_code=200,
-                content=croissant_result.model_dump(by_alias=True, exclude_none=True),
-                media_type="application/vnd.mlcommons-croissant+json"
+                content=croissant_result.model_dump(by_alias=True, exclude_none=True)
             )
         except Exception as e:
             raise HTTPException(
