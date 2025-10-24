@@ -266,82 +266,16 @@ class IdentifierRequest(FairscapeRequest):
 		guid: str,
 		forceDelete: bool, 
 		user: UserWriteModel
-		)->FairscapeResponse:
-
-		# check if identifier exists
-		foundMetadata = self.config.identifierCollection.find_one(
-			{"@id": guid},
-			projection={"_id": False}
+	)->FairscapeResponse:
+		deleteRequest = DeleteIdentifier(
+			config = self.config,
+			guid = guid,
+			requestingUser = user,
+			force = forceDelete
 		)
 
-		if not foundMetadata:
-			return FairscapeResponse(
-				statusCode=404,
-				success=False,
-				error= {"error": "identifier not found"}
-			)
+		return deleteRequest.delete()
 
-		foundIdentifier = StoredIdentifier.validate(foundMetadata)
-
-		# check if user has permissions
-		metadataOwner = foundIdentifier.permissions.owner
-
-		if user.email != metadataOwner:
-			return FairscapeResponse(
-				statusCode=401,
-				success=False,
-				error={"error": "user not allowed to delete identifier"}
-			)
-
-		match foundIdentifier.metadataType:
-			case PublicationStatusEnum.ROCRATE:
-				# delete all identifiers
-
-				pass
-			case PublicationStatusEnum.DATASET:
-				# delete identifier
-
-				if foundIdentifier.distribution:
-					# identifier can't be part of an ROCrate
-
-					if foundIdentifier.distribution.distributionType == DistributionTypeEnum.MINIO:
-						# remove from minio
-						pass
-
-					# remove metadata from mds
-
-
-
-				pass
-			case _:
-				pass
-
-
-		if forceDelete:
-
-			# depending on metadata type 
-
-			# if rocrate
-
-			# if dataset
-
-			# else
-
-
-			return FairscapeResponse(
-				success=True,
-				statusCode=200,
-				jsonResponse=foundMetadata
-			)
-
-		else:
-			# set the metadata to publication status archive	
-
-			return FairscapeResponse(
-				success=True,
-				statusCode=200,
-				jsonResponse=foundMetadata
-			)
 
 
 def getStoredIdentifier(identifierCollection, guid: str)->FairscapeResponse:
@@ -402,66 +336,212 @@ def getMetadata(
 
 
 class DeleteIdentifier():
-	def __init__(self, guid, identifierCollection):
+	def __init__(
+			self, 
+			config, 
+			guid: str, 
+			requestingUser: UserWriteModel,
+			force: bool = False
+		):
+		self.config = config
 		self.guid = guid
-		self.identifierCollection = identifierCollection
-
-	def delete(self):
-		pass
-
-	def findIdentifier(self):
-		pass
-
-	def deleteROCrateIdentifier(self):
-		pass
-
-	def deleteDatasetIdentifier(self):
-		pass
+		self.user = requestingUser
+		self.force = force
 
 
+	def getIdentifier(self):
+		metadata = self.config.identifierCollection.find_one(
+			{"@id": self.guid},
+			projection={"_id": False}
+		)
 
-def deleteIdentifier(
-	idCollection, 
-	requestingUser: UserWriteModel, 
-	modelClass, 
-	guid: str
-	)-> FairscapeResponse:
-	# find the dataset
-	foundMetadata = idCollection.find_one({
-		"@id": guid,
-	})
+		return metadata
 
-	if not foundMetadata:
+
+	def deleteROCrate(
+		self, 
+		identifier: StoredIdentifier
+	) -> FairscapeResponse:
+
+			# delete minio content
+		
+		if identifier.distribution:
+			distributionType = identifier.distribution.distributionType
+			objectKey = identifier.distribution.location.path
+		else:
+			distributionType = None
+			objectKey = None
+			
+
+		if self.force:	
+			if distributionType  == DistributionTypeEnum.MINIO:
+				# remove the archive 
+				self.config.minioClient.delete_object(
+					Bucket = self.config.minioBucket,
+					Key = objectKey
+				)
+
+			# delete the identifier
+			self.config.identifierCollection.delete_one(
+				{"@id": identifier.guid}
+			)
+
+			# delete all hasPart identifiers
+			self.config.identifierCollection.delete_many({
+				"metadata.isPartOf.@id": identifier.guid
+			})
+
+
+			return FairscapeResponse(
+				success=True,
+				statusCode = 200,
+				model = identifier
+			)
+
+		else:
+			self.config.identifier.update_one(
+				{"@id": identifier.guid},
+				{"$set": {"publicationStatus": PublicationStatusEnum.ARCHIVED}}
+			)
+
+			self.config.identifierCollection.update_many(
+				{"metadata.isPartOf.@id": identifier.guid},
+				{"$set": {"publicationStatus": PublicationStatusEnum.ARCHIVED}}
+			)
+
+			return FairscapeResponse(
+				success=True,
+				statusCode = 200,
+				model = identifier
+			)
+
+
+	def deleteDataset(
+		self, 
+		identifier: StoredIdentifier
+		) -> FairscapeResponse:
+
+		# if dataset content is included in an rocrate
+		try:
+			isPartOf = identifier.metadata.isPartOf
+		except AttributeError:
+			isPartOf = None
+		
+		if identifier.distribution:
+			distributionType = identifier.distribution.distributionType
+			objectKey = identifier.distribution.location.path
+		else:
+			distributionType = None
+			objectKey = None
+		
+		if isPartOf and distributionType  == DistributionTypeEnum.MINIO and self.force:
+			return FairscapeResponse(
+				success=False,
+				statusCode = 400,
+				error = {"error": "identifier is a dataset with a file included in an rocrate, delete the rocrate to remove this record"}
+			)
+		
+		elif distributionType == DistributionTypeEnum.MINIO and self.force:
+			# delete object from minio
+			self.config.minioClient.delete_object(
+				Bucket = self.config.minioBucket,
+				Key = objectKey
+			)
+
+		#elif isPartOf:
+			# remove the metadata record from the ROCrate
+			#rocrateGUID = isPartOf.get("@id")
+
+		if self.force:
+			# remove metadata record
+			self.config.identifierCollection.delete_one({"@id": self.guid})
+		else:
+			self.config.identifierCollection.update_one(
+				{"@id": self.guid},
+				{"$set": {"publicationStatus": PublicationStatusEnum.ARCHIVED}}
+			)
+
 		return FairscapeResponse(
-			success=False,
-			statusCode=404,
-			error= {"message": "dataset not found"}
+			success = True,
+			statusCode = 200,
+			model = identifier
 		)
 
-	modelInstance = modelClass.model_validate(foundMetadata)
 
-	# check permissions
-	if checkPermissions(modelInstance.permissions, requestingUser):
+	def deleteMetadataElem(
+		self, 
+		identifier: StoredIdentifier
+		):
+		
+		# is elem included in an rocrate
+		try:
+			isPartOf = identifier.metadata.isPartOf
+		except AttributeError:
+			isPartOf = None
 
-		# update the 
-		idCollection.update_one(
-			{"@id": guid},
-			{"$set": {
-				"publicationStatus": PublicationStatusEnum.ARCHIVED
-			}}
-		)
+		if isPartOf:
+			return FairscapeResponse(
+				success=False,
+				statusCode = 400,
+				error = {"error": "identifier is included in an rocrate, delete the rocrate to remove this record"}
+			)
 
-		modelInstance.published = False
+		if self.force:
+			self.config.identifierCollection.delete_one({
+				"@id": identifier.guid
+			})
+
+		else:
+			# set publication status to archived
+			self.config.identifierCollection.update_one(
+				{ "@id": identifier.guid},
+				{ "publicationStatus": PublicationStatusEnum.ARCHIVED }
+			)
 
 		return FairscapeResponse(
 			success=True,
-			statusCode=200,
-			model=modelInstance
+			statusCode = 200,
+			model = identifier
 		)
 
-	else:
-		return FairscapeResponse(
-			success=False,
-			statusCode=401,
-			error={"message": "user unauthorized"}
-		)
+
+	def delete(self)->FairscapeResponse:
+
+		metadata = self.getIdentifier()
+		if not metadata:
+			return FairscapeResponse(
+				statusCode = 404,
+				success = False,
+				error = {"error": "identifier not found"}
+			)
+
+		try:
+			identifierInstance = StoredIdentifier.model_validate(metadata)
+			self.identifier = identifierInstance
+		except:
+			return FairscapeResponse(
+				statusCode = 500,
+				success = False,
+				error = {"error": "error validating identifier"}
+			)
+
+		# check permissions
+		if not checkPermissions(identifierInstance.permissions, self.user):
+			return FairscapeResponse(
+				statusCode=401,
+				success=False,
+				error = {"error": "unauthorized to delete this identifier"}
+			)
+
+		# delete based on type 
+		match StoredIdentifier.metadataType:
+			case MetadataTypeEnum.DATASET:
+				return self.deleteDataset(identifierInstance)
+
+			case MetadataTypeEnum.ROCRATE:
+				return self.deleteROCrate(identifierInstance)
+
+			case _:
+				return self.deleteMetadataElem(identifierInstance)
+
+		pass
