@@ -15,7 +15,7 @@ import pathlib
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-            env_file=".env",
+            #env_file=".env",
             env_ignore_empty=True,
             extra="ignore"
         )
@@ -41,11 +41,6 @@ class Settings(BaseSettings):
     FAIRSCAPE_REDIS_PORT: str
     FAIRSCAPE_REDIS_JOB_DATABASE: str
     FAIRSCAPE_REDIS_RESULT_DATABASE: str
-
-    @computed_field
-    @property
-    def FAIRSCAPE_REDIS_BROKER_URL(self) -> str:
-        return f"{self.redisHost}:{self.redisPort}"
 
     FAIRSCAPE_JWT_SECRET: str 
     FAIRSCAPE_ADMIN_GROUP: str
@@ -87,7 +82,22 @@ class FairscapeConfig():
 		minioStr = f"Minio:\n\tMinioClient: {self.minioClient}\n\tBucket: {self.minioBucket}\n\tDefaultPath: {self.minioDefaultPath}"
 		return f"Backend Configuration Object:\n{minioStr}"
 
-settings = Settings()
+# create a settings class
+try:
+    settings = Settings()
+except:
+
+    # Search for .env file relative to source code
+    currentPath = pathlib.Path(__file__)
+    srcPath = currentPath.parents[2]
+    envPath = srcPath / ".env"
+
+    if envPath.exists():
+        settings = Settings(
+            _env_file= str(envPath)
+            )
+    else:
+        raise Exception("Missing Settings for Fairscape Server Startup")
 
 # TODO clean up client string generation
 mongoUser = settings.FAIRSCAPE_MONGO_ACCESS_KEY
@@ -98,22 +108,13 @@ mongoDatabaseName = settings.FAIRSCAPE_MONGO_DATABASE
 mongoAuthDatabaseName = settings.FAIRSCAPE_MONGO_AUTH_DATABASE
 
 
-# create a mongo client
-if "localhost" in settings.FAIRSCAPE_BASE_URL:
-    connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?authSource=admin&retryWrites=true"
-
-if mongoAuthDatabaseName:
-    #connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?authSource={mongoAuthDatabaseName}&retryWrites=true"
-    connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/admin?retryWrites=true"
-else:
-    connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoDatabaseName}?retryWrites=true"
-
-# Overwrite the existing connection
 connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{settings.FAIRSCAPE_MONGO_DATABASE}?retryWrites=true"
 
 # local overwrite
-#connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/"
-#print(connection_string)
+if "localhost" in settings.FAIRSCAPE_BASE_URL:
+    connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}"
+
+print(connection_string)
 
 mongoClient = pymongo.MongoClient(connection_string)
 mongoDB = mongoClient[settings.FAIRSCAPE_MONGO_DATABASE]
