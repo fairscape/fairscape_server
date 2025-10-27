@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ValidationError
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any, Union, Set
 import pymongo
 import datetime
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
@@ -59,7 +59,49 @@ class EvidenceGraph(BaseModel):
                     return [outputs]
         return []
 
-    def _process_used_dataset(self, dataset_info: Any, collection: pymongo.collection.Collection, graph_dict: Dict[str, Dict]) -> List[Dict[str, str]]:
+    def _extract_referenced_ids(self, node: Dict) -> Set[str]:
+        referenced_ids = set()
+        
+        node_type_field = node.get("@type", "")
+        current_node_type_str = ""
+        if isinstance(node_type_field, list):
+            if "Dataset" in node_type_field: current_node_type_str = "Dataset"
+            elif "Computation" in node_type_field: current_node_type_str = "Computation"
+            elif "Sample" in node_type_field: current_node_type_str = "Sample"
+            elif "Software" in node_type_field: current_node_type_str = "Software"
+            elif "Experiment" in node_type_field: current_node_type_str = "Experiment"
+            elif node_type_field: current_node_type_str = node_type_field[0]
+        elif isinstance(node_type_field, str):
+            current_node_type_str = node_type_field
+
+        if "Dataset" in current_node_type_str or \
+           "Sample" in current_node_type_str or \
+           "Instrument" in current_node_type_str or \
+           "Software" in current_node_type_str: 
+            generated_by_info = node.get("generatedBy")
+            if generated_by_info:
+                if isinstance(generated_by_info, list) and generated_by_info:
+                    comp_id = generated_by_info[0].get("@id")
+                    if comp_id:
+                        referenced_ids.add(comp_id)
+                elif isinstance(generated_by_info, dict):
+                    comp_id = generated_by_info.get("@id")
+                    if comp_id:
+                        referenced_ids.add(comp_id)
+
+        elif "Computation" in current_node_type_str or \
+             "Experiment" in current_node_type_str: 
+            for field_name in ["usedDataset", "usedSoftware", "usedSample", "usedInstrument"]:
+                field_info = node.get(field_name)
+                if field_info:
+                    items = field_info if isinstance(field_info, list) else [field_info]
+                    for item in items:
+                        if isinstance(item, dict) and item.get("@id"):
+                            referenced_ids.add(item.get("@id"))
+        
+        return referenced_ids
+
+    def _process_used_dataset(self, dataset_info: Any, node_cache: Dict[str, Dict]) -> List[Dict[str, str]]:
         datasets_to_process = []
         
         if isinstance(dataset_info, list):
@@ -76,10 +118,9 @@ class EvidenceGraph(BaseModel):
                 continue
                 
             dataset_id = dataset_ref.get("@id")
-            dataset_node = collection.find_one({"@id": dataset_id}, {"_id": 0})
+            dataset_node = node_cache.get(dataset_id)
             
-            if dataset_node:
-                dataset_node = self._flatten_metadata(dataset_node)
+            if dataset_node and "error" not in dataset_node:
                 node_type = dataset_node.get("@type", "")
                 
                 if self._is_rocrate(node_type):
@@ -87,30 +128,28 @@ class EvidenceGraph(BaseModel):
                     if outputs:
                         for output_ref in outputs:
                             if output_ref.get("@id"):
-                                self._add_node_to_graph(output_ref.get("@id"), collection, graph_dict)
                                 result_refs.append({"@id": output_ref.get("@id")})
                     else:
-                        self._add_node_to_graph(dataset_id, collection, graph_dict)
                         result_refs.append({"@id": dataset_id})
                 else:
-                    self._add_node_to_graph(dataset_id, collection, graph_dict)
                     result_refs.append({"@id": dataset_id})
             else:
-                self._add_node_to_graph(dataset_id, collection, graph_dict)
                 result_refs.append({"@id": dataset_id})
                 
         return result_refs
 
-    def _add_node_to_graph(self, node_id: str, collection: pymongo.collection.Collection, graph_dict: Dict[str, Dict]) -> None:
+    def _build_node_from_cache(self, node_id: str, node_cache: Dict[str, Dict], graph_dict: Dict[str, Dict]) -> None:
         if node_id in graph_dict:
             return
 
-        node_data = collection.find_one({"@id": node_id}, {"_id": 0})
-        if not node_data:
+        node = node_cache.get(node_id)
+        if not node:
             graph_dict[node_id] = {"@id": node_id, "error": "not found"}
             return
 
-        node = self._flatten_metadata(node_data)
+        if "error" in node:
+            graph_dict[node_id] = node
+            return
         
         result_node = {
             "@id": node.get("@id"),
@@ -118,8 +157,6 @@ class EvidenceGraph(BaseModel):
             "name": node.get("name"),
             "description": node.get("description")
         }
-
-        graph_dict[node_id] = result_node
 
         node_type_field = node.get("@type", "")
         current_node_type_str = ""
@@ -147,7 +184,7 @@ class EvidenceGraph(BaseModel):
                     comp_id = None
 
                 if comp_id:
-                    self._add_node_to_graph(comp_id, collection, graph_dict)
+                    self._build_node_from_cache(comp_id, node_cache, graph_dict)
                     result_node["generatedBy"] = {"@id": comp_id}
                 elif generated_by_info:
                     result_node["generatedBy"] = generated_by_info
@@ -156,9 +193,12 @@ class EvidenceGraph(BaseModel):
              "Experiment" in current_node_type_str: 
             used_dataset_info = node.get("usedDataset")
             if used_dataset_info:
-                dataset_refs = self._process_used_dataset(used_dataset_info, collection, graph_dict)
+                dataset_refs = self._process_used_dataset(used_dataset_info, node_cache)
                 if dataset_refs:
                     result_node["usedDataset"] = dataset_refs
+                    for ref in dataset_refs:
+                        if ref.get("@id"):
+                            self._build_node_from_cache(ref.get("@id"), node_cache, graph_dict)
 
             used_software_info = node.get("usedSoftware")
             if used_software_info:
@@ -166,10 +206,10 @@ class EvidenceGraph(BaseModel):
                 if isinstance(used_software_info, list):
                     for item in used_software_info:
                         if item.get("@id"):
-                            self._add_node_to_graph(item.get("@id"), collection, graph_dict)
+                            self._build_node_from_cache(item.get("@id"), node_cache, graph_dict)
                             software_refs.append({"@id": item.get("@id")})
                 elif isinstance(used_software_info, dict) and used_software_info.get("@id"):
-                    self._add_node_to_graph(used_software_info.get("@id"), collection, graph_dict)
+                    self._build_node_from_cache(used_software_info.get("@id"), node_cache, graph_dict)
                     software_refs.append({"@id": used_software_info.get("@id")})
                 if software_refs:
                     result_node["usedSoftware"] = software_refs
@@ -180,10 +220,10 @@ class EvidenceGraph(BaseModel):
                 if isinstance(used_sample_info, list):
                     for item in used_sample_info:
                         if item.get("@id"):
-                            self._add_node_to_graph(item.get("@id"), collection, graph_dict)
+                            self._build_node_from_cache(item.get("@id"), node_cache, graph_dict)
                             sample_refs.append({"@id": item.get("@id")})
                 elif isinstance(used_sample_info, dict) and used_sample_info.get("@id"):
-                    self._add_node_to_graph(used_sample_info.get("@id"), collection, graph_dict)
+                    self._build_node_from_cache(used_sample_info.get("@id"), node_cache, graph_dict)
                     sample_refs.append({"@id": used_sample_info.get("@id")})
                 if sample_refs:
                     result_node["usedSample"] = sample_refs
@@ -194,10 +234,10 @@ class EvidenceGraph(BaseModel):
                 if isinstance(used_instrument_info, list):
                     for item in used_instrument_info:
                         if item.get("@id"):
-                            self._add_node_to_graph(item.get("@id"), collection, graph_dict)
+                            self._build_node_from_cache(item.get("@id"), node_cache, graph_dict)
                             instrument_refs.append({"@id": item.get("@id")})
                 elif isinstance(used_instrument_info, dict) and used_instrument_info.get("@id"):
-                    self._add_node_to_graph(used_instrument_info.get("@id"), collection, graph_dict)
+                    self._build_node_from_cache(used_instrument_info.get("@id"), node_cache, graph_dict)
                     instrument_refs.append({"@id": used_instrument_info.get("@id")})
                 if instrument_refs:
                     result_node["usedInstrument"] = instrument_refs
@@ -210,27 +250,63 @@ class EvidenceGraph(BaseModel):
         
         start_node = mongo_collection.find_one({"@id": start_node_id}, {"_id": 0})
         
-        if start_node:
-            start_node = self._flatten_metadata(start_node)
-            node_type = start_node.get("@type", "")
-            
-            if self._is_rocrate(node_type):
-                rocrate_outputs = self._get_rocrate_outputs(start_node)
-                if rocrate_outputs:
-                    for output_ref in rocrate_outputs:
-                        if output_ref.get("@id"):
-                            output_id = output_ref.get("@id")
-                            output_nodes.append({"@id": output_id})
-                            self._add_node_to_graph(output_id, mongo_collection, graph_dict)
-                else:
-                    output_nodes.append({"@id": start_node_id})
-                    self._add_node_to_graph(start_node_id, mongo_collection, graph_dict)
-            else:
-                output_nodes.append({"@id": start_node_id})
-                self._add_node_to_graph(start_node_id, mongo_collection, graph_dict)
-        else:
+        if not start_node:
             output_nodes.append({"@id": start_node_id})
             graph_dict[start_node_id] = {"@id": start_node_id, "error": "not found"}
+            self.outputs = output_nodes
+            self.graph = graph_dict
+            return
+        
+        start_node = self._flatten_metadata(start_node)
+        node_cache = {start_node_id: start_node}
+        
+        node_type = start_node.get("@type", "")
+        
+        if self._is_rocrate(node_type):
+            rocrate_outputs = self._get_rocrate_outputs(start_node)
+            if rocrate_outputs:
+                for output_ref in rocrate_outputs:
+                    if output_ref.get("@id"):
+                        output_id = output_ref.get("@id")
+                        output_nodes.append({"@id": output_id})
+            else:
+                output_nodes.append({"@id": start_node_id})
+        else:
+            output_nodes.append({"@id": start_node_id})
+        
+        current_level = {node_id["@id"] for node_id in output_nodes}
+        processed_ids = set()
+        
+        while current_level:
+            next_level = set()
+            
+            ids_to_fetch = current_level - processed_ids
+            if ids_to_fetch:
+                ids_not_in_cache = [nid for nid in ids_to_fetch if nid not in node_cache]
+                
+                if ids_not_in_cache:
+                    cursor = mongo_collection.find({"@id": {"$in": ids_not_in_cache}}, {"_id": 0})
+                    fetched = {node["@id"]: self._flatten_metadata(node) for node in cursor}
+                    node_cache.update(fetched)
+                    
+                    for nid in ids_not_in_cache:
+                        if nid not in node_cache:
+                            node_cache[nid] = {"@id": nid, "error": "not found"}
+                
+                for node_id in ids_to_fetch:
+                    if node_id not in processed_ids:
+                        processed_ids.add(node_id)
+                        node = node_cache.get(node_id)
+                        if node and "error" not in node:
+                            referenced_ids = self._extract_referenced_ids(node)
+                            next_level.update(referenced_ids)
+            
+            current_level = next_level
+        
+        for output_node in output_nodes:
+            output_id = output_node.get("@id")
+            if output_id:
+                self._build_node_from_cache(output_id, node_cache, graph_dict)
         
         self.outputs = output_nodes
         self.graph = graph_dict
