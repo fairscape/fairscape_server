@@ -41,6 +41,7 @@ class MetadataTypeEnum(Enum):
 	INSTRUMENT = "https://w3id.org/EVI#Instrument"
 	MEDICAL_CONDITION = "https://schema.org/MedicalCondition"
 	CREATIVE_WORK = "https://schema.org/CreativeWork"
+	ML_MODEL = "https://w3id.org/EVI#MLModel"
 
 
 MetadataUnion = Union[
@@ -98,6 +99,8 @@ def determineMetadataType(inputType)->MetadataTypeEnum:
 		return MetadataTypeEnum.MEDICAL_CONDITION
 	elif 'CreativeWork' in inputType:
 		return MetadataTypeEnum.CREATIVE_WORK
+	elif 'MLModel' in inputType:
+		return MetadataTypeEnum.ML_MODEL
 	else:
 		raise Exception(f"Type not found for value {inputType}")
 	
