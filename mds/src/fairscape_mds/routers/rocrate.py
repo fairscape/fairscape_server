@@ -321,3 +321,93 @@ def get_ai_ready_score_status(
         status_code=200,
         content=task_doc
     )
+    
+@rocrateRouter.post(
+    "/rocrate/ai-ready-score/ark:{NAAN}/{postfix}/rescore",
+    summary="Rescore an existing AI-Ready Score (Public)",
+    status_code=202
+)
+def rescore_ai_ready_score(
+    NAAN: str,
+    postfix: str
+):
+    ark_id = f"ark:{NAAN}/{postfix}"
+    
+    entity = appConfig.identifierCollection.find_one({"@id": ark_id}, {"_id": 0})
+    if not entity:
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"Entity {ark_id} not found"}
+        )
+    
+    entity_type = entity.get("@type", [])
+    if isinstance(entity_type, str):
+        entity_type = [entity_type]
+    
+    is_rocrate = any("ROCrate" in t for t in entity_type)
+    if not is_rocrate:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Entity is not an RO-Crate"}
+        )
+    
+    score_id = f"{ark_id}-ai-ready-score"
+    existing_score = appConfig.identifierCollection.find_one({"@id": score_id})
+    if not existing_score:
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"No existing AI-Ready Score found for {ark_id}"}
+        )
+    
+    from fairscape_mds.crud.AIReady import FairscapeAIReadyScoreRequest
+    ai_ready_request = FairscapeAIReadyScoreRequest(appConfig)
+    
+    delete_response = ai_ready_request.delete_ai_ready_score(ark_id)
+    if not delete_response.success:
+        return JSONResponse(
+            status_code=delete_response.statusCode,
+            content=delete_response.error
+        )
+    
+    task_doc = appConfig.asyncCollection.find_one({
+        "task_type": "AIReadyScoring",
+        "rocrate_id": ark_id,
+        "status": {"$in": ["PENDING", "PROCESSING"]}
+    }, {"_id": 0})
+    
+    if task_doc:
+        return JSONResponse(
+            status_code=202,
+            content={
+                "message": "AI-Ready rescoring already in progress",
+                "task_id": task_doc["guid"],
+                "status": task_doc["status"],
+                "status_endpoint": f"/rocrate/ai-ready-score/status/{task_doc['guid']}"
+            }
+        )
+    
+    task_guid = str(uuid.uuid4())
+    task_data = {
+        "guid": task_guid,
+        "task_type": "AIReadyScoring",
+        "rocrate_id": ark_id,
+        "owner_email": "system@fairscape.org",
+        "status": "PENDING",
+        "time_created": datetime.datetime.utcnow()
+    }
+    
+    appConfig.asyncCollection.insert_one(task_data)
+    
+    score_ai_ready_task.delay(
+        task_guid=task_guid,
+        rocrate_id=ark_id
+    )
+    
+    return JSONResponse(
+        status_code=202,
+        content={
+            "message": "AI-Ready rescoring initiated",
+            "task_id": task_guid,
+            "status_endpoint": f"/rocrate/ai-ready-score/status/{task_guid}"
+        }
+    )
