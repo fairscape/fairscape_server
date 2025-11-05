@@ -121,3 +121,37 @@ class FairscapeAIReadyScoreRequest(FairscapeRequest):
         
         fetch_entity(rocrate_id)
         return metadata_graph
+    
+    def delete_ai_ready_score(
+        self,
+        rocrate_id: str
+    ) -> FairscapeResponse:
+        score_id = f"{rocrate_id}-ai-ready-score"
+        
+        try:
+            delete_result = self.config.identifierCollection.delete_one({"@id": score_id})
+            
+            if delete_result.deleted_count == 0:
+                return FairscapeResponse(
+                    success=False,
+                    statusCode=404,
+                    error={"message": f"AI-Ready Score {score_id} not found"}
+                )
+            
+            self.config.identifierCollection.update_one(
+                {"@id": rocrate_id},
+                {"$unset": {"metadata.hasAIReadyScore": ""}}
+            )
+            
+            return FairscapeResponse(
+                success=True,
+                statusCode=200,
+                model={"message": f"AI-Ready Score {score_id} deleted successfully"}
+            )
+            
+        except Exception as e:
+            return FairscapeResponse(
+                success=False,
+                statusCode=500,
+                error={"message": f"Error deleting AI-Ready Score: {str(e)}"}
+            )
