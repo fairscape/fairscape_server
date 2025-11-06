@@ -1,7 +1,8 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Union
+from typing import Optional, Union, Dict
 from fairscape_mds.models.user import Permissions
 from fairscape_mds.models.dataset import DatasetDistribution
+from fairscape_mds.models.statistics import DescriptiveStatistics
 
 from fairscape_models.rocrate import ROCrateV1_2, ROCrateMetadataElem, GenericMetadataElem
 from fairscape_models.dataset import Dataset
@@ -66,6 +67,7 @@ class StoredIdentifier(BaseModel):
 	publicationStatus: PublicationStatusEnum
 	permissions: Permissions
 	distribution: Optional[DatasetDistribution]
+	descriptiveStatistics: Optional[Dict[str, DescriptiveStatistics]] = Field(default = {})
 	dateCreated: datetime.datetime
 	dateModified: datetime.datetime
 

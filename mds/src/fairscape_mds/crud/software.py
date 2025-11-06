@@ -1,7 +1,7 @@
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 
-from fairscape_mds.crud.identifier import getMetadata, deleteIdentifier
+from fairscape_mds.crud.identifier import getMetadata
 
 from fairscape_mds.models.user import UserWriteModel, Permissions, checkPermissions
 from fairscape_mds.models.software import SoftwareWriteModel
@@ -20,7 +20,7 @@ class FairscapeSoftwareRequest(FairscapeRequest):
 			"permissions": requestingUser.getPermissions()
 		})
 
-		insertResult = self.identifierCollection.insert_one(
+		insertResult = self.config.identifierCollection.insert_one(
 			writeModel.model_dump(by_alias=True, mode='json')
 		)
 
@@ -31,20 +31,4 @@ class FairscapeSoftwareRequest(FairscapeRequest):
 		)
 
 	def getSoftware(self, guid: str):
-		return getMetadata(self.identifierCollection, Software, guid)
-
-	def deleteSoftware(
-		self,		
-		requestingUser: UserWriteModel, 
-		guid: str
-	):
-
-		return deleteIdentifier(
-			self.identifierCollection,
-			requestingUser,
-			SoftwareWriteModel,
-			guid
-		)
-
-	def updateSoftware(self):
-		pass
+		return getMetadata(self.config.identifierCollection, Software, guid)

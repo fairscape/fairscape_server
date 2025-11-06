@@ -1,6 +1,6 @@
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
-from fairscape_mds.crud.identifier import getMetadata, deleteIdentifier
+from fairscape_mds.crud.identifier import getMetadata
 
 from fairscape_mds.models.schema import SchemaWriteModel
 from fairscape_mds.models.user import UserWriteModel, checkPermissions
@@ -20,8 +20,8 @@ class FairscapeSchemaRequest(FairscapeRequest):
 			"published": True
 		})
 
-		insertResult = self.identifierCollection.insert_one({
-			writeModel.model_dump(by_alias=True, mode='json')
+		insertResult = self.config.identifierCollection.insert_one({
+			**writeModel.model_dump(by_alias=True, mode='json')
 		})
 
 		# TODO check that insert result is successfull
@@ -34,20 +34,4 @@ class FairscapeSchemaRequest(FairscapeRequest):
 
 
 	def getSchema(self, guid: str):
-		return getMetadata(self.identifierCollection, Schema, guid)
-
-
-	def updateSchema(self):
-		pass
-
-	def deleteSchema(
-		self,
-		requestingUser: UserWriteModel,
-		guid: str	
-		):
-		return deleteIdentifier(
-			self.identifierCollection,
-			requestingUser,
-			SchemaWriteModel,
-			guid
-		)
+		return getMetadata(self.config.identifierCollection, Schema, guid)

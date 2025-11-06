@@ -3,7 +3,6 @@ from fairscape_mds.models.user import Permissions, UserWriteModel, checkPermissi
 from fairscape_mds.models.dataset import DatasetWriteModel, DatasetDistribution, DistributionTypeEnum
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
-from fairscape_mds.crud.identifier import DeleteIdentifier
 from fairscape_mds.models.rocrate import (
 	ROCrateUploadRequest, 
 	ROCrateMetadataElemWrite
@@ -1097,21 +1096,6 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				success=True, statusCode=201,
 				model={"rocrate_guid": root_guid, "minted_element_identifiers": minted_element_guids}
 			)
-
-	def deleteROCrate(
-		self,				 
-		requestingUser: UserWriteModel, 
-		guid: str
-	):
-		""" Mark ROCrate as status ARCHIVED
-		"""
-
-		return deleteIdentifier(
-			self.config.identifierCollection,
-			requestingUser,
-			ROCrateMetadataElemWrite,
-			guid
-		)
 
 
 	def list_crates(

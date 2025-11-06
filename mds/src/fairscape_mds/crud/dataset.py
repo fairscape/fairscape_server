@@ -1,12 +1,15 @@
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
-from fairscape_mds.crud.identifier import deleteIdentifier
 from fairscape_mds.models.user import UserWriteModel, Permissions, checkPermissions
 from fairscape_mds.models.dataset import (
 	DatasetWriteModel, 
 	DatasetDistribution, 
 	DistributionTypeEnum,
 	DatasetUpdateModel,
+)
+from fairscape_mds.models.errors import (
+	IdentifierNotFound,
+	FileNotFound
 )
 from fairscape_mds.models.identifier import (
 	PublicationStatusEnum, 
@@ -68,12 +71,12 @@ class FairscapeDatasetRequest(FairscapeRequest):
 			return DatasetWriteModel.model_validate({**foundMetadata})
 
 
+
 	def getDatasetContent(
 		self, 
 		userInstance: UserWriteModel, 
 		datasetGUID: str,
 	)->FairscapeResponse:
-		# get the metadata for a stored identifier
 		datasetMetadata = self.config.identifierCollection.find_one(
 			{"@id": datasetGUID},
 			projection={"_id": False}
@@ -220,20 +223,6 @@ class FairscapeDatasetRequest(FairscapeRequest):
 			success=True,
 			statusCode=201,
 			model=outputDataset
-		)
-
-
-	def deleteDataset(
-		self,		
-		requestingUser: UserWriteModel, 
-		guid: str
-	):
-
-		return deleteIdentifier(
-			self.config.identifierCollection,
-			requestingUser,
-			DatasetWriteModel,
-			guid
 		)
 
 

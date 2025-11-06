@@ -8,17 +8,137 @@ from fairscape_mds.models.identifier import (
 	UpdatePublishRequest, 
 	determineMetadataType
 )
+from fairscape_mds.models.statistics import (
+	DescriptiveStatistics,
+	CategoricalStatistics
+)
+from fairscape_mds.crud.statistics import (
+	generateSummaryStatistics
+)
 from fairscape_mds.models.dataset import DistributionTypeEnum
+from fairscape_mds.models.errors import IdentifierNotFound, FileNotFound
 from pydantic import ValidationError
 from typing import Optional
 import datetime
 from pymongo import ReturnDocument
+from io import BytesIO
+import pandas
 
 
 class IdentifierRequest(FairscapeRequest):
 
+
+	def getIdentifier(self, guid):
+		""" Find Identifier metadata and marshal into a StoredIdentifier class
+		"""
+		
+		# get the metadata for a stored identifier
+		datasetMetadata = self.config.identifierCollection.find_one(
+			{"@id": guid},
+			projection={"_id": False}
+		)
+
+		if not datasetMetadata:
+			raise IdentifierNotFound(
+				guid=guid,
+				message=f"{guid} does not exist"
+			)
+
+		identifier = StoredIdentifier.model_validate(datasetMetadata)
+		return identifier
+
+
+	def generatePresignedGetURL(self, guid: str):
+		""" Given a GUID, determine if content is in minio. 
+				If content exists return a presigned GET URL
+		"""
+		identifier = self.getIdentifier(guid)
+
+		if identifier.distribution is None:
+			raise FileNotFound(
+				guid=guid,
+				message=f"{guid} does not have a distribution in fairscape"
+			)
+		elif identifier.distribution.distributionType != DistributionTypeEnum.MINIO:
+			raise FileNotFound(
+				guid=guid,
+				message=f"{guid} does not have a distribution in fairscape"
+			)
+		
+		else:
+			response = self.config.minioClient.generate_presigned_url(
+				'get_object',
+				Params={
+					'Bucket': self.config.minioBucket,
+					'Key': identifier.distribution.location.path
+					}
+			)
+			return response
+
+
+	def loadContent(
+			self, 
+			guid: str
+		):
+		""" Given a GUID, determine if content exists. If it does, load the content into memory.
+		"""
+		identifier = self.getIdentifier(guid)
+		
+		if identifier.distribution is None:
+			raise FileNotFound(
+				guid=guid,
+				message=f"{guid} does not have a distribution in fairscape"
+			)
+		elif identifier.distribution.distributionType != DistributionTypeEnum.MINIO:
+			raise FileNotFound(
+				guid=guid,
+				message=f"{guid} does not have a distribution in fairscape"
+			)
+		
+		try:
+			contentPath = identifier.distribution.location.path
+			response = self.config.minioClient.get_object(
+				Bucket = self.config.minioBucket,
+				Key = contentPath
+			)
+			body = response['Body'].read()
+			return body
+		except self.config.minioClient.exceptions.NoSuchKey:
+			raise FileNotFound(
+				guid=guid,
+				message=f"content not found at path {contentPath}"
+			)
+		except Exception as e:
+			raise Exception(
+				f"Error Reading Content: {contentPath}"
+		)
+
+
+	def generateStatistics(
+		self, 
+		guid: str
+		):
+		""" Given an Ark Generate Statistics and update the identifier.
+		"""
+
+		identifier = self.getIdentifier(guid)
+		datasetContent = self.loadContent(guid)
+
+		# TODO determine is csv/tsv
+		dataframe = pandas.read_csv(BytesIO(datasetContent))
+		summaryStatistics = generateSummaryStatistics(dataframe)
+
+		# update identifier
+		updateOperation = self.config.identifierCollection.update_one(
+			{"@id": guid},
+			{
+				"summaryStatistics": summaryStatistics
+			}
+		)
+
+
 	def getContent(self, guid: str)->FairscapeResponse:
-		""" Get Operation for Published Only Content, returns a FairscapeResponse with the Content from minio
+		""" API Operation to Download Published Only Content, returns a FairscapeResponse with the Content from minio
 		"""
 
 		# get the metadata
@@ -73,11 +193,14 @@ class IdentifierRequest(FairscapeRequest):
 			model=identifier
 		)
 
+
 	def updatePublicationStatus(
 		self, 
 		publicationChange: UpdatePublishRequest,
 		requestingUser: UserWriteModel 
-	)->FairscapeResponse:
+		)->FairscapeResponse:
+		""" Request from user to change the publication status, modify the stored document in mongo.
+		"""
 
 		guid = publicationChange.guid
 		newStatus = publicationChange.publicationStatus
@@ -148,7 +271,10 @@ class IdentifierRequest(FairscapeRequest):
 		self, 
 		requestType: MetadataTypeEnum, 
 		user: Optional[UserWriteModel]
-	)->FairscapeResponse:
+		)->FairscapeResponse:
+		""" List all metadata instances of a specific type
+		"""
+	
 
 		# public identifiers
 		publishedIdentifiers = self.config.identifierCollection.find(
@@ -181,7 +307,11 @@ class IdentifierRequest(FairscapeRequest):
 		)
 
 
-	def listPublished(self)->FairscapeResponse:
+	def listPublished(
+		self
+		)->FairscapeResponse:
+		""" List all published content, return to user
+		"""
 		identifiers = self.config.identifierCollection.find(
 			{"publicationStatus": PublicationStatusEnum.PUBLISHED}, 
 			projection={"_id": False}
@@ -196,6 +326,8 @@ class IdentifierRequest(FairscapeRequest):
 			user: UserWriteModel,
 			newMetadata
 		):
+		""" Replace metadata on an existing GUID
+		"""
 
 		# check if identifier exists
 		foundMetadata = self.config.identifierCollection.find_one(
@@ -266,7 +398,9 @@ class IdentifierRequest(FairscapeRequest):
 		guid: str,
 		forceDelete: bool, 
 		user: UserWriteModel
-	)->FairscapeResponse:
+		)->FairscapeResponse:
+		""" Delete API Operation, if not a force delete marks applicable identifiers as Archived. If force delete removes content from minio and mongo.
+		"""
 		deleteRequest = DeleteIdentifier(
 			config = self.config,
 			guid = guid,

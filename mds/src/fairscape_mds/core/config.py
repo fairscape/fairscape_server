@@ -114,7 +114,6 @@ connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPasswor
 if "localhost" in settings.FAIRSCAPE_BASE_URL:
     connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}"
 
-print(connection_string)
 
 mongoClient = pymongo.MongoClient(connection_string)
 mongoDB = mongoClient[settings.FAIRSCAPE_MONGO_DATABASE]

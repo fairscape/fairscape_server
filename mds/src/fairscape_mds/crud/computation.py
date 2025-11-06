@@ -1,6 +1,6 @@
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
-from fairscape_mds.crud.identifier import getMetadata, deleteIdentifier, getStoredIdentifier
+from fairscape_mds.crud.identifier import getMetadata, getStoredIdentifier
 
 from fairscape_mds.models.computation import ComputationWriteModel
 from fairscape_mds.models.user import UserWriteModel
@@ -131,20 +131,3 @@ class FairscapeComputationRequest(FairscapeRequest):
 			raise Exception
 		else:
 			return ComputationWriteModel.model_validate({**foundMetadata})
-
-
-	def deleteComputation(
-		self,		
-		requestingUser: UserWriteModel, 
-		guid: str
-	):
-		return deleteIdentifier(
-			self.config.identifierCollection,
-			requestingUser,
-			Computation,
-			guid
-		)
-
-
-	def updateComputation(self):
-		pass

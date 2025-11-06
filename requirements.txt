@@ -25,3 +25,4 @@ celery[redis]
 fairscape_models>=1.0.6
 httpx
 pydantic-settings
+pandas
