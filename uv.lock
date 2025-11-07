@@ -544,7 +544,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.34.26" },
     { name = "celery", extras = ["redis"], specifier = ">=5.3.6" },
     { name = "docker", specifier = ">=7.0.0" },
-    { name = "fairscape-models", specifier = ">=1.0.11" },
+    { name = "fairscape-models", specifier = ">=1.0.13" },
     { name = "fastapi", specifier = ">=0.109.0" },
     { name = "google-generativeai", specifier = ">=0.3.0" },
     { name = "httpx", specifier = ">=0.28.1" },
@@ -569,7 +569,7 @@ requires-dist = [
 
 [[package]]
 name = "fairscape-models"
-version = "1.0.11"
+version = "1.0.13"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mongomock" },
@@ -577,9 +577,9 @@ dependencies = [
     { name = "pymongo" },
     { name = "typing" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/16/1d/6870f4094a7e91c336f636f61f0c353d868d0be357ceb13fcb8bebeb0d22/fairscape_models-1.0.11.tar.gz", hash = "sha256:05b6e6223846e2b2bea8a45bf2a872310b2e06db0a22a46c43aa909a8d5fbda4", size = 33563, upload-time = "2025-09-16T15:57:19.991Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/af/ec1b754a78567e787b14af6607215cae0522e4d89294ea4ab4da8c97e232/fairscape_models-1.0.13.tar.gz", hash = "sha256:42379d292c7ccb25939e59cee9a29c13a2f3ce7f848deb553bf26af81b06aac9", size = 56725, upload-time = "2025-10-31T16:53:59.85Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/88/3e/bb650b6c72f6bada6b3b43e04d3d075bf1aab7a460680f6ef2e894f55520/fairscape_models-1.0.11-py3-none-any.whl", hash = "sha256:d8e9656596716da865f51dffd1fe01ed003113688ee0bf0048c23f4119041551", size = 38324, upload-time = "2025-09-16T15:57:18.679Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/61/196a2056df6f7675a6b492908664b976ce744eed6ad4d41e3727cd595a4d/fairscape_models-1.0.13-py3-none-any.whl", hash = "sha256:e2a510a4f081aa35288489b498157a6ee8c0ff8327333eff39f7f82d745c6e46", size = 61433, upload-time = "2025-10-31T16:53:58.856Z" },
 ]
 
 [[package]]

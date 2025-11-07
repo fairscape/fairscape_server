@@ -732,6 +732,18 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		return metadataElem.guid
 
 
+	def getUpload(self, transactionGUID: str):
+		uploadMetadata = self.config.asyncCollection.find_one({
+				"guid": transactionGUID
+		})
+
+		if uploadMetadata is None:
+			raise Exception("identifier doesn't exist")
+
+		uploadInstance = ROCrateUploadRequest.model_validate(uploadMetadata)
+		return uploadInstance
+
+
 	def getUploadMetadata(self, requestingUser: UserWriteModel, transactionGUID: str):
 		# get upload metadata
 		uploadMetadata = self.config.asyncCollection.find_one({

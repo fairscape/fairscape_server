@@ -1,9 +1,15 @@
 from celery import Celery
 import datetime
+import mimetypes
 
 from fairscape_mds.core.config import appConfig, celeryApp
 from fairscape_mds.crud.rocrate import FairscapeROCrateRequest
 from fairscape_mds.models.user import UserWriteModel
+from fairscape_mds.models.identifier import (
+	MetadataTypeEnum,
+	StoredIdentifier
+)
+from fairscape_mds.crud.identifier import IdentifierRequest
 
 from fairscape_mds.crud.evidence_graph import FairscapeEvidenceGraphRequest
 from fairscape_mds.crud.AIReady import FairscapeAIReadyScoreRequest
@@ -19,11 +25,50 @@ from fairscape_models.conversion.mapping.AIReady import (
 rocrateRequests = FairscapeROCrateRequest(appConfig)
 evidenceGraphRequests = FairscapeEvidenceGraphRequest(appConfig)
 llmAssistRequests = FairscapeLLMAssistRequest(appConfig)
+identifierRequestFactory = IdentifierRequest(appConfig)
+
+def celeryUploadROCrate(transactionGUID: str):
+    ''' Chain Together Tasks for Uploading an ROCrate
+    '''
+    chain = processROCrate(transactionGUID) | processStatisticsROCrate()
+    chain.apply_asnyc()
+
+@celeryApp.task(name='fairscape_mds.worker.processStatisticsROCrate')
+def processStatisticsROCrate(guid: str):
+    print(f"Processing Statistics: {guid}")
+
+    # query mongo
+    cursor = identifierRequestFactory.config.identifierCollection.find(
+        {
+            "metadata.isPartOf.@id": guid,
+            "metadataType": MetadataTypeEnum.DATASET
+        },
+        projection={
+           "_id": False
+        }
+        )
+
+    # TODO split into multiple tasks
+    for elem in cursor:
+        datasetElem = StoredIdentifier.model_validate(elem)
+        datasetPath = datasetElem.distribution.location.path
+        datasetMimetype, _ = mimetypes.guess_type(datasetPath)
+
+        # TODO handle more mimetypes
+        if datasetMimetype == 'text/csv':
+            identifierRequestFactory.generateStatistics(elem.guid)
+
+
 
 @celeryApp.task(name='fairscape_mds.worker.processROCrate')
 def processROCrate(transactionGUID: str):
     print(f"Starting Job: {transactionGUID}")
-    return rocrateRequests.processROCrate(transactionGUID)
+    rocrateRequests.processROCrate(transactionGUID)
+
+    # get the rocrate guid
+    uploadAttempt = rocrateRequests.getUpload(transactionGUID)
+    return uploadAttempt.rocrateGUID
+
 
 #Are the guids supposed to be @id?
 @celeryApp.task(name='fairscape_mds.worker.build_evidence_graph_task', bind=True)

@@ -136,6 +136,8 @@ class IdentifierRequest(FairscapeRequest):
 			}
 		)
 
+		return summaryStatistics
+
 
 	def getContent(self, guid: str)->FairscapeResponse:
 		""" API Operation to Download Published Only Content, returns a FairscapeResponse with the Content from minio
