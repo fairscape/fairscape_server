@@ -34,17 +34,16 @@ def resolveARK(
             content=response.error
         )
     metadata = response.model.model_dump(mode='json', by_alias=True)
-    #metadata = response.model
 
-    if isinstance(metadata, dict) and "@context" not in metadata:
-        metadata["@context"] = {
+    if isinstance(metadata, dict) and not metadata.get("metadata", {}).get("@context"):
+        metadata['metadata']["@context"] = {
             "@vocab": "https://schema.org/",
             "EVI": "https://w3id.org/EVI#"
         }
     
     if "turtle" in accept.lower() or accept.lower() == "text/turtle":
         g = Graph()
-        g.parse(data=metadata, format='json-ld')
+        g.parse(data=metadata['metadata'], format='json-ld')
         turtle_data = g.serialize(format='turtle')
         return Response(
             content=turtle_data,
@@ -53,7 +52,7 @@ def resolveARK(
         )
     elif "rdf" in accept.lower() or accept.lower() == "application/rdf+xml":
         g = Graph()
-        g.parse(data=metadata, format='json-ld')
+        g.parse(data=metadata['metadata'], format='json-ld')
         rdf_data = g.serialize(format='xml')
         return Response(
             content=rdf_data,
