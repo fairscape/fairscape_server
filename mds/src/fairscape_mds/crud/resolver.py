@@ -1,5 +1,6 @@
 from fairscape_mds.crud.fairscape_request import FairscapeRequest	
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
+from fairscape_mds.models.identifier import StoredIdentifier
 
 class FairscapeResolverRequest(FairscapeRequest):
 
@@ -29,6 +30,8 @@ class FairscapeResolverRequest(FairscapeRequest):
 		
 		# else:
 		# 	foundModel = ROCrateMetadataElemWrite.model_validate(foundMetadata)
+
+		foundMetadata = StoredIdentifier.model_validate(foundMetadata)
 
 		return FairscapeResponse(
 			success=True,

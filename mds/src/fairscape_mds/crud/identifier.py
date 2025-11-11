@@ -121,7 +121,6 @@ class IdentifierRequest(FairscapeRequest):
 		""" Given an Ark Generate Statistics and update the identifier.
 		"""
 
-		identifier = self.getIdentifier(guid)
 		datasetContent = self.loadContent(guid)
 
 		# TODO determine is csv/tsv
@@ -132,7 +131,7 @@ class IdentifierRequest(FairscapeRequest):
 		updateOperation = self.config.identifierCollection.update_one(
 			{"@id": guid},
 			{
-				"summaryStatistics": summaryStatistics
+				"$set" : {"descriptiveStatistics": summaryStatistics} 
 			}
 		)
 

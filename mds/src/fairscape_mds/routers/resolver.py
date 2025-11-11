@@ -4,6 +4,7 @@ from fastapi import (
     Depends
 )
 from fastapi.responses import JSONResponse, Response
+from fastapi.encoders import jsonable_encoder
 from fairscape_mds.crud.resolver import FairscapeResolverRequest
 from fairscape_mds.core.config import appConfig
 from fairscape_mds.crud.identifier import IdentifierRequest
@@ -32,8 +33,9 @@ def resolveARK(
             status_code=response.statusCode,
             content=response.error
         )
-    
-    metadata = response.model
+    metadata = response.model.model_dump(mode='json', by_alias=True)
+    #metadata = response.model
+
     if isinstance(metadata, dict) and "@context" not in metadata:
         metadata["@context"] = {
             "@vocab": "https://schema.org/",
@@ -59,6 +61,7 @@ def resolveARK(
             media_type="application/rdf+xml"
         )
     else:
+        # dicts including nans from statistic cause issues
         return JSONResponse(
             content=metadata,
             status_code=response.statusCode,

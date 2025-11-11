@@ -1,4 +1,5 @@
 import pandas
+import numpy
 from typing import Dict
 from fairscape_mds.models.statistics import (
 	DescriptiveStatistics,
@@ -10,6 +11,7 @@ from fairscape_mds.models.statistics import (
 def generateNumericalStatistics(series) -> DescriptiveStatistics:
 
 	descriptiveStats = series.describe()
+	descriptiveStats = descriptiveStats.replace({numpy.nan: None})
 
 	numericStats = NumericalStatistics.model_validate(descriptiveStats.to_dict(),by_alias=True)
 
@@ -23,9 +25,7 @@ def generateCategoricalStatistics(series) -> DescriptiveStatistics:
 	describeSeries = series.describe()
 
 	categoricalDict = describeSeries.to_dict()
-
-	if categoricalDict.get('top') is None:
-		categoricalDict['top'] = None
+	categoricalDict['top'] = categoricalDict.get('top')
 
 	categoricalStats = CategoricalStatistics.model_validate(categoricalDict)
 
@@ -49,6 +49,6 @@ def generateSummaryStatistics(dataframe)-> Dict[str, DescriptiveStatistics]:
 		else:
 			summaryStats = generateCategoricalStatistics(series)
 		
-		statistics[summaryStats.columnName] = summaryStats
+		statistics[summaryStats.columnName] = summaryStats.model_dump(mode='json', by_alias=True)
 
 	return statistics

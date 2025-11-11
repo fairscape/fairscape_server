@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Union, Optional
+from typing import Union, Optional, Annotated
 
 # TODO context for STATO values
 StatoContext = {
@@ -14,24 +14,24 @@ StatoContext = {
 }
 
 class NumericalStatistics(BaseModel):
-	count: float
-	mean: float
-	std: float
-	min: float
-	first_quartile: float = Field(alias="25%")
-	second_quartile: float = Field(alias="50%")
-	third_quartile: float = Field(alias="75%")
-	max: float
+	count: Optional[float] = Field(allow_inf_nan=True, default=None)
+	mean: Optional[float] = Field(allow_inf_nan=True, default=None)
+	std: Optional[float] = Field(allow_inf_nan=True, default=None)
+	min: Optional[float] = Field(allow_inf_nan=True, default=None)
+	first_quartile: Optional[float] = Field(alias="25%", allow_inf_nan=True, default=None)
+	second_quartile: Optional[float] = Field(alias="50%", allow_inf_nan=True, default=None)
+	third_quartile: Optional[float] = Field(alias="75%", allow_inf_nan=True, default=None)
+	max: Optional[float] = Field(allow_inf_nan=True, default=None)
 
 	def serializeStato(self):
 		""" """ 
 		pass
 
 class CategoricalStatistics(BaseModel):
-	count: int
-	unique: int
+	count: Optional[int] = Field(allow_inf_nan=True, default=None)
+	unique: Optional[int] = Field(allow_inf_nan=True, default=None)
 	top: Optional[Union[str,bool]] = Field(default=None)
-	freq: int
+	freq: Optional[int] = Field(allow_inf_nan=True, default=None)
 
 	def serializeStato(self):
 		""" """ 

@@ -1,4 +1,4 @@
-from celery import Celery
+from celery import chain
 import datetime
 import mimetypes
 
@@ -30,18 +30,18 @@ identifierRequestFactory = IdentifierRequest(appConfig)
 def celeryUploadROCrate(transactionGUID: str):
     ''' Chain Together Tasks for Uploading an ROCrate
     '''
-    chain = processROCrate(transactionGUID) | processStatisticsROCrate()
-    chain.apply_asnyc()
+    processChain = chain(processROCrate.s(transactionGUID), processStatisticsROCrate.s())
+    processChain()
 
 @celeryApp.task(name='fairscape_mds.worker.processStatisticsROCrate')
-def processStatisticsROCrate(guid: str):
+def processStatisticsROCrate(guid):
     print(f"Processing Statistics: {guid}")
 
     # query mongo
     cursor = identifierRequestFactory.config.identifierCollection.find(
         {
             "metadata.isPartOf.@id": guid,
-            "metadataType": MetadataTypeEnum.DATASET
+            "@type": str(MetadataTypeEnum.DATASET.value)
         },
         projection={
            "_id": False
@@ -50,13 +50,15 @@ def processStatisticsROCrate(guid: str):
 
     # TODO split into multiple tasks
     for elem in cursor:
+        print(f"found dataset {elem['@id']}")
         datasetElem = StoredIdentifier.model_validate(elem)
         datasetPath = datasetElem.distribution.location.path
         datasetMimetype, _ = mimetypes.guess_type(datasetPath)
 
         # TODO handle more mimetypes
         if datasetMimetype == 'text/csv':
-            identifierRequestFactory.generateStatistics(elem.guid)
+            stats = identifierRequestFactory.generateStatistics(datasetElem.guid)
+            print(stats)
 
 
 
