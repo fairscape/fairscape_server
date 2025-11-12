@@ -23,6 +23,7 @@ import datetime
 from pymongo import ReturnDocument
 from io import BytesIO
 import pandas
+import mimetypes
 
 
 class IdentifierRequest(FairscapeRequest):
@@ -116,15 +117,33 @@ class IdentifierRequest(FairscapeRequest):
 
 	def generateStatistics(
 		self, 
-		guid: str
+		guid: str,
+		fileName: str
 		):
 		""" Given an Ark Generate Statistics and update the identifier.
 		"""
 
 		datasetContent = self.loadContent(guid)
 
+		# TODO handle more mimetypes
+		datasetMimetype, _ = mimetypes.guess_type(fileName)
+
+		match datasetMimetype: 
+				case "text/csv":
+					dataframe = pandas.read_csv(BytesIO(datasetContent))
+				case "text/tab-seperated-values":
+					dataframe = pandas.read_csv(BytesIO(datasetContent), sep="\t")
+				case "application/vnd.ms-excel":
+					#TODO iterate for each excel sheet
+					dataframe = pandas.read_excel(BytesIO(datasetContent), sheet_name=0)
+				case "application/vnd.apache.parquet":
+					#TODO iterate for each parquet table
+					return None
+				# hdf5
+				case None:
+					return None
+
 		# TODO determine is csv/tsv
-		dataframe = pandas.read_csv(BytesIO(datasetContent))
 		summaryStatistics = generateSummaryStatistics(dataframe)
 
 		# update identifier

@@ -11,7 +11,9 @@ from fairscape_mds.models.statistics import (
 def generateNumericalStatistics(series) -> DescriptiveStatistics:
 
 	descriptiveStats = series.describe()
-	descriptiveStats = descriptiveStats.replace({numpy.nan: None})
+	descriptiveStats = descriptiveStats.replace({numpy.nan: "NaN"})
+	descriptiveStats = descriptiveStats.replace({numpy.inf: "INF"})
+	descriptiveStats = descriptiveStats.replace({-numpy.inf: "NINF"})
 
 	numericStats = NumericalStatistics.model_validate(descriptiveStats.to_dict(),by_alias=True)
 
@@ -49,6 +51,6 @@ def generateSummaryStatistics(dataframe)-> Dict[str, DescriptiveStatistics]:
 		else:
 			summaryStats = generateCategoricalStatistics(series)
 		
-		statistics[summaryStats.columnName] = summaryStats.model_dump(mode='json', by_alias=True)
+		statistics[summaryStats.columnName] = summaryStats.model_dump(mode='json', by_alias=False)
 
 	return statistics

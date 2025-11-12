@@ -14,24 +14,24 @@ StatoContext = {
 }
 
 class NumericalStatistics(BaseModel):
-	count: Optional[float] = Field(allow_inf_nan=True, default=None)
-	mean: Optional[float] = Field(allow_inf_nan=True, default=None)
-	std: Optional[float] = Field(allow_inf_nan=True, default=None)
-	min: Optional[float] = Field(allow_inf_nan=True, default=None)
-	first_quartile: Optional[float] = Field(alias="25%", allow_inf_nan=True, default=None)
-	second_quartile: Optional[float] = Field(alias="50%", allow_inf_nan=True, default=None)
-	third_quartile: Optional[float] = Field(alias="75%", allow_inf_nan=True, default=None)
-	max: Optional[float] = Field(allow_inf_nan=True, default=None)
+	count: Optional[Union[float, str]] = Field(default=None)
+	mean: Optional[Union[float,str]] = Field(default=None)
+	std: Optional[Union[float,str]] = Field(default=None)
+	min: Optional[Union[float,str]] = Field(default=None)
+	first_quartile: Optional[Union[float,str]] = Field(alias="25%", default=None)
+	second_quartile: Optional[Union[float,str]] = Field(alias="50%", default=None)
+	third_quartile: Optional[Union[float,str]] = Field(alias="75%", default=None)
+	max: Optional[Union[float,str]] = Field(default=None)
 
 	def serializeStato(self):
 		""" """ 
 		pass
 
 class CategoricalStatistics(BaseModel):
-	count: Optional[int] = Field(allow_inf_nan=True, default=None)
-	unique: Optional[int] = Field(allow_inf_nan=True, default=None)
+	count: Optional[Union[int, str]] = Field(default=None)
+	unique: Optional[Union[int, str]] = Field(default=None)
 	top: Optional[Union[str,bool]] = Field(default=None)
-	freq: Optional[int] = Field(allow_inf_nan=True, default=None)
+	freq: Optional[Union[int, str]] = Field(default=None)
 
 	def serializeStato(self):
 		""" """ 

@@ -53,13 +53,11 @@ def processStatisticsROCrate(guid):
         print(f"found dataset {elem['@id']}")
         datasetElem = StoredIdentifier.model_validate(elem)
         datasetPath = datasetElem.distribution.location.path
-        datasetMimetype, _ = mimetypes.guess_type(datasetPath)
 
-        # TODO handle more mimetypes
-        if datasetMimetype == 'text/csv':
-            stats = identifierRequestFactory.generateStatistics(datasetElem.guid)
-            print(stats)
-
+        stats = identifierRequestFactory.generateStatistics(
+            guid=datasetElem.guid, 
+            fileName=datasetPath
+            )
 
 
 @celeryApp.task(name='fairscape_mds.worker.processROCrate')
