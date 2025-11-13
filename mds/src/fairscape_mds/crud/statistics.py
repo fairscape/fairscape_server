@@ -15,7 +15,20 @@ def generateNumericalStatistics(series) -> DescriptiveStatistics:
 	descriptiveStats = descriptiveStats.replace({numpy.inf: "INF"})
 	descriptiveStats = descriptiveStats.replace({-numpy.inf: "NINF"})
 
-	numericStats = NumericalStatistics.model_validate(descriptiveStats.to_dict(),by_alias=True)
+	descriptiveStatsDict = descriptiveStats.to_dict()
+
+	numericStats = NumericalStatistics.model_validate(
+			{
+				'count': descriptiveStatsDict['count'],
+				'mean': descriptiveStatsDict['mean'],
+				'std': descriptiveStatsDict['std'],
+				'min': descriptiveStatsDict['min'],
+				'first_quartile': descriptiveStatsDict['25%'],
+				'second_quartile': descriptiveStatsDict['50%'],
+				'third_quartile': descriptiveStatsDict['75%'],
+				'max': descriptiveStatsDict['max']
+			}	
+		)
 
 	return DescriptiveStatistics.model_validate({
 		'columnName': descriptiveStats.name,

@@ -15,7 +15,7 @@ from fairscape_mds.models.identifier import (
 )
 
 from typing import Optional, Dict, Any
-from fairscape_models import ROCrateV1_2, ROCrateMetadataElem, Dataset, GenericMetadataElem
+from fairscape_models import ROCrateV1_2, ROCrateMetadataElem, Dataset, GenericMetadataElem, IdentifierValue
 import traceback
 
 import pydantic
@@ -127,14 +127,13 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				})
 
 
-
 	def processTaskWriteDatasets(
 		self,
 		userInstance: UserWriteModel, 
 		rocrateInstance: ROCrateV1_2, 
 		uploadPath: str,
 		includeStem: bool,
-		stem: str = None
+		stem: Optional[str] = None
 	):
 		""" Write ROCrate metadata to identifier collection for all dataset elements.
 
@@ -168,9 +167,16 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				datasetList.append(elem)
 
 		for datasetElem in datasetList:
+			# set isPartOf on the Dataset
+			datasetElem.isPartOf = [
+				IdentifierValue.model_validate({
+						"@id": rocrateGUID, 
+						"@type": MetadataTypeEnum.ROCRATE,
+						"name": rocrateElem.name
+						})
+			]
 
 			if not datasetElem.contentUrl or datasetElem.contentUrl == 'Embargoed':
-
 				outputDataset = StoredIdentifier.model_validate({
 					"@id": datasetElem.guid,
 					"@type": MetadataTypeEnum.DATASET,
@@ -263,19 +269,13 @@ class FairscapeROCrateRequest(FairscapeRequest):
 							"distributionType": 'minio',
 							"location": {"path": objectKey}
 							})
+
+					datasetElem.size = objectSize
 						
 					outputDataset = StoredIdentifier.model_validate({
 						"@id": datasetElem.guid,
 						"@type": MetadataTypeEnum.DATASET,
-						"metadata": {
-							**datasetElem.model_dump(by_alias=True, mode='json'),
-							"size": objectSize,
-							"isPartOf": {
-							"@id": rocrateGUID,
-							"@type": MetadataTypeEnum.ROCRATE,
-							"name": rocrateElem.name
-							}
-						},
+						"metadata": datasetElem,
 						"permissions": permissionsSet, 
 						"distribution": distribution,	
 						"publicationStatus": PublicationStatusEnum.DRAFT,
@@ -287,7 +287,9 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						by_alias=True,
 						mode='json'
 					)
-	
+
+			# TODO check for conflicts
+
 			# insert all identifiers for datasets
 			insertResult = self.config.identifierCollection.insert_one(
 				output_json
@@ -321,7 +323,9 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		metadataCollection = self.config.identifierCollection
 		
 		userPermissions = userInstance.getPermissions()
-		crateGUID = rocrateInstance.getCrateMetadata().guid
+		rocrateMetadata = rocrateInstance.getCrateMetadata()
+		rocrateGUID = rocrateMetadata.guid
+		rocrateName = rocrateMetadata.name
 		
 		# written identifiers
 		guidList = []
@@ -343,6 +347,27 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				if processedMetadataType == MetadataTypeEnum.CREATIVE_WORK:
 					continue
 				
+				# set isPartOf on the metadata element
+				partOfROCrate = IdentifierValue.model_validate({
+					"@id": rocrateGUID, 
+					"@type": MetadataTypeEnum.ROCRATE,
+					"name": rocrateName
+					})
+
+
+				# TODO check if identifier already exists
+				if self.getMetadata(metadataModel.guid):
+					# if it does add isPartOf to existing identifier
+					# todo check success
+					metadataCollection.update_one(
+						{"@id": metadataModel.guid}, 
+						{"$push": {"metadata.isPartOf": partOfROCrate.model_dump(by_alias=True, mode='json')}}
+						)
+				
+				metadataModel.isPartOf = [
+					partOfROCrate
+				]
+
 				metadataDict = metadataModel.model_dump(by_alias=True, mode="json")
 				insertIdentifier = StoredIdentifier.model_validate({
 					"@id": metadataModel.guid,
@@ -669,7 +694,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				"@type": elem.metadataType,
 				"name": elem.name
 			} for elem in roCrateModel.metadataGraph if elem.guid != "ro-crate-metadata.json" and elem.guid != roCrateGUID
-]
+			]
 
 		# TODO needs to be stored identifier		
 		storedMetadataElem = StoredIdentifier.model_validate({

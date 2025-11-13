@@ -41,7 +41,13 @@ def processStatisticsROCrate(guid):
     cursor = identifierRequestFactory.config.identifierCollection.find(
         {
             "metadata.isPartOf.@id": guid,
-            "@type": str(MetadataTypeEnum.DATASET.value)
+            "@type": str(MetadataTypeEnum.DATASET.value),
+            "$or": [
+                {"distribution.location.path": {"$regex": ".csv$"}},
+                {"distribution.location.path": {"$regex": ".tsv$"}},
+                {"distribution.location.path": {"$regex": ".hdf5$"}},
+                {"distribution.location.path": {"$regex": ".parquet$"}},
+            ]
         },
         projection={
            "_id": False
@@ -50,7 +56,6 @@ def processStatisticsROCrate(guid):
 
     # TODO split into multiple tasks
     for elem in cursor:
-        print(f"found dataset {elem['@id']}")
         datasetElem = StoredIdentifier.model_validate(elem)
         datasetPath = datasetElem.distribution.location.path
 
