@@ -143,7 +143,9 @@ class IdentifierRequest(FairscapeRequest):
 				case None:
 					return None
 
-		# TODO determine is csv/tsv
+				case _:
+					return None
+
 		summaryStatistics = generateSummaryStatistics(dataframe)
 
 		# update identifier
