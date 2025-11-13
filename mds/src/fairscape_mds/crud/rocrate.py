@@ -3,7 +3,6 @@ from fairscape_mds.models.user import Permissions, UserWriteModel, checkPermissi
 from fairscape_mds.models.dataset import DatasetWriteModel, DatasetDistribution, DistributionTypeEnum
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
-from fairscape_mds.crud.identifier import deleteIdentifier
 from fairscape_mds.models.rocrate import (
 	ROCrateUploadRequest, 
 	ROCrateMetadataElemWrite
@@ -669,7 +668,8 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				"@id": elem.guid,
 				"@type": elem.metadataType,
 				"name": elem.name
-			} for elem in roCrateModel.metadataGraph if elem.guid != "ro-crate-metadata.json"] 
+			} for elem in roCrateModel.metadataGraph if elem.guid != "ro-crate-metadata.json" and elem.guid != roCrateGUID
+]
 
 		# TODO needs to be stored identifier		
 		storedMetadataElem = StoredIdentifier.model_validate({
@@ -732,6 +732,18 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		return metadataElem.guid
 
 
+	def getUpload(self, transactionGUID: str):
+		uploadMetadata = self.config.asyncCollection.find_one({
+				"guid": transactionGUID
+		})
+
+		if uploadMetadata is None:
+			raise Exception("identifier doesn't exist")
+
+		uploadInstance = ROCrateUploadRequest.model_validate(uploadMetadata)
+		return uploadInstance
+
+
 	def getUploadMetadata(self, requestingUser: UserWriteModel, transactionGUID: str):
 		# get upload metadata
 		uploadMetadata = self.config.asyncCollection.find_one({
@@ -761,26 +773,75 @@ class FairscapeROCrateRequest(FairscapeRequest):
 					error={"message": "user unauthorized to view upload status"}
 			)
 
+	def _build_rocrate_structure(self, root_guid: str, root_metadata: dict, parts: list) -> dict:
+		context = {
+			"@vocab": "https://schema.org/",
+			"EVI": "https://w3id.org/EVI#",
+			"rai":"http://mlcommons.org/croissant/RAI/"
+		}
+		
+		graph = [
+			{
+				"@id": "ro-crate-metadata.json",
+				"@type": "CreativeWork",
+				"conformsTo": {"@id": "https://w3id.org/ro/crate/1.2"},
+				"about": {"@id": root_guid}
+			},
+			root_metadata
+		]
+		
+		graph.extend(parts)
+		
+		return {
+			"@context": context,
+			"@graph": graph
+		}
 
 	def getROCrateMetadata(self, rocrateGUID: str):
-		rocrateMetadata = self.config.rocrateCollection.find_one(
-        {"@id": rocrateGUID},
-        projection={"_id": False}
-        )
+		root_doc = self.config.identifierCollection.find_one(
+			{"@id": rocrateGUID},
+			projection={"_id": False}
+		)
 		
-		# if no metadata is found return 404
-		if not rocrateMetadata:
+		if not root_doc:
 			return FairscapeResponse(
-					success=False,
-					statusCode=404,
-					error={"message": "rocrate not found"}
+				success=False,
+				statusCode=404,
+				error={"message": "rocrate not found"}
 			)
-		else:
+		
+		root_metadata = root_doc.get("metadata", {})
+		
+		has_part = root_metadata.get("hasPart", [])
+		
+		if not has_part:
+			rocrate_doc = self._build_rocrate_structure(rocrateGUID, root_metadata, [])
 			return FairscapeResponse(
-					success=True,
-					model=rocrateMetadata,
-					statusCode=200
+				success=True,
+				statusCode=200,
+				model=rocrate_doc
 			)
+		
+		part_guids = [part.get("@id") for part in has_part if part.get("@id")]
+		
+		parts_cursor = self.config.identifierCollection.find(
+			{"@id": {"$in": part_guids}},
+			projection={"_id": False}
+		)
+		
+		parts_metadata = []
+		for part_doc in parts_cursor:
+			part_metadata = part_doc.get("metadata", {})
+			if part_metadata:
+				parts_metadata.append(part_metadata)
+		
+		rocrate_doc = self._build_rocrate_structure(rocrateGUID, root_metadata, parts_metadata)
+		
+		return FairscapeResponse(
+			success=True,
+			statusCode=200,
+			model=rocrate_doc
+		)
 
 
 	def getROCrateMetadataElem(self, rocrateGUID: str):
@@ -864,7 +925,6 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 
 	def _validateMetadataOnlyCrate(self, crateModel: ROCrateV1_2) -> Optional[dict]:
-		"""Checks for file:// contentUrls in Datasets."""
 		errors = {}
 		datasets = crateModel.getDatasets()
 
@@ -883,20 +943,51 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			errors["message"] = "Metadata-only ROCrates cannot contain local file references (file://)"
 			errors["details"] = file_content_urls
 			return errors
-		return None
+
+		rocrate_elements = list(
+			filter(
+				lambda elem: isinstance(elem.metadataType, list) and 
+							"Dataset" in elem.metadataType and 
+							"https://w3id.org/EVI#ROCrate" in elem.metadataType,
+				crateModel.metadataGraph
+			)
+		)
+
+		if len(rocrate_elements) > 1:
+			root_descriptor = None
+			for elem in crateModel.metadataGraph:
+				if elem.guid == "ro-crate-metadata.json":
+					root_descriptor = elem
+					break
+			
+			if not root_descriptor or not hasattr(root_descriptor, 'about') or not root_descriptor.about:
+				errors["message"] = "Release crate missing root descriptor or 'about' field"
+				return errors
+			
+			about_value = root_descriptor.about.get("@id") if isinstance(root_descriptor.about, dict) else root_descriptor.about
+			root_guid = about_value.guid if hasattr(about_value, 'guid') else str(about_value)
+			print(type(root_guid))
+			
+			print(f"Root GUID for release crate: {root_guid}")
+			sub_crate_guids = [elem.guid for elem in rocrate_elements if elem.guid != root_guid]
+			
+			missing_crates = []
+			for sub_guid in sub_crate_guids:
+				existing = self.config.identifierCollection.find_one({"@id": sub_guid})
+				if not existing:
+					missing_crates.append(sub_guid)
+			
+			if missing_crates:
+				print(f"Missing sub-crates for release: {missing_crates}")
+				errors["message"] = "All sub-crates must be uploaded before a release can be published"
+				errors["missing_crates"] = missing_crates
+				return errors
 
 	def mintMetadataOnlyROCrate(
 			self,
 			requestingUser: UserWriteModel,
 			crateModel: ROCrateV1_2
 		) -> FairscapeResponse:
-			"""
-			Mints metadata records for an ROCrate and its elements without file content upload.
-			- Stores the full ROCrate model dump in rocrateCollection (keyed by root GUID).
-			- Stores individual contextual element dumps in identifierCollection (keyed by element GUIDs),
-			wrapped in MongoDocument.
-			- Does NOT update the user model's lists of associated identifiers.
-			"""
 			try:
 				crateModel.cleanIdentifiers()
 			except Exception as e:
@@ -922,47 +1013,42 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 			now = datetime.datetime.now()
 		
-			# 1. Store the full RO-Crate dump in rocrateCollection
-			try:
-
-				rocrate_doc_for_rocrate_collection = StoredIdentifier.model_validate({
-					"@id": root_guid,
-					"@type": MetadataTypeEnum.ROCRATE,
-					"metadata": crateModel,
-					"permissions": user_permissions,
-					"distribution": None,
-					"publicationStatus": PublicationStatusEnum.DRAFT,
-					"dateCreated": now,
-					"dateModified": now
-				})
-				insertResult = self.config.rocrateCollection.insert_one(
-					rocrate_doc_for_rocrate_collection.model_dump(by_alias=True, mode="json")
-				)
-			except pymongo.errors.DuplicateKeyError:
-				return FairscapeResponse(
-					success=False, statusCode=409,
-					error={"message": f"ROCrate with @id '{root_guid}' already exists in rocrateCollection."}
-				)
-			except Exception as e:
-				return FairscapeResponse(
-					success=False, statusCode=500,
-					error={"message": "Database error storing full ROCrate model.", "details": str(e)}
-				)
-		
 			user_permissions = requestingUser.getPermissions().model_dump(mode='json')
 			
-			# Initialize collections to store results
 			documents_for_identifier_collection = []
 			minted_element_guids = []
+
+			rocrate_elements = list(
+				filter(
+					lambda elem: isinstance(elem.metadataType, list) and 
+								"Dataset" in elem.metadataType and 
+								"https://w3id.org/EVI#ROCrate" in elem.metadataType,
+					crateModel.metadataGraph
+				)
+			)
+
+			release_root_guid = None
+			if len(rocrate_elements) > 1:
+				root_descriptor = None
+				for elem in crateModel.metadataGraph:
+					if elem.guid == "ro-crate-metadata.json":
+						root_descriptor = elem
+						break
+				
+				if root_descriptor and hasattr(root_descriptor, 'about') and root_descriptor.about:
+					about_value = root_descriptor.about.get("@id") if isinstance(root_descriptor.about, dict) else root_descriptor.about
+					release_root_guid = about_value.guid if hasattr(about_value, 'guid') else str(about_value)
 			
-			# Process each element in the ROCrate metadata graph
 			for elem in crateModel.metadataGraph:
 				if elem.metadataType in ["Project", "Organization"] or elem.guid == "ro-crate-metadata.json":
 					continue
 
+				if isinstance(elem.metadataType, list) and "Dataset" in elem.metadataType and "https://w3id.org/EVI#ROCrate" in elem.metadataType:
+					if release_root_guid and elem.guid != release_root_guid:
+						continue
+
 				try:
 
-					# TODO future proof for more list types
 					elemMetadataType = determineMetadataType(elem.metadataType)
 					
 					metadataDict = elem.model_dump(by_alias=True, mode="json")
@@ -973,7 +1059,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						"permissions": user_permissions,
 						"metadata": metadataDict,
 						"distribution": None,
-      					"publicationStatus": PublicationStatusEnum.DRAFT,	
+						"publicationStatus": PublicationStatusEnum.DRAFT,	
 						"dateCreated": now,
 						"dateModified": now
 					})
@@ -1023,21 +1109,6 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				model={"rocrate_guid": root_guid, "minted_element_identifiers": minted_element_guids}
 			)
 
-	def deleteROCrate(
-		self,				 
-		requestingUser: UserWriteModel, 
-		guid: str
-	):
-		""" Mark ROCrate as status ARCHIVED
-		"""
-
-		return deleteIdentifier(
-			self.config.identifierCollection,
-			requestingUser,
-			ROCrateMetadataElemWrite,
-			guid
-		)
-
 
 	def list_crates(
 			self,
@@ -1047,20 +1118,23 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			Lists RO-Crates based on user permissions.
 			Admins see all crates. Regular users see crates they own or that belong to their primary group.
 			"""
-			query: Dict[str, Any] = {}
+			query: Dict[str, Any] = {
+				"@type": "https://w3id.org/EVI#ROCrate"
+			}
+			
 			is_admin = self.config.adminGroup in requestingUser.groups
 
 			if not is_admin:
 				user_primary_group = requestingUser.groups[0] if requestingUser.groups else None
 				
-				or_conditions = [{"owner": requestingUser.email}]
+				or_conditions = [{"permissions.owner": requestingUser.email}]
 				if user_primary_group:
 					or_conditions.append({"permissions.group": user_primary_group})
 				
 				query["$or"] = or_conditions
 			
 			try:
-				cursor = self.config.rocrateCollection.find(
+				cursor = self.config.identifierCollection.find(
 					query,
 					projection={
 						"_id": 0,
@@ -1071,12 +1145,11 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 				crates_list = []
 				for crate_doc in cursor:
-					crate_id = crate_doc.get("@id")
+					metadata = crate_doc.get("metadata", {})
 					crates_list.append({
-						"@id": crate_id,
-						"name": crate_doc.get('metadata',{}).get("@graph",[{},{}])[1].get("name"),
-						"description": crate_doc.get('metadata',{}).get("@graph",[{},{}])[1].get("description"),
-						"@graph": []
+						"@id": crate_doc.get("@id"),
+						"name": metadata.get("name"),
+						"description": metadata.get("description")
 					})
 
 				return FairscapeResponse(

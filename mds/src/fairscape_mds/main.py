@@ -10,6 +10,7 @@ from fairscape_mds.routers.credentitals import router as credentials_router
 from fairscape_mds.routers.evidence_graph import router as evidence_graph_router
 from fairscape_mds.routers.search import router as search_router
 from fairscape_mds.routers.publish import publishRouter
+from fairscape_mds.routers.llm_assist import router as llm_assist_router
 
 from fairscape_mds.core.logging import requestLogger
 
@@ -63,6 +64,7 @@ app.include_router(credentials_router)
 app.include_router(evidence_graph_router)
 app.include_router(search_router)
 app.include_router(publishRouter)
+app.include_router(llm_assist_router)
 
 
 @app.get("/healthz")

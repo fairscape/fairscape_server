@@ -1,12 +1,22 @@
-from fastapi import APIRouter, Header
+from fastapi import (
+	APIRouter, 
+	Header,
+    Depends
+)
 from fastapi.responses import JSONResponse, Response
+from fastapi.encoders import jsonable_encoder
 from fairscape_mds.crud.resolver import FairscapeResolverRequest
 from fairscape_mds.core.config import appConfig
-from typing import Optional
+from fairscape_mds.crud.identifier import IdentifierRequest
+from fairscape_mds.models.identifier import MetadataUnion
+from fairscape_mds.models.user import UserWriteModel
+from fairscape_mds.deps import getCurrentUser
+from typing import Optional, Annotated
 import json
 from rdflib import Graph
 
 resolverRequest = FairscapeResolverRequest(appConfig)
+identifierRequest = IdentifierRequest(appConfig)
 resolverRouter = APIRouter(prefix="", tags=['evi', 'rocrate'])
 
 @resolverRouter.get("/ark:{NAAN}/{postfix}")
@@ -23,17 +33,17 @@ def resolveARK(
             status_code=response.statusCode,
             content=response.error
         )
-    
-    metadata = response.model
-    if isinstance(metadata, dict) and "@context" not in metadata:
-        metadata["@context"] = {
+    metadata = response.model.model_dump(mode='json', by_alias=True)
+
+    if isinstance(metadata, dict) and not metadata.get("metadata", {}).get("@context"):
+        metadata['metadata']["@context"] = {
             "@vocab": "https://schema.org/",
             "EVI": "https://w3id.org/EVI#"
         }
     
     if "turtle" in accept.lower() or accept.lower() == "text/turtle":
         g = Graph()
-        g.parse(data=metadata, format='json-ld')
+        g.parse(data=metadata['metadata'], format='json-ld')
         turtle_data = g.serialize(format='turtle')
         return Response(
             content=turtle_data,
@@ -42,7 +52,7 @@ def resolveARK(
         )
     elif "rdf" in accept.lower() or accept.lower() == "application/rdf+xml":
         g = Graph()
-        g.parse(data=metadata, format='json-ld')
+        g.parse(data=metadata['metadata'], format='json-ld')
         rdf_data = g.serialize(format='xml')
         return Response(
             content=rdf_data,
@@ -50,8 +60,71 @@ def resolveARK(
             media_type="application/rdf+xml"
         )
     else:
+        # dicts including nans from statistic cause issues
         return JSONResponse(
             content=metadata,
             status_code=response.statusCode,
             media_type="application/json"
         )
+
+
+@resolverRouter.put("/ark:{NAAN}/{postfix}")
+def updateARK(
+	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
+    NAAN: str,
+    postfix: str,
+    newMetadata: MetadataUnion
+):
+    fullArk = f"ark:{NAAN}/{postfix}"
+
+    updateResponse = identifierRequest.updateMetadata(
+        guid=fullArk,
+        user=currentUser,
+        newMetadata=newMetadata
+    )
+
+    if not updateResponse.success:
+        return JSONResponse(
+            status_code = updateResponse.statusCode,
+            content = updateResponse.error
+        )
+
+    else:
+        return JSONResponse(
+            status_code = updateResponse.statusCode,
+            content = updateResponse.model.model_dump(by_alias=True, mode="json")
+        )
+
+
+@resolverRouter.delete("/ark:{NAAN}/{postfix}")
+def deleteARK(
+	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
+    NAAN: str,
+    postfix: str,
+    force: str | None = None,
+):
+    fullArk = f"ark:{NAAN}/{postfix}"
+
+    if force == "true":
+        queryForceDelete = True
+    else:
+        queryForceDelete = False
+
+    deleteResponse = identifierRequest.deleteIdentifier(
+        guid = fullArk,
+        forceDelete = queryForceDelete, 
+        user = currentUser
+    )
+
+    if deleteResponse.success:
+        return JSONResponse(
+            status_code = deleteResponse.statusCode,
+            content= deleteResponse.jsonResponse
+        )
+    else:
+        return JSONResponse(
+            status_code = deleteResponse.statusCode,
+            content= deleteResponse.error
+        )
+
+

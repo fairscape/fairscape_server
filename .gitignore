@@ -163,3 +163,5 @@ dmypy.json
 *.zip
 /tests/rocrate/worker/jobs
 tests/model-tests/ppi_gene_node_attributes.tsv
+
+.env

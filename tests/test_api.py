@@ -32,10 +32,18 @@ s3 = boto3.client('s3',
         region_name='us-east-1'
     )
 
-s3.delete_object(
-    Bucket="default",
-    Key=object_key
-)
+try:
+    s3.create_bucket(Bucket="default")
+except:
+    pass
+
+try:
+    s3.delete_object(
+        Bucket="default",
+        Key=object_key
+    )
+except:
+    pass
 
 
 connection_string = f"mongodb://{quote_plus('mongotestaccess')}:{quote_plus('mongotestsecret')}@localhost:27017/?authSource=admin&retryWrites=true"

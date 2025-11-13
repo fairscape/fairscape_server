@@ -1,12 +1,19 @@
-from celery import Celery
+from celery import chain
 import datetime
+import mimetypes
 
 from fairscape_mds.core.config import appConfig, celeryApp
 from fairscape_mds.crud.rocrate import FairscapeROCrateRequest
 from fairscape_mds.models.user import UserWriteModel
+from fairscape_mds.models.identifier import (
+	MetadataTypeEnum,
+	StoredIdentifier
+)
+from fairscape_mds.crud.identifier import IdentifierRequest
 
 from fairscape_mds.crud.evidence_graph import FairscapeEvidenceGraphRequest
 from fairscape_mds.crud.AIReady import FairscapeAIReadyScoreRequest
+from fairscape_mds.crud.llm_assist import FairscapeLLMAssistRequest
 
 from fairscape_models.conversion.models.AIReady import AIReadyScore
 from fairscape_models.conversion.mapping.AIReady import (
@@ -17,12 +24,53 @@ from fairscape_models.conversion.mapping.AIReady import (
 
 rocrateRequests = FairscapeROCrateRequest(appConfig)
 evidenceGraphRequests = FairscapeEvidenceGraphRequest(appConfig)
+llmAssistRequests = FairscapeLLMAssistRequest(appConfig)
+identifierRequestFactory = IdentifierRequest(appConfig)
+
+def celeryUploadROCrate(transactionGUID: str):
+    ''' Chain Together Tasks for Uploading an ROCrate
+    '''
+    processChain = chain(processROCrate.s(transactionGUID), processStatisticsROCrate.s())
+    processChain()
+
+@celeryApp.task(name='fairscape_mds.worker.processStatisticsROCrate')
+def processStatisticsROCrate(guid):
+    print(f"Processing Statistics: {guid}")
+
+    # query mongo
+    cursor = identifierRequestFactory.config.identifierCollection.find(
+        {
+            "metadata.isPartOf.@id": guid,
+            "@type": str(MetadataTypeEnum.DATASET.value)
+        },
+        projection={
+           "_id": False
+        }
+        )
+
+    # TODO split into multiple tasks
+    for elem in cursor:
+        print(f"found dataset {elem['@id']}")
+        datasetElem = StoredIdentifier.model_validate(elem)
+        datasetPath = datasetElem.distribution.location.path
+
+        stats = identifierRequestFactory.generateStatistics(
+            guid=datasetElem.guid, 
+            fileName=datasetPath
+            )
+
 
 @celeryApp.task(name='fairscape_mds.worker.processROCrate')
 def processROCrate(transactionGUID: str):
     print(f"Starting Job: {transactionGUID}")
-    return rocrateRequests.processROCrate(transactionGUID)
+    rocrateRequests.processROCrate(transactionGUID)
 
+    # get the rocrate guid
+    uploadAttempt = rocrateRequests.getUpload(transactionGUID)
+    return uploadAttempt.rocrateGUID
+
+
+#Are the guids supposed to be @id?
 @celeryApp.task(name='fairscape_mds.worker.build_evidence_graph_task', bind=True)
 def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, postfix: str):
     print(f"Starting Evidence Graph Build Job: Task GUID {task_guid} for ark:{naan}/{postfix}")
@@ -189,6 +237,68 @@ def score_ai_ready_task(self, task_guid: str, rocrate_id: str):
         traceback.print_exc()
         appConfig.asyncCollection.update_one(
             {"guid": task_guid},
+            {"$set": {
+                "status": "FAILURE",
+                "error": {"message": "An unexpected error occurred", "details": str(e)},
+                "time_finished": datetime.datetime.utcnow()
+            }}
+        )
+        return {"status": "FAILURE", "error": {"message": "An unexpected server error occurred"}}
+
+@celeryApp.task(name='fairscape_mds.worker.process_llm_assist_task', bind=True)
+def process_llm_assist_task(self, task_guid: str):
+    print(f"Starting LLM Assist Processing Task: {task_guid}")
+    
+    try:
+        appConfig.asyncCollection.update_one(
+            {"@id": task_guid},
+            {"$set": {
+                "status": "PROCESSING",
+                "time_started": datetime.datetime.utcnow()
+            }}
+        )
+        
+        task_doc = appConfig.asyncCollection.find_one({"@id": task_guid})
+        if not task_doc:
+            error_msg = f"Task {task_guid} not found"
+            print(error_msg)
+            return {"status": "FAILURE", "error": error_msg}
+        
+        document_texts = task_doc.get("document_texts", [])
+        if not document_texts:
+            error_msg = "No document texts found in task"
+            appConfig.asyncCollection.update_one(
+                {"@id": task_guid},
+                {"$set": {
+                    "status": "FAILURE",
+                    "error": {"message": error_msg},
+                    "time_finished": datetime.datetime.utcnow()
+                }}
+            )
+            return {"status": "FAILURE", "error": error_msg}
+        
+        result_json = llmAssistRequests.process_pdfs_with_llm(document_texts)
+        
+        appConfig.asyncCollection.update_one(
+            {"@id": task_guid},
+            {"$set": {
+                "status": "SUCCESS",
+                "result": result_json,
+                "time_finished": datetime.datetime.utcnow()
+            }}
+        )
+        
+        print(f"Successfully processed LLM task {task_guid}")
+        return {"status": "SUCCESS", "result": result_json}
+        
+    except Exception as e:
+        import traceback
+        error_msg = f"Unexpected error in process_llm_assist_task: {str(e)}"
+        print(error_msg)
+        traceback.print_exc()
+        
+        appConfig.asyncCollection.update_one(
+            {"@id": task_guid},
             {"$set": {
                 "status": "FAILURE",
                 "error": {"message": "An unexpected error occurred", "details": str(e)},

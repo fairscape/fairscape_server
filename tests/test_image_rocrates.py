@@ -107,7 +107,7 @@ def test_upload(rocratePath, caplog):
 	# check if job is complete
 	wait = 0
 	completed = statusJSON.get("completed", False)
-	while not completed or wait>10:
+	while not completed or wait>600:
 		# check upload status in 5 seconds
 		testLogger.info('Awaiting Job Completion')
 		time.sleep(5)

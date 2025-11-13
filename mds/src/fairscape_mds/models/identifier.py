@@ -1,7 +1,8 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Union
+from typing import Optional, Union, Dict
 from fairscape_mds.models.user import Permissions
 from fairscape_mds.models.dataset import DatasetDistribution
+from fairscape_mds.models.statistics import DescriptiveStatistics
 
 from fairscape_models.rocrate import ROCrateV1_2, ROCrateMetadataElem, GenericMetadataElem
 from fairscape_models.dataset import Dataset
@@ -41,6 +42,7 @@ class MetadataTypeEnum(Enum):
 	INSTRUMENT = "https://w3id.org/EVI#Instrument"
 	MEDICAL_CONDITION = "https://schema.org/MedicalCondition"
 	CREATIVE_WORK = "https://schema.org/CreativeWork"
+	ML_MODEL = "https://w3id.org/EVI#MLModel"
 
 
 MetadataUnion = Union[
@@ -65,6 +67,7 @@ class StoredIdentifier(BaseModel):
 	publicationStatus: PublicationStatusEnum
 	permissions: Permissions
 	distribution: Optional[DatasetDistribution]
+	descriptiveStatistics: Optional[Dict[str, DescriptiveStatistics]] = Field(default = {})
 	dateCreated: datetime.datetime
 	dateModified: datetime.datetime
 
@@ -98,6 +101,8 @@ def determineMetadataType(inputType)->MetadataTypeEnum:
 		return MetadataTypeEnum.MEDICAL_CONDITION
 	elif 'CreativeWork' in inputType:
 		return MetadataTypeEnum.CREATIVE_WORK
+	elif 'MLModel' in inputType:
+		return MetadataTypeEnum.ML_MODEL
 	else:
 		raise Exception(f"Type not found for value {inputType}")
 	
