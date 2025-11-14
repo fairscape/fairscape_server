@@ -27,6 +27,7 @@ import pathlib
 import datetime
 import re
 import botocore
+import mimetypes
 
 # ROCrate Helper Functions
 
@@ -243,6 +244,10 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				if 'file:///' in datasetElem.contentUrl:	
 					# match the metadata path to content
 					contentUrlKey = datasetElem.contentUrl.lstrip("file:///")
+
+					# overwrite dataset mimetype
+					datasetMimetype, _ = mimetypes.guess_type(contentUrlKey)
+					datasetElem.format = datasetMimetype
 
 					# if file in datasetInstance
 					if includeStem:
