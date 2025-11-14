@@ -165,3 +165,4 @@ dmypy.json
 tests/model-tests/ppi_gene_node_attributes.tsv
 
 .env
+*.ipynb
