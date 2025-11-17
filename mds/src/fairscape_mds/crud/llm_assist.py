@@ -2,15 +2,23 @@ import os
 import tempfile
 import json
 import re
+import io
+import uuid
+import datetime
 from typing import List
 from werkzeug.utils import secure_filename
 import google.generativeai as genai
 import PyPDF2
+from fastapi import UploadFile
 
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
+from fairscape_mds.crud.dataset import FairscapeDatasetRequest
 from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.models.llm_assist import LLMAssistTask
+from fairscape_mds.models.identifier import StoredIdentifier, MetadataTypeEnum, PublicationStatusEnum
+from fairscape_models.dataset import Dataset
+from fairscape_models.computation import Computation
 
 
 ALLOWED_EXTENSIONS = {'pdf'}
@@ -155,7 +163,6 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
         return text
 
     def extract_text_from_pdf_bytes(self, pdf_bytes: bytes) -> str:
-        import io
         text = ""
         pdf_file = io.BytesIO(pdf_bytes)
         reader = PyPDF2.PdfReader(pdf_file)
@@ -183,28 +190,236 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
         
         return response_text
 
-    def process_pdfs_with_llm(self, document_texts: List[str]) -> str:
+    def create_input_text_dataset(
+        self,
+        document_texts: List[str],
+        filenames: List[str],
+        requesting_user: UserWriteModel,
+        task_guid: str
+    ) -> str:
         combined_text = "\n\n--- DOCUMENT SEPARATOR ---\n\n".join(document_texts)
         
-        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        dataset_ark = f"ark:59853/dataset/{uuid.uuid4()}"
         
-        response = model.generate_content(
-            SYSTEM_PROMPT + "\n\n" + combined_text,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.2,
-                max_output_tokens=8192,
-            )
+        dataset = Dataset(
+            guid=dataset_ark,
+            name=f"LLM Input Text for Task {task_guid}",
+            author=requesting_user.email,
+            datePublished=datetime.datetime.now().isoformat(),
+            version="1.0",
+            description=f"Combined extracted text from {len(filenames)} documents: {', '.join(filenames)}",
+            keywords=["llm-input", "extracted-text", "pdf-text"],
+            format="text/plain",
+            additionalType="https://w3id.org/EVI#Dataset",
+            contentUrl=None
         )
         
-        cleaned_response = self.clean_llm_response(response.text)
+        text_bytes = io.BytesIO(combined_text.encode('utf-8'))
+        upload_file = UploadFile(filename="input_text.txt", file=text_bytes)
+        
+        dataset_request = FairscapeDatasetRequest(self.config)
+        response = dataset_request.createDataset(
+            userInstance=requesting_user,
+            inputDataset=dataset,
+            datasetContent=upload_file
+        )
+        
+        if not response.success:
+            raise Exception(f"Failed to create input dataset: {response.error}")
+        
+        return dataset_ark
+
+    def create_llm_computation(
+        self,
+        input_dataset_ark: str,
+        requesting_user: UserWriteModel,
+        task_guid: str
+    ) -> str:
+        computation_ark = f"ark:59853/computation/{uuid.uuid4()}"
+        
+        computation = Computation(
+            guid=computation_ark,
+            name=f"Gemini LLM Processing for Task {task_guid}",
+            runBy=requesting_user.email,
+            dateCreated=datetime.datetime.now().isoformat(),
+            description="LLM processing of extracted PDF text to generate RO-Crate metadata using Google Gemini 2.0 Flash",
+            command=["gemini-2.5-flash", "generate_rocrate_metadata"],
+            usedSoftware=[{"@id": "ark:59853/software/fairscape-llm-direct-v1"}],
+            usedMLModel=[{"@id": "ark:59853/model/gemini-2.5-flash"}],
+            usedDataset=[{"@id": input_dataset_ark}],
+            generated=[]
+        )
+        
+        permissions_set = requesting_user.getPermissions()
+        now = datetime.datetime.now()
+        
+        stored_computation = StoredIdentifier(
+            guid=computation_ark,
+            metadataType=MetadataTypeEnum.COMPUTATION,
+            metadata=computation,
+            permissions=permissions_set,
+            publicationStatus=PublicationStatusEnum.DRAFT,
+            dateCreated=now,
+            dateModified=now
+        )
+        
+        self.config.identifierCollection.insert_one(
+            stored_computation.model_dump(by_alias=True, mode="json")
+        )
+        
+        self.config.userCollection.update_one(
+            {"email": requesting_user.email},
+            {"$push": {"identifiers": computation_ark}}
+        )
+        
+        return computation_ark
+
+    def create_output_json_dataset(
+        self,
+        json_content: str,
+        computation_ark: str,
+        requesting_user: UserWriteModel,
+        task_guid: str
+    ) -> str:
+        dataset_ark = f"ark:59853/dataset/{uuid.uuid4()}"
+        
+        dataset = Dataset(
+            guid=dataset_ark,
+            name=f"LLM Generated RO-Crate for Task {task_guid}",
+            author=requesting_user.email,
+            datePublished=datetime.datetime.now().isoformat(),
+            version="1.0",
+            description="RO-Crate metadata generated by Gemini LLM from extracted PDF text",
+            keywords=["llm-generated", "ro-crate", "metadata"],
+            format="application/json",
+            generatedBy=[{"@id": computation_ark}],
+            additionalType="https://w3id.org/EVI#Dataset",
+            contentUrl=None
+        )
+        
+        json_bytes = io.BytesIO(json_content.encode('utf-8'))
+        upload_file = UploadFile(filename="output_metadata.json", file=json_bytes)
+        
+        dataset_request = FairscapeDatasetRequest(self.config)
+        response = dataset_request.createDataset(
+            userInstance=requesting_user,
+            inputDataset=dataset,
+            datasetContent=upload_file
+        )
+        
+        if not response.success:
+            raise Exception(f"Failed to create output dataset: {response.error}")
+        
+        self.config.identifierCollection.update_one(
+            {"@id": computation_ark},
+            {"$push": {"metadata.generated": {"@id": dataset_ark}}}
+        )
+        
+        return dataset_ark
+
+    def process_pdfs_with_llm(self, task_guid: str) -> str:
+        task_doc = self.config.asyncCollection.find_one({"@id": task_guid})
+        if not task_doc:
+            raise Exception(f"Task {task_guid} not found")
+        
+        task = LLMAssistTask.model_validate(task_doc)
+        
+        user_doc = self.config.userCollection.find_one({"email": task.owner_email})
+        if not user_doc:
+            raise Exception(f"User {task.owner_email} not found")
+        
+        requesting_user = UserWriteModel.model_validate(user_doc)
+        
+        input_dataset_ark = None
+        computation_ark = None
+        output_dataset_ark = None
         
         try:
-            json.loads(cleaned_response)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"LLM returned invalid JSON: {str(e)}")
-        
-        return cleaned_response
+            self.config.asyncCollection.update_one(
+                {"@id": task_guid},
+                {
+                    "$set": {
+                        "status": "PROCESSING",
+                        "time_started": datetime.datetime.utcnow()
+                    }
+                }
+            )
+            
+            input_dataset_ark = self.create_input_text_dataset(
+                document_texts=task.document_texts,
+                filenames=task.filenames,
+                requesting_user=requesting_user,
+                task_guid=task_guid
+            )
+            
+            computation_ark = self.create_llm_computation(
+                input_dataset_ark=input_dataset_ark,
+                requesting_user=requesting_user,
+                task_guid=task_guid
+            )
+            
+            combined_text = "\n\n--- DOCUMENT SEPARATOR ---\n\n".join(task.document_texts)
+            
+            genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+            model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            
+            response = model.generate_content(
+                SYSTEM_PROMPT + "\n\n" + combined_text,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.2,
+                    max_output_tokens=8192,
+                )
+            )
+            
+            cleaned_response = self.clean_llm_response(response.text)
+            
+            try:
+                json.loads(cleaned_response)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"LLM returned invalid JSON: {str(e)}")
+            
+            output_dataset_ark = self.create_output_json_dataset(
+                json_content=cleaned_response,
+                computation_ark=computation_ark,
+                requesting_user=requesting_user,
+                task_guid=task_guid
+            )
+            
+            self.config.asyncCollection.update_one(
+                {"@id": task_guid},
+                {
+                    "$set": {
+                        "status": "SUCCESS",
+                        "result": cleaned_response,
+                        "time_finished": datetime.datetime.utcnow(),
+                        "input_dataset_ark": input_dataset_ark,
+                        "output_dataset_ark": output_dataset_ark,
+                        "computation_ark": computation_ark
+                    }
+                }
+            )
+            
+            return cleaned_response
+            
+        except Exception as e:
+            error_info = {
+                "message": str(e),
+                "input_dataset_ark": input_dataset_ark,
+                "computation_ark": computation_ark
+            }
+            
+            self.config.asyncCollection.update_one(
+                {"@id": task_guid},
+                {
+                    "$set": {
+                        "status": "ERROR",
+                        "error": error_info,
+                        "time_finished": datetime.datetime.utcnow()
+                    }
+                }
+            )
+            
+            raise
 
     def create_llm_assist_task(
         self,

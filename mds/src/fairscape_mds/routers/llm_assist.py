@@ -52,7 +52,6 @@ def create_llm_assist_task_route(
 
 @router.get(
     "/status/{task_id}",
-    response_model=LLMAssistTask,
     summary="Get the status of an LLM processing task"
 )
 def get_llm_assist_task_status_route(
@@ -63,4 +62,24 @@ def get_llm_assist_task_status_route(
     if not response.success:
         raise HTTPException(status_code=response.statusCode, detail=response.error)
     
-    return response.model
+    task = response.model
+    
+    response_data = {
+        "task_id": task.guid,
+        "status": task.status,
+        "time_created": task.time_created.isoformat() if task.time_created else None,
+        "time_started": task.time_started.isoformat() if task.time_started else None,
+        "time_finished": task.time_finished.isoformat() if task.time_finished else None,
+    }
+    
+    if task.status == "SUCCESS":
+        response_data["result"] = task.result
+        response_data["provenance"] = {
+            "inputArk": task.input_dataset_ark,
+            "outputArk": task.output_dataset_ark,
+            "computationArk": task.computation_ark
+        }
+    elif task.status == "ERROR":
+        response_data["error"] = task.error
+    
+    return response_data
