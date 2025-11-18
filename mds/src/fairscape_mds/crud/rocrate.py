@@ -16,6 +16,7 @@ from fairscape_mds.models.identifier import (
 
 from typing import Optional, Dict, Any
 from fairscape_models import ROCrateV1_2, ROCrateMetadataElem, Dataset, GenericMetadataElem, IdentifierValue
+from fairscape_models.model_card import ModelCard
 import traceback
 
 import pydantic
@@ -310,6 +311,115 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		return datasetWriteList
 
 
+	def processTaskWriteMLModels(
+		self,
+		userInstance: UserWriteModel, 
+		rocrateInstance: ROCrateV1_2, 
+		uploadPath: str,
+		includeStem: bool,
+		stem: Optional[str] = None
+	):
+
+		rocrateElem = rocrateInstance.getCrateMetadata()
+		rocrateGUID = rocrateElem.guid
+		rocrateName = rocrateElem.name
+
+		permissionsSet = userInstance.getPermissions()
+		now = datetime.datetime.now()
+
+		modelList = []	
+		for elem in rocrateInstance.metadataGraph:
+			if isinstance(elem, ModelCard):
+				modelList.append(elem)
+			elif isinstance(elem, GenericMetadataElem) and 'MLModel' in elem.metadataType:
+				modelList.append(elem)
+
+		for modelElem in modelList:
+			modelElem.isPartOf = [
+				IdentifierValue.model_validate({
+						"@id": rocrateGUID, 
+						"@type": MetadataTypeEnum.ROCRATE,
+						"name": rocrateName
+						})
+			]
+
+			#
+			if "file:///" in modelElem.contentUrl:
+				modelDistribution = DatasetDistribution.model_validate({})
+
+				contentUrlKey = modelElem.contentUrl.lstrip("file:///")
+
+				# TODO format for mlmodels
+				# Keras -> HDF5
+				# PyTorch -> .pt/.pth/.zip/.tar
+				# Pickle -> .pkl
+				# Numpy Arrays -> .npy
+				modelMimetype, _ =  mimetypes.guess_type(contentUrlKey)
+				modelElem.format = modelMimetype
+
+				# if file in rocrate zip, inspect the object
+				if includeStem:
+					objectKey = f"{uploadPath}/{stem}/{contentUrlKey}"
+				else:
+					objectKey = f"{uploadPath}/{contentUrlKey}"
+
+				try:
+					response = self.config.minioClient.head_object(
+						Bucket= self.config.minioBucket,
+						Key=objectKey
+					)
+					
+				except botocore.exceptions.ClientError as e:	
+					raise Exception(f"message: Object Key Not Found\tkey: {objectKey}\tbucket: {self.config.minioBucket}")
+
+				objectSize = response.get("ContentLength")
+				modelElem.size = objectSize
+
+				modelElem.contentUrl = f"{self.config.baseUrl}/download/{modelElem.guid}"
+				distribution = DatasetDistribution.model_validate({
+					"distributionType": "minio",
+					"location": {"Path": objectKey}
+				})
+
+			elif "https://" in modelElem.contentUrl or "http://" in modelElem.contentUrl:
+				modelDistribution = DatasetDistribution.model_validate({
+					"distributionType": "url",
+					"location": {"uri": modelElem.contentUrl}
+				})
+			
+			elif "https://" in modelElem.contentUrl or "http://" in modelElem.contentUrl:
+				modelDistribution = DatasetDistribution.model_validate({
+					"distributionType": "url",
+					"location": {"uri": modelElem.contentUrl}
+				})
+
+			elif "ftp://" in modelElem.contentUrl:
+				modelDistribution = DatasetDistribution.model_validate({
+					"distributionType": "ftp",
+					"location": {"uri": modelElem.contentUrl}
+				})
+
+			else:
+				modelDistribution = None
+
+			# stored identifier
+			storedModel = StoredIdentifier.model_validate({
+				"@id": modelElem.guid,
+				"@type": MetadataTypeEnum.ML_MODEL,
+				"metadata": modelElem,
+				"permissions": permissionsSet,
+				"distribution": modelDistribution,
+				"dateCreated": now,
+				"dateModified": now
+			})
+
+			# insert identifier
+			self.config.identifierCollection.insert_one(
+				storedModel.model_dump(by_alias=True, mode='json')
+			)
+
+		pass
+
 	def processTaskWriteMetadataElements(
 		self,
 		userInstance,
@@ -345,6 +455,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 			if 'Dataset' in metadataModel.metadataType or metadataModel.guid == 'ro-crate-metadata.json':
 				continue
+
 			else:
 
 				processedMetadataType = determineMetadataType(metadataModel.metadataType)
@@ -676,6 +787,14 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			includeStem,
 			stem
 		)
+
+		self.processTaskWriteMLModels(
+			foundUser, 
+			roCrateModel, 
+			uploadInstance.uploadPath,
+			includeStem,
+			stem
+		)
 		
 		# write metadata elements
 		nonDatasetGUIDS = self.processTaskWriteMetadataElements(
@@ -694,11 +813,11 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 		# set hasPart for metadata element
 		metadataElem.hasPart = [
-			{
+			IdentifierValue.model_validate({
 				"@id": elem.guid,
 				"@type": elem.metadataType,
 				"name": elem.name
-			} for elem in roCrateModel.metadataGraph if elem.guid != "ro-crate-metadata.json" and elem.guid != roCrateGUID
+			}) for elem in roCrateModel.metadataGraph if elem.guid != "ro-crate-metadata.json" and elem.guid != roCrateGUID
 			]
 
 		# TODO needs to be stored identifier		
