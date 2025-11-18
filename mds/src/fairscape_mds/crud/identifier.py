@@ -1,6 +1,7 @@
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.models.user import UserWriteModel, checkPermissions
+from fairscape_mds.models.dataset import DatasetDistribution
 from fairscape_mds.models.identifier import (
 	StoredIdentifier, 
 	MetadataTypeEnum, 
@@ -8,6 +9,7 @@ from fairscape_mds.models.identifier import (
 	UpdatePublishRequest, 
 	determineMetadataType
 )
+from fairscape_mds.crud.rocrate import userPath, setDatasetObjectKey
 from fairscape_mds.models.statistics import (
 	DescriptiveStatistics,
 	CategoricalStatistics
@@ -15,11 +17,15 @@ from fairscape_mds.models.statistics import (
 from fairscape_mds.crud.statistics import (
 	generateSummaryStatistics
 )
+from fairscape_models import IdentifierValue
+from fairscape_models.model_card import ModelCard
 from fairscape_mds.models.dataset import DistributionTypeEnum
 from fairscape_mds.models.errors import IdentifierNotFound, FileNotFound
+from fastapi import UploadFile
 from pydantic import ValidationError
 from typing import Optional
 import datetime
+import pathlib
 from pymongo import ReturnDocument
 from io import BytesIO
 import pandas
@@ -432,7 +438,87 @@ class IdentifierRequest(FairscapeRequest):
 
 		return deleteRequest.delete()
 
+	def UploadModel(
+		self,
+		userInstance: UserWriteModel,
+		mlModelMetadata: ModelCard,
+		mlModelContent: Optional[UploadFile] = None
+		)->FairscapeResponse:
+		permissionsSet = userInstance.getPermissions()
+		now = datetime.datetime.now()
 
+		foundMetadata = self.getMetadata(mlModelMetadata.guid)
+		if foundMetadata:
+			return FairscapeResponse(
+				success=False,
+				statusCode=400,
+				error={"error": "identifier already exists"}
+			)
+
+		# if no content is passed
+		contentUrl = mlModelMetadata.contentUrl
+		if mlModelContent is None:
+			if contentUrl is None:
+				modelDistribution = None
+			if 'http://' in contentUrl or 'https://' in contentUrl:
+				modelDistribution = DatasetDistribution.model_validate({
+					"distributionType": "url"
+					"location": {"uri": contentUrl}
+				})
+				pass
+
+			if 'ftp://' in contentUrl:
+				modelDistribution = DatasetDistribution.model_validate({
+					"distributionType": "ftp",
+					"location": {"uri": contentUrl}
+				})
+
+		else:
+
+			# set the upload path for ml models
+			userFilepath = userPath(userInstance.email)	
+			basePath = self.config.minioDefaultPath
+			contentName = pathlib.Path(contentUrl).name
+			if basePath is None:
+				objectKey = f"{userFilepath}/datasets/{contentName}"
+			else:
+				objectKey = f"{basePath}/{userFilepath}/datasets/{contentName}"
+
+			uploadResult = self.config.minioClient.upload_fileobj(
+				Bucket=self.config.minioBucket,
+				Key= objectKey,
+				Fileobj=mlModelContent
+			)
+
+			# create distribution for metadata
+			modelDistribution = DatasetDistribution.model_validate({
+					"distributionType": DistributionTypeEnum.MINIO.value,
+							"location": {"path": objectKey}
+					})
+
+
+		mlIdentifier = StoredIdentifier.model_validate({
+			"@id": mlModelMetadata.guid,
+			"@type": MetadataTypeEnum.ML_MODEL.value,
+			"metadata": mlModelMetadata,
+			"permissions": permissionsSet,
+			"distribution": modelDistribution,
+			"descriptiveStatistics": None,
+			"dateCreated": now,
+			"dateModified": now
+		})
+
+		uploadedModelIdentifierValue = IdentifierValue.model_validate({
+			"@id": mlModelMetadata,
+			"@type": MetadataTypeEnum.ML_MODEL.value,
+			"name": mlModelMetadata.name,
+		})
+
+		return FairscapeResponse(
+			success=True,
+			statusCode=200,
+			model=uploadedModelIdentifierValue
+		)
 
 def getStoredIdentifier(identifierCollection, guid: str)->FairscapeResponse:
 	metadata =identifierCollection.find_one(
