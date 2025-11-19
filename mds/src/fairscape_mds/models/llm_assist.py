@@ -29,3 +29,4 @@ class D4DFromIssueRequest(BaseModel):
     issue_body: str
     issue_comments: List[Dict[str, Any]] = Field(default_factory=list)
     yaml_url: str
+    issue_url: str

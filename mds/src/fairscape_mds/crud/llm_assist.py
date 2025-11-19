@@ -530,6 +530,7 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
         issue_title: str,
         issue_body: str,
         issue_comments: List[Dict[str, Any]],
+        issue_url: str,
         requesting_user: UserWriteModel
     ) -> str:
         """Create a dataset representing the user's D4D request from GitHub issue"""
@@ -562,7 +563,8 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
             "keywords": ["d4d-request", "github-issue", "user-input"],
             "format": "text/plain",
             "additionalType": "https://w3id.org/EVI#Dataset",
-            "contentUrl": None
+            "contentUrl": None,
+            "url": issue_url
         })
 
         text_bytes = io.BytesIO(request_text.encode('utf-8'))
@@ -584,6 +586,7 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
         self,
         request_dataset_ark: str,
         issue_number: int,
+        issue_url: str,
         requesting_user: UserWriteModel
     ) -> str:
         """Create a computation representing D4D generation from GitHub issue"""
@@ -598,8 +601,10 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
             "description": f"D4D generation process for GitHub issue #{issue_number} using the D4D Assistant bot",
             "command": ["d4d-assistant", "generate_yaml"],
             "usedSoftware": [{"@id": "ark:59853/software-d4d-assistant-bot-v1"}],
+            "usedMLModel": [{"@id": "ark:59853/model-sonnet-4-5"}],
             "usedDataset": [{"@id": request_dataset_ark}],
-            "generated": []
+            "generated": [],
+            "url": issue_url
         })
 
         permissions_set = requesting_user.getPermissions()
@@ -628,6 +633,7 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
         yaml_content: str,
         computation_ark: str,
         project_name: str,
+        issue_url: str,
         requesting_user: UserWriteModel
     ) -> str:
         """Create a dataset for the D4D YAML file"""
@@ -645,7 +651,8 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
             "format": "application/x-yaml",
             "generatedBy": [{"@id": computation_ark}],
             "additionalType": "https://w3id.org/EVI#Dataset",
-            "contentUrl": None
+            "contentUrl": None,
+            "url": issue_url
         })
 
         yaml_bytes = io.BytesIO(yaml_content.encode('utf-8'))
@@ -731,6 +738,7 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
                 issue_title=request.issue_title,
                 issue_body=request.issue_body,
                 issue_comments=request.issue_comments,
+                issue_url=request.issue_url,
                 requesting_user=requesting_user
             )
 
@@ -738,6 +746,7 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
             computation_ark = self.create_d4d_computation(
                 request_dataset_ark=request_dataset_ark,
                 issue_number=request.issue_number,
+                issue_url=request.issue_url,
                 requesting_user=requesting_user
             )
 
@@ -756,6 +765,7 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
                 yaml_content=yaml_content,
                 computation_ark=computation_ark,
                 project_name=project_name,
+                issue_url=request.issue_url,
                 requesting_user=requesting_user
             )
 
