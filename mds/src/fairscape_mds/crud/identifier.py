@@ -303,7 +303,6 @@ class IdentifierRequest(FairscapeRequest):
 		""" List all metadata instances of a specific type
 		"""
 	
-
 		# public identifiers
 		publishedIdentifiers = self.config.identifierCollection.find(
 			{
@@ -438,12 +437,15 @@ class IdentifierRequest(FairscapeRequest):
 
 		return deleteRequest.delete()
 
-	def UploadModel(
+	def UploadMLModel(
 		self,
 		userInstance: UserWriteModel,
 		mlModelMetadata: ModelCard,
 		mlModelContent: Optional[UploadFile] = None
 		)->FairscapeResponse:
+		""" API Request to upload a ML Model
+		"""
+
 		permissionsSet = userInstance.getPermissions()
 		now = datetime.datetime.now()
 
@@ -462,10 +464,9 @@ class IdentifierRequest(FairscapeRequest):
 				modelDistribution = None
 			if 'http://' in contentUrl or 'https://' in contentUrl:
 				modelDistribution = DatasetDistribution.model_validate({
-					"distributionType": "url"
+					"distributionType": "url",
 					"location": {"uri": contentUrl}
 				})
-				pass
 
 			if 'ftp://' in contentUrl:
 				modelDistribution = DatasetDistribution.model_validate({
@@ -778,6 +779,9 @@ class DeleteIdentifier():
 		# delete based on type 
 		match StoredIdentifier.metadataType:
 			case MetadataTypeEnum.DATASET:
+				return self.deleteDataset(identifierInstance)
+
+			case MetadataTypeEnum.ML_MODEL:
 				return self.deleteDataset(identifierInstance)
 
 			case MetadataTypeEnum.ROCRATE:
