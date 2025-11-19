@@ -14,6 +14,7 @@ from fairscape_models.biochem_entity import BioChemEntity
 from fairscape_models.experiment import Experiment
 from fairscape_models.instrument import Instrument
 from fairscape_models.medical_condition import MedicalCondition
+from fairscape_models.model_card import ModelCard
 
 import datetime
 
@@ -57,6 +58,7 @@ MetadataUnion = Union[
 	Experiment,
 	Instrument,
 	MedicalCondition,
+	ModelCard,
 	GenericMetadataElem
 	]
 
