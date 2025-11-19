@@ -57,8 +57,8 @@ You must generate a JSON object that follows this exact structure. For each fiel
   "@context": {
     "@language": "en",
     "rai": "http://mlcommons.org/croissant/RAI/",
-    "sc": "https://schema.org/",
-    "dct": "http://purl.org/dc/terms/"
+    "@vocab": "https://schema.org/",
+    "EVI": "https://w3id.org/EVI#"
   },
   "@graph": [
     {
@@ -73,9 +73,8 @@ You must generate a JSON object that follows this exact structure. For each fiel
     },
     {
       "@id": "./",
-      "@type": "sc:Dataset",
+      "@type": "EVI:Dataset",
       "name": null,
-      "dct:conformsTo": "http://mlcommons.org/croissant/RAI/1.0",
       "description": null,
       "keywords": [],
       "author": null,
@@ -113,6 +112,7 @@ You must generate a JSON object that follows this exact structure. For each fiel
 
 **Standard Metadata:**
 
+- **@id**: Use "ark:59853/rocrate-{INSERT-SHORT-NAME-FOR-DATASET}" as the identifier for the ROCrate. Make sure about uses this as well.
 - **name**: Extract the primary title from the main publication.
 - **description**: Synthesize a summary from the abstracts/summaries of all documents.
 - **keywords**: Aggregate unique keywords from all sources into a list of strings.
