@@ -5,7 +5,7 @@ import datetime
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 
 
-class EvidenceNode: 
+class EvidenceNode:
    def __init__(self, id: str, type: str):
        self.id = id
        self.type = type
@@ -13,6 +13,7 @@ class EvidenceNode:
        self.usedDataset: Optional[List[str]] = None
        self.usedSample: Optional[List[str]] = None
        self.usedInstrument: Optional[List[str]] = None
+       self.usedMLModel: Optional[List[str]] = None
        self.generatedBy: Optional[str] = None
 
 class EvidenceGraph(BaseModel):
@@ -61,7 +62,7 @@ class EvidenceGraph(BaseModel):
 
     def _extract_referenced_ids(self, node: Dict) -> Set[str]:
         referenced_ids = set()
-        
+
         node_type_field = node.get("@type", "")
         current_node_type_str = ""
         if isinstance(node_type_field, list):
@@ -69,6 +70,7 @@ class EvidenceGraph(BaseModel):
             elif "Computation" in node_type_field: current_node_type_str = "Computation"
             elif "Sample" in node_type_field: current_node_type_str = "Sample"
             elif "Software" in node_type_field: current_node_type_str = "Software"
+            elif "MLModel" in node_type_field: current_node_type_str = "MLModel"
             elif "Experiment" in node_type_field: current_node_type_str = "Experiment"
             elif node_type_field: current_node_type_str = node_type_field[0]
         elif isinstance(node_type_field, str):
@@ -77,7 +79,8 @@ class EvidenceGraph(BaseModel):
         if "Dataset" in current_node_type_str or \
            "Sample" in current_node_type_str or \
            "Instrument" in current_node_type_str or \
-           "Software" in current_node_type_str: 
+           "Software" in current_node_type_str or \
+           "MLModel" in current_node_type_str: 
             generated_by_info = node.get("generatedBy")
             if generated_by_info:
                 if isinstance(generated_by_info, list) and generated_by_info:
@@ -90,8 +93,8 @@ class EvidenceGraph(BaseModel):
                         referenced_ids.add(comp_id)
 
         elif "Computation" in current_node_type_str or \
-             "Experiment" in current_node_type_str: 
-            for field_name in ["usedDataset", "usedSoftware", "usedSample", "usedInstrument"]:
+             "Experiment" in current_node_type_str:
+            for field_name in ["usedDataset", "usedSoftware", "usedSample", "usedInstrument", "usedMLModel"]:
                 field_info = node.get(field_name)
                 if field_info:
                     items = field_info if isinstance(field_info, list) else [field_info]
@@ -165,6 +168,7 @@ class EvidenceGraph(BaseModel):
             elif "Computation" in node_type_field: current_node_type_str = "Computation"
             elif "Sample" in node_type_field: current_node_type_str = "Sample"
             elif "Software" in node_type_field: current_node_type_str = "Software"
+            elif "MLModel" in node_type_field: current_node_type_str = "MLModel"
             elif "Experiment" in node_type_field: current_node_type_str = "Experiment"
             elif node_type_field: current_node_type_str = node_type_field[0]
         elif isinstance(node_type_field, str):
@@ -173,7 +177,8 @@ class EvidenceGraph(BaseModel):
         if "Dataset" in current_node_type_str or \
            "Sample" in current_node_type_str or \
            "Instrument" in current_node_type_str or \
-           "Software" in current_node_type_str: 
+           "Software" in current_node_type_str or \
+           "MLModel" in current_node_type_str:
             generated_by_info = node.get("generatedBy")
             if generated_by_info:
                 if isinstance(generated_by_info, list) and generated_by_info:
@@ -241,6 +246,20 @@ class EvidenceGraph(BaseModel):
                     instrument_refs.append({"@id": used_instrument_info.get("@id")})
                 if instrument_refs:
                     result_node["usedInstrument"] = instrument_refs
+
+            used_mlmodel_info = node.get("usedMLModel")
+            if used_mlmodel_info:
+                mlmodel_refs = []
+                if isinstance(used_mlmodel_info, list):
+                    for item in used_mlmodel_info:
+                        if item.get("@id"):
+                            self._build_node_from_cache(item.get("@id"), node_cache, graph_dict)
+                            mlmodel_refs.append({"@id": item.get("@id")})
+                elif isinstance(used_mlmodel_info, dict) and used_mlmodel_info.get("@id"):
+                    self._build_node_from_cache(used_mlmodel_info.get("@id"), node_cache, graph_dict)
+                    mlmodel_refs.append({"@id": used_mlmodel_info.get("@id")})
+                if mlmodel_refs:
+                    result_node["usedMLModel"] = mlmodel_refs
 
         graph_dict[node_id] = result_node
 
