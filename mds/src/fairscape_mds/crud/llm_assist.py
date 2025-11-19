@@ -21,7 +21,11 @@ from fairscape_mds.models.llm_assist import LLMAssistTask, D4DFromIssueRequest
 from fairscape_mds.models.identifier import StoredIdentifier, MetadataTypeEnum, PublicationStatusEnum
 from fairscape_models.dataset import Dataset
 from fairscape_models.computation import Computation
-
+from fairscape_models.conversion import TargetToROCrateConverter
+from fairscape_models.conversion.mapping.d4d_to_rocrate import (
+    DATASET_COLLECTION_TO_RELEASE_MAPPING,
+    DATASET_TO_SUBCRATE_MAPPING
+)
 
 ALLOWED_EXTENSIONS = {'pdf'}
 
@@ -201,23 +205,23 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
     ) -> str:
         combined_text = "\n\n--- DOCUMENT SEPARATOR ---\n\n".join(document_texts)
         
-        dataset_ark = f"ark:59853/dataset/{uuid.uuid4()}"
-        
-        dataset = Dataset(
-            guid=dataset_ark,
-            name=f"LLM Input Text for Task {task_guid}",
-            author=requesting_user.email,
-            datePublished=datetime.datetime.now().isoformat(),
-            version="1.0",
-            description=f"Combined extracted text from {len(filenames)} documents: {', '.join(filenames)}",
-            keywords=["llm-input", "extracted-text", "pdf-text"],
-            format="text/plain",
-            additionalType="https://w3id.org/EVI#Dataset",
-            contentUrl=None
-        )
+        dataset_ark = f"ark:59853/dataset-input-{uuid.uuid4()}"
+
+        dataset = Dataset.model_validate({
+            "@id": dataset_ark,
+            "name": f"LLM Input Text for Task {task_guid}",
+            "author": requesting_user.email,
+            "datePublished": datetime.datetime.now().isoformat(),
+            "version": "1.0",
+            "description": f"Combined extracted text from {len(filenames)} documents: {', '.join(filenames)}",
+            "keywords": ["llm-input", "extracted-text", "pdf-text"],
+            "format": "text/plain",
+            "additionalType": "https://w3id.org/EVI#Dataset",
+            "contentUrl": None
+        })
         
         text_bytes = io.BytesIO(combined_text.encode('utf-8'))
-        upload_file = UploadFile(filename="input_text.txt", file=text_bytes)
+        upload_file = UploadFile(filename=f"{task_guid}.txt", file=text_bytes)
         
         dataset_request = FairscapeDatasetRequest(self.config)
         response = dataset_request.createDataset(
@@ -237,33 +241,34 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
         requesting_user: UserWriteModel,
         task_guid: str
     ) -> str:
-        computation_ark = f"ark:59853/computation/{uuid.uuid4()}"
-        
-        computation = Computation(
-            guid=computation_ark,
-            name=f"Gemini LLM Processing for Task {task_guid}",
-            runBy=requesting_user.email,
-            dateCreated=datetime.datetime.now().isoformat(),
-            description="LLM processing of extracted PDF text to generate RO-Crate metadata using Google Gemini 2.0 Flash",
-            command=["gemini-2.5-flash", "generate_rocrate_metadata"],
-            usedSoftware=[{"@id": "ark:59853/software/fairscape-llm-direct-v1"}],
-            usedMLModel=[{"@id": "ark:59853/model/gemini-2.5-flash"}],
-            usedDataset=[{"@id": input_dataset_ark}],
-            generated=[]
-        )
+        computation_ark = f"ark:59853/computation-{uuid.uuid4()}"
+
+        computation = Computation.model_validate({
+            "@id": computation_ark,
+            "name": f"Gemini LLM Processing for Task {task_guid}",
+            "runBy": requesting_user.email,
+            "dateCreated": datetime.datetime.now().isoformat(),
+            "description": "LLM processing of extracted PDF text to generate RO-Crate metadata using Google Gemini 2.0 Flash",
+            "command": ["gemini-2.5-flash", "generate_rocrate_metadata"],
+            "usedSoftware": [{"@id": "ark:59853/software-fairscape-llm-direct-v1"}],
+            "usedMLModel": [{"@id": "ark:59853/model-gemini-2.5-flash"}],
+            "usedDataset": [{"@id": input_dataset_ark}],
+            "generated": []
+        })
         
         permissions_set = requesting_user.getPermissions()
         now = datetime.datetime.now()
-        
-        stored_computation = StoredIdentifier(
-            guid=computation_ark,
-            metadataType=MetadataTypeEnum.COMPUTATION,
-            metadata=computation,
-            permissions=permissions_set,
-            publicationStatus=PublicationStatusEnum.DRAFT,
-            dateCreated=now,
-            dateModified=now
-        )
+
+        stored_computation = StoredIdentifier.model_validate({
+            "@id": computation_ark,
+            "@type": MetadataTypeEnum.COMPUTATION,
+            "metadata": computation,
+            "permissions": permissions_set,
+            "publicationStatus": PublicationStatusEnum.DRAFT,
+            "dateCreated": now,
+            "dateModified": now,
+            "distribution": None
+        })
         
         self.config.identifierCollection.insert_one(
             stored_computation.model_dump(by_alias=True, mode="json")
@@ -283,24 +288,24 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
         requesting_user: UserWriteModel,
         task_guid: str
     ) -> str:
-        dataset_ark = f"ark:59853/dataset/{uuid.uuid4()}"
-        
-        dataset = Dataset(
-            guid=dataset_ark,
-            name=f"LLM Generated RO-Crate for Task {task_guid}",
-            author=requesting_user.email,
-            datePublished=datetime.datetime.now().isoformat(),
-            version="1.0",
-            description="RO-Crate metadata generated by Gemini LLM from extracted PDF text",
-            keywords=["llm-generated", "ro-crate", "metadata"],
-            format="application/json",
-            generatedBy=[{"@id": computation_ark}],
-            additionalType="https://w3id.org/EVI#Dataset",
-            contentUrl=None
-        )
+        dataset_ark = f"ark:59853/dataset-ouput-{uuid.uuid4()}"
+
+        dataset = Dataset.model_validate({
+            "@id": dataset_ark,
+            "name": f"LLM Generated RO-Crate for Task {task_guid}",
+            "author": requesting_user.email,
+            "datePublished": datetime.datetime.now().isoformat(),
+            "version": "1.0",
+            "description": "RO-Crate metadata generated by Gemini LLM from extracted PDF text",
+            "keywords": ["llm-generated", "ro-crate", "metadata"],
+            "format": "application/json",
+            "generatedBy": [{"@id": computation_ark}],
+            "additionalType": "https://w3id.org/EVI#Dataset",
+            "contentUrl": None
+        })
         
         json_bytes = io.BytesIO(json_content.encode('utf-8'))
-        upload_file = UploadFile(filename="output_metadata.json", file=json_bytes)
+        upload_file = UploadFile(filename=f"output_{task_guid}.json", file=json_bytes)
         
         dataset_request = FairscapeDatasetRequest(self.config)
         response = dataset_request.createDataset(
@@ -363,12 +368,13 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
             combined_text = "\n\n--- DOCUMENT SEPARATOR ---\n\n".join(task.document_texts)
             
             genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-            model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             
             response = model.generate_content(
                 SYSTEM_PROMPT + "\n\n" + combined_text,
                 generation_config=genai.types.GenerationConfig(
-                    temperature=0.2,
+                    response_mime_type="application/json",
+                    temperature=0.1,
                     max_output_tokens=8192,
                 )
             )
@@ -544,20 +550,20 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
                 body = comment.get('body', '')
                 request_text += f"\n--- Comment by {user} ---\n{body}\n"
 
-        dataset_ark = f"ark:59853/dataset/{uuid.uuid4()}"
+        dataset_ark = f"ark:59853/dataset-input-{uuid.uuid4()}"
 
-        dataset = Dataset(
-            guid=dataset_ark,
-            name=f"User Request for D4D: {project_name}",
-            author=requesting_user.email,
-            datePublished=datetime.datetime.now().isoformat(),
-            version="1.0",
-            description=f"User request from GitHub issue #{issue_number} for D4D generation: {issue_title}",
-            keywords=["d4d-request", "github-issue", "user-input"],
-            format="text/plain",
-            additionalType="https://w3id.org/EVI#Dataset",
-            contentUrl=None
-        )
+        dataset = Dataset.model_validate({
+            "@id": dataset_ark,
+            "name": f"User Request for D4D: {project_name}",
+            "author": requesting_user.email,
+            "datePublished": datetime.datetime.now().isoformat(),
+            "version": "1.0",
+            "description": f"User request from GitHub issue #{issue_number} for D4D generation: {issue_title}",
+            "keywords": ["d4d-request", "github-issue", "user-input"],
+            "format": "text/plain",
+            "additionalType": "https://w3id.org/EVI#Dataset",
+            "contentUrl": None
+        })
 
         text_bytes = io.BytesIO(request_text.encode('utf-8'))
         upload_file = UploadFile(filename="d4d_request.txt", file=text_bytes)
@@ -582,32 +588,33 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
     ) -> str:
         """Create a computation representing D4D generation from GitHub issue"""
 
-        computation_ark = f"ark:59853/computation/{uuid.uuid4()}"
+        computation_ark = f"ark:59853/computation-{uuid.uuid4()}"
 
-        computation = Computation(
-            guid=computation_ark,
-            name=f"D4D Generation for Issue #{issue_number}",
-            runBy="d4dassistant",
-            dateCreated=datetime.datetime.now().isoformat(),
-            description=f"D4D generation process for GitHub issue #{issue_number} using the D4D Assistant bot",
-            command=["d4d-assistant", "generate_yaml"],
-            usedSoftware=[{"@id": "ark:59853/software/d4d-assistant-bot-v1"}],
-            usedDataset=[{"@id": request_dataset_ark}],
-            generated=[]
-        )
+        computation = Computation.model_validate({
+            "@id": computation_ark,
+            "name": f"D4D Generation for Issue #{issue_number}",
+            "runBy": "d4dassistant",
+            "dateCreated": datetime.datetime.now().isoformat(),
+            "description": f"D4D generation process for GitHub issue #{issue_number} using the D4D Assistant bot",
+            "command": ["d4d-assistant", "generate_yaml"],
+            "usedSoftware": [{"@id": "ark:59853/software-d4d-assistant-bot-v1"}],
+            "usedDataset": [{"@id": request_dataset_ark}],
+            "generated": []
+        })
 
         permissions_set = requesting_user.getPermissions()
         now = datetime.datetime.now()
 
-        stored_computation = StoredIdentifier(
-            guid=computation_ark,
-            metadataType=MetadataTypeEnum.COMPUTATION,
-            metadata=computation,
-            permissions=permissions_set,
-            publicationStatus=PublicationStatusEnum.DRAFT,
-            dateCreated=now,
-            dateModified=now
-        )
+        stored_computation = StoredIdentifier.model_validate({
+            "@id": computation_ark,
+            "@type": MetadataTypeEnum.COMPUTATION,
+            "metadata": computation,
+            "permissions": permissions_set,
+            "publicationStatus": PublicationStatusEnum.DRAFT,
+            "dateCreated": now,
+            "dateModified": now,
+            "distribution": None
+        })
 
         self.config.identifierCollection.insert_one(
             stored_computation.model_dump(by_alias=True, mode="json")
@@ -625,21 +632,21 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
     ) -> str:
         """Create a dataset for the D4D YAML file"""
 
-        dataset_ark = f"ark:59853/dataset/{uuid.uuid4()}"
+        dataset_ark = f"ark:59853/dataset-ouput-{uuid.uuid4()}"
 
-        dataset = Dataset(
-            guid=dataset_ark,
-            name=f"D4D YAML for {project_name}",
-            author=requesting_user.email,
-            datePublished=datetime.datetime.now().isoformat(),
-            version="1.0",
-            description=f"D4D YAML generated by d4dassistant bot from {yaml_url}",
-            keywords=["d4d", "yaml", "generated", "data-sheet"],
-            format="application/x-yaml",
-            generatedBy=[{"@id": computation_ark}],
-            additionalType="https://w3id.org/EVI#Dataset",
-            contentUrl=yaml_url
-        )
+        dataset = Dataset.model_validate({
+            "@id": dataset_ark,
+            "name": f"D4D YAML for {project_name}",
+            "author": requesting_user.email,
+            "datePublished": datetime.datetime.now().isoformat(),
+            "version": "1.0",
+            "description": f"D4D YAML generated by d4dassistant bot.",
+            "keywords": ["d4d", "yaml", "generated", "data-sheet"],
+            "format": "application/x-yaml",
+            "generatedBy": [{"@id": computation_ark}],
+            "additionalType": "https://w3id.org/EVI#Dataset",
+            "contentUrl": None
+        })
 
         yaml_bytes = io.BytesIO(yaml_content.encode('utf-8'))
         upload_file = UploadFile(filename="d4d.yaml", file=yaml_bytes)
@@ -668,12 +675,7 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
             # Parse YAML
             d4d_data = yaml.safe_load(yaml_content)
 
-            from fairscape_models.conversion.models.d4d import DatasetCollection, Dataset as D4DDataset
-            from d4d2ROCrate import (
-                D4DToROCrateConverter,
-                DATASET_COLLECTION_TO_RELEASE_MAPPING,
-                DATASET_TO_SUBCRATE_MAPPING
-            )
+
 
             # Try to validate as DatasetCollection or Dataset
             try:
@@ -692,7 +694,7 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
 
                     d4d_collection = FlexibleData(d4d_data)
 
-            converter = D4DToROCrateConverter(
+            converter = TargetToROCrateConverter(
                 source_collection=d4d_collection,
                 dataset_mappings=DATASET_TO_SUBCRATE_MAPPING,
                 collection_mapping=DATASET_COLLECTION_TO_RELEASE_MAPPING
@@ -764,8 +766,8 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
             return {
                 "rocrate": rocrate_json,
                 "provenance": {
-                    "inputArk": yaml_dataset_ark,
-                    "outputArk": yaml_dataset_ark,  # Same as inputArk for D4D workflow
+                    "inputArk": request_dataset_ark,
+                    "outputArk": yaml_dataset_ark,
                     "computationArk": computation_ark,
                     "yamlUrl": request.yaml_url,
                     "requiresGithubPush": True,

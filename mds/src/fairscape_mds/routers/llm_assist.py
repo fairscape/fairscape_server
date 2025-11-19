@@ -73,11 +73,13 @@ def get_llm_assist_task_status_route(
     }
 
     if task.status == "SUCCESS":
-        response_data["result"] = task.result
+        response_data["rocrate"] = task.result
         response_data["provenance"] = {
             "inputArk": task.input_dataset_ark,
             "outputArk": task.output_dataset_ark,
-            "computationArk": task.computation_ark
+            "computationArk": task.computation_ark,
+            "requiresGithubPush": False,
+            "sourceFlow": "direct"
         }
     elif task.status == "ERROR":
         response_data["error"] = task.error

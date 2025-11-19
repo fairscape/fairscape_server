@@ -255,43 +255,7 @@ def process_llm_assist_task(self, task_guid: str):
     print(f"Starting LLM Assist Processing Task: {task_guid}")
     
     try:
-        appConfig.asyncCollection.update_one(
-            {"@id": task_guid},
-            {"$set": {
-                "status": "PROCESSING",
-                "time_started": datetime.datetime.utcnow()
-            }}
-        )
-        
-        task_doc = appConfig.asyncCollection.find_one({"@id": task_guid})
-        if not task_doc:
-            error_msg = f"Task {task_guid} not found"
-            print(error_msg)
-            return {"status": "FAILURE", "error": error_msg}
-        
-        document_texts = task_doc.get("document_texts", [])
-        if not document_texts:
-            error_msg = "No document texts found in task"
-            appConfig.asyncCollection.update_one(
-                {"@id": task_guid},
-                {"$set": {
-                    "status": "FAILURE",
-                    "error": {"message": error_msg},
-                    "time_finished": datetime.datetime.utcnow()
-                }}
-            )
-            return {"status": "FAILURE", "error": error_msg}
-        
-        result_json = llmAssistRequests.process_pdfs_with_llm(document_texts)
-        
-        appConfig.asyncCollection.update_one(
-            {"@id": task_guid},
-            {"$set": {
-                "status": "SUCCESS",
-                "result": result_json,
-                "time_finished": datetime.datetime.utcnow()
-            }}
-        )
+        result_json = llmAssistRequests.process_pdfs_with_llm(task_guid)
         
         print(f"Successfully processed LLM task {task_guid}")
         return {"status": "SUCCESS", "result": result_json}
@@ -306,12 +270,12 @@ def process_llm_assist_task(self, task_guid: str):
             {"@id": task_guid},
             {"$set": {
                 "status": "FAILURE",
-                "error": {"message": "An unexpected error occurred", "details": str(e)},
+                "error": {"message": "An unexpected worker error occurred", "details": str(e)},
                 "time_finished": datetime.datetime.utcnow()
             }}
         )
-        return {"status": "FAILURE", "error": {"message": "An unexpected server error occurred"}}
-
+        return {"status": "FAILURE", "error": error_msg}
+    
 if __name__ == '__main__':
     args = ['worker', '--loglevel=INFO']
     celeryApp.worker_main(argv=args)
