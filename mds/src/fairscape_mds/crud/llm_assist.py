@@ -5,7 +5,9 @@ import re
 import io
 import uuid
 import datetime
-from typing import List
+import requests
+import yaml
+from typing import List, Dict, Any
 from werkzeug.utils import secure_filename
 import google.generativeai as genai
 import PyPDF2
@@ -15,7 +17,7 @@ from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.crud.dataset import FairscapeDatasetRequest
 from fairscape_mds.models.user import UserWriteModel
-from fairscape_mds.models.llm_assist import LLMAssistTask
+from fairscape_mds.models.llm_assist import LLMAssistTask, D4DFromIssueRequest
 from fairscape_mds.models.identifier import StoredIdentifier, MetadataTypeEnum, PublicationStatusEnum
 from fairscape_models.dataset import Dataset
 from fairscape_models.computation import Computation
@@ -475,14 +477,14 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
 
     def get_task_status(self, task_guid: str) -> FairscapeResponse:
         task_doc = self.config.asyncCollection.find_one({"@id": task_guid}, {"_id": 0})
-        
+
         if not task_doc:
             return FairscapeResponse(
                 success=False,
                 statusCode=404,
                 error={"message": "Task not found"}
             )
-        
+
         try:
             task_model = LLMAssistTask.model_validate(task_doc)
             return FairscapeResponse(
@@ -496,3 +498,282 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
                 statusCode=500,
                 error={"message": f"Error validating task: {str(e)}"}
             )
+
+    def parse_issue_body(self, issue_body: str) -> Dict[str, str]:
+        """Extract project name and other metadata from issue body"""
+        project_name = "Unknown Project"
+        urls = []
+
+        # Try to extract project name from common patterns
+        project_match = re.search(r'(?:Project|Dataset):\s*(.+)', issue_body, re.IGNORECASE)
+        if project_match:
+            project_name = project_match.group(1).strip()
+
+        # Extract URLs
+        url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+        urls = re.findall(url_pattern, issue_body)
+
+        return {
+            "project_name": project_name,
+            "urls": urls
+        }
+
+    def create_d4d_request_dataset(
+        self,
+        issue_number: int,
+        issue_title: str,
+        issue_body: str,
+        issue_comments: List[Dict[str, Any]],
+        requesting_user: UserWriteModel
+    ) -> str:
+        """Create a dataset representing the user's D4D request from GitHub issue"""
+
+        parsed_info = self.parse_issue_body(issue_body)
+        project_name = parsed_info["project_name"]
+
+        # Format the request text
+        request_text = f"User Request for D4D Generation\n"
+        request_text += f"Issue #{issue_number}: {issue_title}\n"
+        request_text += f"Project: {project_name}\n\n"
+        request_text += f"=== Issue Body ===\n{issue_body}\n\n"
+
+        if issue_comments:
+            request_text += f"=== Comments ({len(issue_comments)}) ===\n"
+            for comment in issue_comments:
+                user = comment.get('user', 'Unknown')
+                body = comment.get('body', '')
+                request_text += f"\n--- Comment by {user} ---\n{body}\n"
+
+        dataset_ark = f"ark:59853/dataset/{uuid.uuid4()}"
+
+        dataset = Dataset(
+            guid=dataset_ark,
+            name=f"User Request for D4D: {project_name}",
+            author=requesting_user.email,
+            datePublished=datetime.datetime.now().isoformat(),
+            version="1.0",
+            description=f"User request from GitHub issue #{issue_number} for D4D generation: {issue_title}",
+            keywords=["d4d-request", "github-issue", "user-input"],
+            format="text/plain",
+            additionalType="https://w3id.org/EVI#Dataset",
+            contentUrl=None
+        )
+
+        text_bytes = io.BytesIO(request_text.encode('utf-8'))
+        upload_file = UploadFile(filename="d4d_request.txt", file=text_bytes)
+
+        dataset_request = FairscapeDatasetRequest(self.config)
+        response = dataset_request.createDataset(
+            userInstance=requesting_user,
+            inputDataset=dataset,
+            datasetContent=upload_file
+        )
+
+        if not response.success:
+            raise Exception(f"Failed to create request dataset: {response.error}")
+
+        return dataset_ark
+
+    def create_d4d_computation(
+        self,
+        request_dataset_ark: str,
+        issue_number: int,
+        requesting_user: UserWriteModel
+    ) -> str:
+        """Create a computation representing D4D generation from GitHub issue"""
+
+        computation_ark = f"ark:59853/computation/{uuid.uuid4()}"
+
+        computation = Computation(
+            guid=computation_ark,
+            name=f"D4D Generation for Issue #{issue_number}",
+            runBy="d4dassistant",
+            dateCreated=datetime.datetime.now().isoformat(),
+            description=f"D4D generation process for GitHub issue #{issue_number} using the D4D Assistant bot",
+            command=["d4d-assistant", "generate_yaml"],
+            usedSoftware=[{"@id": "ark:59853/software/d4d-assistant-bot-v1"}],
+            usedDataset=[{"@id": request_dataset_ark}],
+            generated=[]
+        )
+
+        permissions_set = requesting_user.getPermissions()
+        now = datetime.datetime.now()
+
+        stored_computation = StoredIdentifier(
+            guid=computation_ark,
+            metadataType=MetadataTypeEnum.COMPUTATION,
+            metadata=computation,
+            permissions=permissions_set,
+            publicationStatus=PublicationStatusEnum.DRAFT,
+            dateCreated=now,
+            dateModified=now
+        )
+
+        self.config.identifierCollection.insert_one(
+            stored_computation.model_dump(by_alias=True, mode="json")
+        )
+
+        return computation_ark
+
+    def create_d4d_yaml_dataset(
+        self,
+        yaml_url: str,
+        yaml_content: str,
+        computation_ark: str,
+        project_name: str,
+        requesting_user: UserWriteModel
+    ) -> str:
+        """Create a dataset for the D4D YAML file"""
+
+        dataset_ark = f"ark:59853/dataset/{uuid.uuid4()}"
+
+        dataset = Dataset(
+            guid=dataset_ark,
+            name=f"D4D YAML for {project_name}",
+            author=requesting_user.email,
+            datePublished=datetime.datetime.now().isoformat(),
+            version="1.0",
+            description=f"D4D YAML generated by d4dassistant bot from {yaml_url}",
+            keywords=["d4d", "yaml", "generated", "data-sheet"],
+            format="application/x-yaml",
+            generatedBy=[{"@id": computation_ark}],
+            additionalType="https://w3id.org/EVI#Dataset",
+            contentUrl=yaml_url
+        )
+
+        yaml_bytes = io.BytesIO(yaml_content.encode('utf-8'))
+        upload_file = UploadFile(filename="d4d.yaml", file=yaml_bytes)
+
+        dataset_request = FairscapeDatasetRequest(self.config)
+        response = dataset_request.createDataset(
+            userInstance=requesting_user,
+            inputDataset=dataset,
+            datasetContent=upload_file
+        )
+
+        if not response.success:
+            raise Exception(f"Failed to create YAML dataset: {response.error}")
+
+        # Update computation's generated field
+        self.config.identifierCollection.update_one(
+            {"@id": computation_ark},
+            {"$push": {"metadata.generated": {"@id": dataset_ark}}}
+        )
+
+        return dataset_ark
+
+    def convert_yaml_to_rocrate(self, yaml_content: str) -> Dict[str, Any]:
+        """Convert D4D YAML to RO-Crate JSON"""
+        try:
+            # Parse YAML
+            d4d_data = yaml.safe_load(yaml_content)
+
+            from fairscape_models.conversion.models.d4d import DatasetCollection, Dataset as D4DDataset
+            from d4d2ROCrate import (
+                D4DToROCrateConverter,
+                DATASET_COLLECTION_TO_RELEASE_MAPPING,
+                DATASET_TO_SUBCRATE_MAPPING
+            )
+
+            # Try to validate as DatasetCollection or Dataset
+            try:
+                d4d_collection = DatasetCollection.model_validate(d4d_data)
+            except Exception:
+                try:
+                    d4d_collection = D4DDataset.model_validate(d4d_data)
+                except Exception:
+                    # Flexible fallback
+                    class FlexibleData:
+                        def __init__(self, data_dict):
+                            self.__dict__.update(data_dict)
+
+                        def model_dump(self):
+                            return self.__dict__
+
+                    d4d_collection = FlexibleData(d4d_data)
+
+            converter = D4DToROCrateConverter(
+                source_collection=d4d_collection,
+                dataset_mappings=DATASET_TO_SUBCRATE_MAPPING,
+                collection_mapping=DATASET_COLLECTION_TO_RELEASE_MAPPING
+            )
+
+            rocrate = converter.convert()
+            rocrate_dict = rocrate.model_dump(by_alias=True, exclude_none=True)
+
+            return rocrate_dict
+
+        except yaml.YAMLError as e:
+            raise ValueError(f"Invalid YAML content: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"Conversion failed: {str(e)}")
+
+    def process_d4d_issue_with_provenance(
+        self,
+        request: D4DFromIssueRequest,
+        requesting_user: UserWriteModel
+    ) -> Dict[str, Any]:
+        """
+        Process a D4D issue and create full provenance chain:
+        1. Create user request dataset from issue
+        2. Create computation for D4D generation
+        3. Fetch and create YAML dataset
+        4. Convert YAML to RO-Crate
+        5. Return RO-Crate + provenance
+        """
+
+        try:
+            # Step 1: Create user request dataset
+            request_dataset_ark = self.create_d4d_request_dataset(
+                issue_number=request.issue_number,
+                issue_title=request.issue_title,
+                issue_body=request.issue_body,
+                issue_comments=request.issue_comments,
+                requesting_user=requesting_user
+            )
+
+            # Step 2: Create computation
+            computation_ark = self.create_d4d_computation(
+                request_dataset_ark=request_dataset_ark,
+                issue_number=request.issue_number,
+                requesting_user=requesting_user
+            )
+
+            # Step 3: Fetch YAML from URL
+            response = requests.get(request.yaml_url, timeout=30)
+            response.raise_for_status()
+            yaml_content = response.text
+
+            # Parse to get project name
+            parsed_info = self.parse_issue_body(request.issue_body)
+            project_name = parsed_info["project_name"]
+
+            # Step 4: Create YAML dataset
+            yaml_dataset_ark = self.create_d4d_yaml_dataset(
+                yaml_url=request.yaml_url,
+                yaml_content=yaml_content,
+                computation_ark=computation_ark,
+                project_name=project_name,
+                requesting_user=requesting_user
+            )
+
+            # Step 5: Convert YAML to RO-Crate
+            rocrate_json = self.convert_yaml_to_rocrate(yaml_content)
+
+            # Return RO-Crate + provenance
+            return {
+                "rocrate": rocrate_json,
+                "provenance": {
+                    "inputArk": yaml_dataset_ark,
+                    "outputArk": yaml_dataset_ark,  # Same as inputArk for D4D workflow
+                    "computationArk": computation_ark,
+                    "yamlUrl": request.yaml_url,
+                    "requiresGithubPush": True,
+                    "sourceFlow": "chatbot"
+                }
+            }
+
+        except requests.RequestException as e:
+            raise Exception(f"Failed to fetch YAML from URL: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Failed to process D4D issue: {str(e)}")

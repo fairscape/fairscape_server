@@ -21,3 +21,11 @@ class LLMAssistTask(BaseModel):
 
     class Config:
         populate_by_name = True
+
+
+class D4DFromIssueRequest(BaseModel):
+    issue_number: int
+    issue_title: str
+    issue_body: str
+    issue_comments: List[Dict[str, Any]] = Field(default_factory=list)
+    yaml_url: str
