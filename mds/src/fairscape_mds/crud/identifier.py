@@ -504,15 +504,20 @@ class IdentifierRequest(FairscapeRequest):
 			"metadata": mlModelMetadata,
 			"permissions": permissionsSet,
 			"distribution": modelDistribution,
+			"publicationStatus": PublicationStatusEnum.DRAFT.value,
 			"descriptiveStatistics": None,
 			"dateCreated": now,
 			"dateModified": now
 		})
 
+		insertOneResult = self.config.identifierCollection.insert_one(
+			mlIdentifier.model_dump(by_alias=True, mode='json')
+		)
+
 		uploadedModelIdentifierValue = IdentifierValue.model_validate({
-			"@id": mlModelMetadata,
+			"@id": mlIdentifier.guid,
 			"@type": MetadataTypeEnum.ML_MODEL.value,
-			"name": mlModelMetadata.name,
+			"name": mlIdentifier.metadata.name
 		})
 
 		return FairscapeResponse(

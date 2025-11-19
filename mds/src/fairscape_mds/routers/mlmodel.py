@@ -2,9 +2,11 @@ from fastapi import (
 	APIRouter,
 	Depends,
 	HTTPException,
-	UploadFile
+	UploadFile,
+	Form
 )
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from typing import Annotated, Optional
 
 from fairscape_mds.core.config import appConfig
@@ -15,20 +17,31 @@ from fairscape_mds.deps import getCurrentUser
 from fairscape_mds.crud.identifier import IdentifierRequest
 
 from fairscape_models.model_card import ModelCard
+from pydantic import ValidationError
 
 mlModelRouter = APIRouter(prefix="", tags=["ml model"])
 identifierRequestFactory = IdentifierRequest(appConfig)
 
+
+def parseMLModel(metadata: str = Form(...)):
+	try:
+		return ModelCard.model_validate_json(metadata)
+	except ValidationError as e:
+		raise HTTPException(
+			detail=jsonable_encoder(e.errors()),
+			status_code=422
+		)
+
 @mlModelRouter.post("/mlmodel")
 def createMLModel(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
-	MLModelMetadata: ModelCard,
-	MLModelContent: Optional[UploadFile],
+	metadata: Annotated[ModelCard, Depends(parseMLModel)],
+	content: Optional[UploadFile]=None,
 ):
 	response = identifierRequestFactory.UploadMLModel(
 		userInstance=currentUser,
-		mlModelMetadata=MLModelMetadata,
-		mlModelContent=MLModelContent
+		mlModelMetadata=metadata,
+		mlModelContent=content
 	)
 
 	if response.success:
