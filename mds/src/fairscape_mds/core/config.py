@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     FAIRSCAPE_ADMIN_GROUP: str
 
     FAIRSCAPE_BASE_URL: str
+    FAIRSCAPE_DESCRIPTIVE_STATISTICS_MAX_COLUMNS: int = 100
 
 
 class FairscapeConfig():
@@ -98,6 +99,8 @@ except:
             )
     else:
         raise Exception("Missing Settings for Fairscape Server Startup")
+
+descriptiveStatisticsMaxCols = settings.FAIRSCAPE_DESCRIPTIVE_STATISTICS_MAX_COLUMNS
 
 # TODO clean up client string generation
 mongoUser = settings.FAIRSCAPE_MONGO_ACCESS_KEY
