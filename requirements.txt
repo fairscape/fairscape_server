@@ -22,7 +22,7 @@ click
 rdflib
 email-validator
 celery[redis]
-fairscape_models>=1.0.14
+fairscape_models>=1.0.15
 httpx
 pydantic-settings
 pandas
