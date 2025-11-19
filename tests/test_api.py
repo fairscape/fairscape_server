@@ -476,9 +476,49 @@ def test_upload_mlmodel(get_user, caplog):
     assert uploadJSON 
 
     # upload ml model with content
+    modelInstanceContent = ModelCard.model_validate({
+        "@id": "ark:59853/test-model-2",
+        "@type": "EVI:MLModel",
+        "name": "example models",
+        "description": "a fake ml model card for testing",
+        "author": "Max Levinson",
+        "keywords": ["test", "example"],
+        "version": "0.1.0",
+        "modelType": "Image Classification/Feature Backbone",
+        "framework": "Pytorch",
+        "modelFormat": "safetensor",
+        "generatedBy": {"@id": "ark:59853/training-computation"},
+        "trainingDataset": "https://huggingface.co/datasets/ILSVRC/imagenet-1k",
+        "parameters": "8000000",
+        "inputSize": "224x224",
+        "indendedUseCase": None,
+        "usageInformation": None,
+        "contentUrl": "https://huggingface.co/timm/densenet121.tv_in1k",
+        "url": "https://huggingface.co/timm/densenet121.tv_in1k",
+        "dataLicense": None,
+        "citation": "Densely Connected Convolutional Networks: https://arxiv.org/abs/1608.06993"
+    })
+
+    files = [('content', open('data/example.csv', 'rb'))]
 
 
-    pass
+    inputForm = {
+        "metadata": modelInstanceContent.model_dump_json(by_alias=True),
+    }
+
+    # upload a test rocrate
+    uploadResponse = httpx.post(
+        root_url + "/mlmodel",
+        data= inputForm,
+        files=files,
+        headers=authHeaders,
+        timeout=30
+    )
+
+    uploadJSON = uploadResponse.json()
+    assert uploadResponse.status_code == 200
+    assert uploadJSON
+
 
 
 def loopStatus(submissionUUID):

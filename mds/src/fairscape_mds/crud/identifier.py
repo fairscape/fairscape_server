@@ -488,7 +488,7 @@ class IdentifierRequest(FairscapeRequest):
 			uploadResult = self.config.minioClient.upload_fileobj(
 				Bucket=self.config.minioBucket,
 				Key= objectKey,
-				Fileobj=mlModelContent
+				Fileobj=mlModelContent.file
 			)
 
 			# create distribution for metadata
