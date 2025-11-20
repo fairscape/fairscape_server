@@ -1,12 +1,14 @@
 from typing import (
-	Annotated
+	Annotated,
+	Optional
 )
 from fastapi import (
-	APIRouter, 
-	Depends, 
-	HTTPException, 
-	Request, 
-	UploadFile
+	APIRouter,
+	Depends,
+	HTTPException,
+	Request,
+	UploadFile,
+	Query
 )
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.encoders import jsonable_encoder
@@ -65,13 +67,15 @@ def uploadROCrate(
 )
 def publishMetadataOnly(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
-	crateMetadata: ROCrateV1_2
+	crateMetadata: ROCrateV1_2,
+	baseDatasetArk: Optional[str] = Query(default=None, description="Optional base dataset ARK identifier")
 ):
 	try:
 		# Call the mintMetadataOnlyROCrate method on the existing rocrateRequest
 		result = rocrateRequest.mintMetadataOnlyROCrate(
 			requestingUser=currentUser,
-			crateModel=crateMetadata
+			crateModel=crateMetadata,
+			baseDatasetArk=baseDatasetArk
 		)
 		
 		if result.success:

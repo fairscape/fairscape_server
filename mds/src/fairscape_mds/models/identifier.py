@@ -14,6 +14,7 @@ from fairscape_models.biochem_entity import BioChemEntity
 from fairscape_models.experiment import Experiment
 from fairscape_models.instrument import Instrument
 from fairscape_models.medical_condition import MedicalCondition
+from fairscape_models.annotation import Annotation
 
 import datetime
 
@@ -32,9 +33,9 @@ class PublicationStatusEnum(str, Enum):
 
 class MetadataTypeEnum(Enum):
 	DATASET = "https://w3id.org/EVI#Dataset"
-	SOFTWARE ="https://w3id.org/EVI#Software" 
-	COMPUTATION ="https://w3id.org/EVI#Computation" 
-	SCHEMA ="https://w3id.org/EVI#Schema" 
+	SOFTWARE ="https://w3id.org/EVI#Software"
+	COMPUTATION ="https://w3id.org/EVI#Computation"
+	SCHEMA ="https://w3id.org/EVI#Schema"
 	ROCRATE = ["https://w3id.org/EVI#Dataset", "https://w3id.org/EVI#ROCrate"]
 	SAMPLE = "https://w3id.org/EVI#Sample"
 	BIOCHEM_ENTITY = "https://schema.org/BioChemEntity"
@@ -43,20 +44,22 @@ class MetadataTypeEnum(Enum):
 	MEDICAL_CONDITION = "https://schema.org/MedicalCondition"
 	CREATIVE_WORK = "https://schema.org/CreativeWork"
 	ML_MODEL = "https://w3id.org/EVI#MLModel"
+	ANNOTATION = "https://w3id.org/EVI#Annotation"
 
 
 MetadataUnion = Union[
-	Dataset, 
-	Software, 
-	Computation, 
-	ROCrateV1_2, 
+	Dataset,
+	Software,
+	Computation,
+	ROCrateV1_2,
 	ROCrateMetadataElem,
-	Schema, 
+	Schema,
 	Sample,
 	BioChemEntity,
 	Experiment,
 	Instrument,
 	MedicalCondition,
+	Annotation,
 	GenericMetadataElem
 	]
 
@@ -81,7 +84,7 @@ def determineMetadataType(inputType)->MetadataTypeEnum:
 	# TODO future proof for more list types
 	if isinstance(inputType, list):
 		return MetadataTypeEnum.ROCRATE
-	elif 'Dataset' in inputType: 
+	elif 'Dataset' in inputType:
 		return MetadataTypeEnum.DATASET
 	elif 'Software' in inputType:
 		return MetadataTypeEnum.SOFTWARE
@@ -94,7 +97,7 @@ def determineMetadataType(inputType)->MetadataTypeEnum:
 	elif 'Sample' in inputType:
 		return MetadataTypeEnum.SAMPLE
 	elif 'Experiment' in inputType:
-		return MetadataTypeEnum.EXPERIMENT	
+		return MetadataTypeEnum.EXPERIMENT
 	elif 'Instrument' in inputType:
 		return MetadataTypeEnum.INSTRUMENT
 	elif 'MedicalCondition' in inputType:
@@ -103,6 +106,8 @@ def determineMetadataType(inputType)->MetadataTypeEnum:
 		return MetadataTypeEnum.CREATIVE_WORK
 	elif 'MLModel' in inputType:
 		return MetadataTypeEnum.ML_MODEL
+	elif 'Annotation' in inputType:
+		return MetadataTypeEnum.ANNOTATION
 	else:
 		raise Exception(f"Type not found for value {inputType}")
 	

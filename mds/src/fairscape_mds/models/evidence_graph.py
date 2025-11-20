@@ -283,6 +283,7 @@ class EvidenceGraph(BaseModel):
         
         if self._is_rocrate(node_type):
             rocrate_outputs = self._get_rocrate_outputs(start_node)
+            rocrate_outputs.append({"@id": start_node_id})
             if rocrate_outputs:
                 for output_ref in rocrate_outputs:
                     if output_ref.get("@id"):
