@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     FAIRSCAPE_BASE_URL: str
     FAIRSCAPE_DESCRIPTIVE_STATISTICS_MAX_COLUMNS: int = 100
 
+    FAIRSCAPE_LOGFIRE_ENV: Optional[str] = Field(default=None)
+    FAIRSCAPE_LOGFIRE_TOKEN: Optional[str] = Field(default=None)
+
 
 class FairscapeConfig():
 	def __init__(

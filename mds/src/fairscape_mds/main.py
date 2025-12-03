@@ -14,10 +14,12 @@ from fairscape_mds.routers.llm_assist import router as llm_assist_router
 from fairscape_mds.routers.mlmodel import mlModelRouter
 
 from fairscape_mds.core.logging import requestLogger
+from fairscape_mds.core.config import settings
 
 from fastapi.middleware.cors import CORSMiddleware 
 from fastapi import FastAPI, Request
 
+import logfire
 
 app = FastAPI(
 	root_path="/api",
@@ -25,6 +27,12 @@ app = FastAPI(
 	description="Backend Fairscape API for storing EVI Providence Graphs and rich provenance metadata"
 )
 
+if settings.FAIRSCAPE_LOGFIRE_ENV and settings.FAIRSCAPE_LOGFIRE_TOKEN:
+    logfire.configure(
+        environment = settings.FAIRSCAPE_LOGFIRE_ENV,
+        token = settings.FAIRSCAPE_LOGFIRE_TOKEN
+    )
+    logfire.instrument_fastapi(app)
 
 app.add_middleware(
     CORSMiddleware,
