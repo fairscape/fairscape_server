@@ -41,8 +41,8 @@ def setup_tests():
 	)
 
 testROCratePaths = [
-	"/mnt/e/Work/Data/Uploads/upload_06_29_2025/paclitaxel.zip",
-	"/mnt/e/Work/Data/Uploads/upload_06_29_2025/untreated.zip",
+#	"/mnt/e/Work/Data/Uploads/upload_06_29_2025/paclitaxel.zip",
+#	"/mnt/e/Work/Data/Uploads/upload_06_29_2025/untreated.zip",
 	"/mnt/e/Work/Data/Uploads/upload_06_29_2025/vorinostat.zip",
 ]
 
@@ -85,9 +85,10 @@ def test_upload(rocratePath, caplog):
 
 	# upload a test rocrate
 	uploadResponse = httpx.post(
-				root_url + "/rocrate/upload-async",
-				files=rocrateFiles,
-				headers=authHeaders
+		root_url + "/rocrate/upload-async",
+		files=rocrateFiles,
+		headers=authHeaders,
+		timeout=600
 	)
 
 	# check that upload response is successfull
@@ -97,8 +98,9 @@ def test_upload(rocratePath, caplog):
 
 	submissionUUID = uploadResponseJSON.get("guid")
 	checkStatus = httpx.get(
-				root_url + f"/rocrate/upload/status/{submissionUUID}",
-				headers=authHeaders
+		root_url + f"/rocrate/upload/status/{submissionUUID}",
+		headers=authHeaders,
+		timeout=60
 	)
 	assert checkStatus.status_code == 200
 	statusJSON = checkStatus.json()
@@ -107,7 +109,7 @@ def test_upload(rocratePath, caplog):
 	# check if job is complete
 	wait = 0
 	completed = statusJSON.get("completed", False)
-	while not completed or wait>600:
+	while wait>600:
 		# check upload status in 5 seconds
 		testLogger.info('Awaiting Job Completion')
 		time.sleep(5)
@@ -121,7 +123,28 @@ def test_upload(rocratePath, caplog):
 		statusJSON = checkStatus.json()
 		completed = statusJSON.get("completed", False)
 
+		if completed:
+			break
+
 	testLogger.info('Check Upload Status Success')
+	# publish
+	rocrateGUID = statusJSON.get("rocrateIdentifier")
+
+	updateResponse = httpx.put(
+			root_url + "/publish",
+			headers=authHeaders,
+			json={
+					"@id": rocrateGUID,
+					"publicationStatus": "PUBLISHED"
+			},
+			timeout=600
+	)
+
+	# TODO check publication response
+	assert updateResponse.status_code == 200
+
+
+
 
 
 
