@@ -93,7 +93,8 @@ class EvidenceGraph(BaseModel):
                         referenced_ids.add(comp_id)
 
         elif "Computation" in current_node_type_str or \
-             "Experiment" in current_node_type_str:
+             "Experiment" in current_node_type_str or \
+             "Annotation" in current_node_type_str:
             for field_name in ["usedDataset", "usedSoftware", "usedSample", "usedInstrument", "usedMLModel"]:
                 field_info = node.get(field_name)
                 if field_info:
@@ -168,6 +169,10 @@ class EvidenceGraph(BaseModel):
             "description": node.get("description")
         }
 
+        created_by = node.get("createdBy")
+        if created_by:
+            result_node["createdBy"] = created_by
+
         node_type_field = node.get("@type", "")
 
         if start_rocrate_id and node_id == start_rocrate_id and self._is_rocrate(node_type_field):
@@ -207,7 +212,8 @@ class EvidenceGraph(BaseModel):
                     result_node["generatedBy"] = generated_by_info
 
         elif "Computation" in current_node_type_str or \
-             "Experiment" in current_node_type_str: 
+             "Experiment" in current_node_type_str or \
+             "Annotation" in current_node_type_str:
             used_dataset_info = node.get("usedDataset")
             if used_dataset_info:
                 dataset_refs = self._process_used_dataset(used_dataset_info, node_cache)

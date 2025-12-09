@@ -241,9 +241,9 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						mode='json'
 					)
 
-				if 'file:///' in datasetElem.contentUrl:	
+				if 'file:///' in datasetElem.contentUrl:
 					# match the metadata path to content
-					contentUrlKey = datasetElem.contentUrl.lstrip("file:///")
+					contentUrlKey = datasetElem.contentUrl.removeprefix("file:///")
 
 					# if file in datasetInstance
 					if includeStem:
