@@ -3,6 +3,7 @@ from typing import Optional, Union, Dict
 from fairscape_mds.models.user import Permissions
 from fairscape_mds.models.dataset import DatasetDistribution
 from fairscape_mds.models.statistics import DescriptiveStatistics
+from fairscape_mds.models.evidence_graph import EvidenceGraph
 
 from fairscape_models.rocrate import ROCrateV1_2, ROCrateMetadataElem, GenericMetadataElem
 from fairscape_models.dataset import Dataset
@@ -15,6 +16,7 @@ from fairscape_models.experiment import Experiment
 from fairscape_models.instrument import Instrument
 from fairscape_models.medical_condition import MedicalCondition
 from fairscape_models.annotation import Annotation
+from fairscape_models.conversion.models.AIReady import AIReadyScore
 
 import datetime
 
@@ -45,6 +47,8 @@ class MetadataTypeEnum(Enum):
 	CREATIVE_WORK = "https://schema.org/CreativeWork"
 	ML_MODEL = "https://w3id.org/EVI#MLModel"
 	ANNOTATION = "https://w3id.org/EVI#Annotation"
+	EVIDENCE_GRAPH = "evi:EvidenceGraph"
+	AI_READY_SCORE = "evi:AIReadyScore"
 
 
 MetadataUnion = Union[
@@ -60,6 +64,8 @@ MetadataUnion = Union[
 	Instrument,
 	MedicalCondition,
 	Annotation,
+	EvidenceGraph,
+	AIReadyScore,
 	GenericMetadataElem
 	]
 
@@ -108,6 +114,10 @@ def determineMetadataType(inputType)->MetadataTypeEnum:
 		return MetadataTypeEnum.ML_MODEL
 	elif 'Annotation' in inputType:
 		return MetadataTypeEnum.ANNOTATION
+	elif 'EvidenceGraph' in inputType:
+		return MetadataTypeEnum.EVIDENCE_GRAPH
+	elif 'AIReadyScore' in inputType:
+		return MetadataTypeEnum.AI_READY_SCORE
 	else:
 		raise Exception(f"Type not found for value {inputType}")
 	

@@ -1,8 +1,10 @@
 import pymongo
+import datetime
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
-from fairscape_mds.models.user import UserWriteModel
+from fairscape_mds.models.user import UserWriteModel, Permissions
 from fairscape_mds.models.evidence_graph import EvidenceGraph, EvidenceGraphCreate
+from fairscape_mds.models.identifier import StoredIdentifier, PublicationStatusEnum, MetadataTypeEnum
 
 class FairscapeEvidenceGraphRequest(FairscapeRequest):
 
@@ -23,16 +25,36 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
             "name": evi_graph_create_model.name,
             "description": evi_graph_create_model.description,
             "owner": requesting_user.email,
-            "@type": "evi:EvidenceGraph", 
-            "graph": None 
+            "@type": "evi:EvidenceGraph",
+            "graph": None
         }
 
         try:
             evidence_graph = EvidenceGraph.model_validate(evidence_graph_data)
-            insert_data = evidence_graph.model_dump(by_alias=True)
+
+            default_permissions = Permissions(
+                owner=requesting_user.email,
+                group=[],
+                public=True
+            )
+
+            now = datetime.datetime.utcnow()
+            stored_identifier = StoredIdentifier(
+                guid=evidence_graph.guid,
+                metadataType=MetadataTypeEnum.EVIDENCE_GRAPH,
+                metadata=evidence_graph,
+                publicationStatus=PublicationStatusEnum.PUBLISHED,
+                permissions=default_permissions,
+                distribution=None,
+                descriptiveStatistics={},
+                dateCreated=now,
+                dateModified=now
+            )
+
+            insert_data = stored_identifier.model_dump(by_alias=True, mode="json")
             result = self.config.identifierCollection.insert_one(insert_data)
             if result.inserted_id:
-                return FairscapeResponse(success=True, statusCode=201, model=evidence_graph)
+                return FairscapeResponse(success=True, statusCode=201, model=stored_identifier)
             else:
                 return FairscapeResponse(success=False, statusCode=500, error={"message": "Failed to insert evidence graph."})
         except Exception as e: # Handles Pydantic ValidationError and other exceptions
@@ -43,8 +65,8 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
         if not graph_data:
             return FairscapeResponse(success=False, statusCode=404, error={"message": "EvidenceGraph not found"})
         try:
-            evidence_graph = EvidenceGraph.model_validate(graph_data)
-            return FairscapeResponse(success=True, statusCode=200, model=evidence_graph)
+            stored_identifier = StoredIdentifier.model_validate(graph_data)
+            return FairscapeResponse(success=True, statusCode=200, model=stored_identifier)
         except Exception as e:
             return FairscapeResponse(success=False, statusCode=500, error={"message": f"Data validation error for EvidenceGraph {evidence_id}: {str(e)}"})
 
@@ -102,11 +124,11 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
             if existing_graph_data:
                 try:
                     print("Returning existing graph")
-                    existing_graph = EvidenceGraph.model_validate(existing_graph_data)
+                    stored_identifier = StoredIdentifier.model_validate(existing_graph_data)
                     return FairscapeResponse(
                         success=True,
                         statusCode=200,
-                        model=existing_graph
+                        model=stored_identifier
                     )
                 except Exception as e:
                     return FairscapeResponse(
@@ -134,8 +156,27 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
                 error={"message": f"Error building evidence graph: {str(e)}"}
             )
 
+        default_permissions = Permissions(
+            owner=requesting_user.email,
+            group=[],
+            public=True
+        )
+
+        now = datetime.datetime.utcnow()
+        stored_identifier = StoredIdentifier(
+            guid=evidence_graph.guid,
+            metadataType=MetadataTypeEnum.EVIDENCE_GRAPH,
+            metadata=evidence_graph,
+            publicationStatus=PublicationStatusEnum.PUBLISHED,
+            permissions=default_permissions,
+            distribution=None,
+            descriptiveStatistics={},
+            dateCreated=now,
+            dateModified=now
+        )
+
         try:
-            insert_data = evidence_graph.model_dump(by_alias=True)
+            insert_data = stored_identifier.model_dump(by_alias=True, mode="json")
             self.config.identifierCollection.insert_one(insert_data)
         except pymongo.errors.DuplicateKeyError:
             return FairscapeResponse(
@@ -153,16 +194,16 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
         try:
             self.config.identifierCollection.update_one(
                 {"@id": node_id},
-                {"$set": {"metadata.hasEvidenceGraph": {"@id": evidence_graph.guid}}}
+                {"$set": {"metadata.hasEvidenceGraph": {"@id": stored_identifier.guid}}}
             )
         except Exception as e:
             return FairscapeResponse(
-                success=False, 
-                statusCode=500, 
-                model=evidence_graph, 
+                success=False,
+                statusCode=500,
+                model=stored_identifier,
                 error={
-                    "message": f"EvidenceGraph created but failed to link to source node {node_id}: {str(e)} (graph @id: {evidence_graph.guid})"
+                    "message": f"EvidenceGraph created but failed to link to source node {node_id}: {str(e)} (graph @id: {stored_identifier.guid})"
                 }
             )
 
-        return FairscapeResponse(success=True, statusCode=201, model=evidence_graph)
+        return FairscapeResponse(success=True, statusCode=201, model=stored_identifier)

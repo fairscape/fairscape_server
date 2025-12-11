@@ -211,7 +211,7 @@ def score_ai_ready_task(self, task_guid: str, rocrate_id: str):
         )
         
         if response.success:
-            score_id = response.model["@id"]
+            score_id = response.model.guid
             print(f"Successfully created AI-Ready Score {score_id} for {rocrate_id}")
             appConfig.asyncCollection.update_one(
                 {"guid": task_guid},

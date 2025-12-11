@@ -5,6 +5,7 @@ import uuid
 
 from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.models.evidence_graph import EvidenceGraph, EvidenceGraphCreate, EvidenceGraphBuildRequest
+from fairscape_mds.models.identifier import StoredIdentifier
 from fairscape_mds.crud.evidence_graph import FairscapeEvidenceGraphRequest
 from fairscape_mds.main import getCurrentUser
 from fairscape_mds.core.config import appConfig
@@ -18,7 +19,7 @@ router = APIRouter(
 
 evidence_graph_request_handler = FairscapeEvidenceGraphRequest(appConfig)
 
-@router.post("", status_code=201, response_model=EvidenceGraph, summary="Create a new EvidenceGraph record")
+@router.post("", status_code=201, response_model=StoredIdentifier, summary="Create a new EvidenceGraph record")
 def create_evidence_graph_route(
     evidence_graph_data: EvidenceGraphCreate,
     current_user: Annotated[UserWriteModel, Depends(getCurrentUser)],
@@ -32,7 +33,7 @@ def create_evidence_graph_route(
     else:
         raise HTTPException(status_code=response.statusCode, detail=response.error)
 
-@router.get("/ark:{NAAN}/{postfix}", response_model=EvidenceGraph, summary="Get an EvidenceGraph by its ARK ID")
+@router.get("/ark:{NAAN}/{postfix}", response_model=StoredIdentifier, summary="Get an EvidenceGraph by its ARK ID")
 def get_evidence_graph_route(
     NAAN: Annotated[str, Path(description="Name Assigning Authority Number of the ARK ID")],
     postfix: Annotated[str, Path(description="Postfix of the ARK ID")],
@@ -45,7 +46,7 @@ def get_evidence_graph_route(
         raise HTTPException(status_code=response.statusCode, detail=response.error)
 
 
-@router.get("/query/ark:{NAAN}/{postfix}", response_model=EvidenceGraph, summary="Get an EvidenceGraph by its ARK ID")
+@router.get("/query/ark:{NAAN}/{postfix}", response_model=StoredIdentifier, summary="Get an EvidenceGraph by its ARK ID")
 def get_evidence_graph_query_route(
     NAAN: Annotated[str, Path(description="Name Assigning Authority Number of the ARK ID")],
     postfix: Annotated[str, Path(description="Postfix of the ARK ID")],
@@ -75,7 +76,7 @@ def delete_evidence_graph_route(
     else:
         raise HTTPException(status_code=response.statusCode, detail=response.error)
 
-@router.get("", response_model=List[EvidenceGraph], summary="List all EvidenceGraphs")
+@router.get("", response_model=List[StoredIdentifier], summary="List all EvidenceGraphs")
 def list_evidence_graphs_route():
     response = evidence_graph_request_handler.list_evidence_graphs()
     if response.success:

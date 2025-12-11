@@ -365,9 +365,10 @@ class EvidenceGraphCreate(BaseModel):
 
 
 def list_evidence_graphs_from_db(mongo_collection: pymongo.collection.Collection) -> FairscapeResponse:
+    from fairscape_mds.models.identifier import StoredIdentifier
     try:
-        cursor = mongo_collection.find({"@type": "evi:EvidenceGraph"}, {"_id": 0, "@id": 1, "name": 1, "@type": 1, "description": 1, "owner": 1})
-        graphs = [EvidenceGraph.model_validate(graph_data) for graph_data in cursor]
+        cursor = mongo_collection.find({"@type": "evi:EvidenceGraph"}, {"_id": 0})
+        graphs = [StoredIdentifier.model_validate(graph_data) for graph_data in cursor]
         return FairscapeResponse(success=True, statusCode=200, model=graphs)
     except Exception as e:
         return FairscapeResponse(success=False, statusCode=500, error={"message": f"Error listing evidence graphs: {str(e)}"})
