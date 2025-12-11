@@ -1,7 +1,10 @@
-from fairscape_mds.crud.fairscape_request import FairscapeRequest	
+import logging
+from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.models.identifier import StoredIdentifier
 from fairscape_models.rocrate import GenericMetadataElem
+
+logger = logging.getLogger(__name__)
 
 class FairscapeResolverRequest(FairscapeRequest):
 

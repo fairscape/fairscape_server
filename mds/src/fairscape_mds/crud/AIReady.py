@@ -39,8 +39,7 @@ class FairscapeAIReadyScoreRequest(FairscapeRequest):
 
         default_permissions = Permissions(
             owner=owner_email,
-            group=[],
-            public=True
+            group=None
         )
 
         now = datetime.datetime.utcnow()

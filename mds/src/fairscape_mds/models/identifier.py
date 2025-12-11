@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import Optional, Union, Dict
 from fairscape_mds.models.user import Permissions
 from fairscape_mds.models.dataset import DatasetDistribution
@@ -70,6 +70,8 @@ MetadataUnion = Union[
 	]
 
 class StoredIdentifier(BaseModel):
+	model_config = ConfigDict(populate_by_name=True)
+
 	guid: str = Field(alias="@id")
 	metadataType: MetadataTypeEnum = Field(alias="@type")
 	metadata: MetadataUnion
@@ -79,6 +81,28 @@ class StoredIdentifier(BaseModel):
 	descriptiveStatistics: Optional[Dict[str, DescriptiveStatistics]] = Field(default = {})
 	dateCreated: datetime.datetime
 	dateModified: datetime.datetime
+
+	@model_validator(mode='before')
+	@classmethod
+	def validate_metadata_type(cls, data):
+		"""Ensure metadata is validated against the correct type based on metadataType field"""
+		if isinstance(data, dict):
+			metadata_type = data.get('@type') or data.get('metadataType')
+			metadata_dict = data.get('metadata')
+
+			if metadata_dict and isinstance(metadata_dict, dict):
+				type_map = {
+					'evi:EvidenceGraph': EvidenceGraph,
+					MetadataTypeEnum.EVIDENCE_GRAPH: EvidenceGraph,
+					'evi:AIReadyScore': AIReadyScore,
+					MetadataTypeEnum.AI_READY_SCORE: AIReadyScore,
+				}
+
+				if metadata_type in type_map:
+					model_class = type_map[metadata_type]
+					data['metadata'] = model_class.model_validate(metadata_dict)
+
+		return data
 
 
 class UpdatePublishRequest(BaseModel):
@@ -96,6 +120,10 @@ def determineMetadataType(inputType)->MetadataTypeEnum:
 		return MetadataTypeEnum.SOFTWARE
 	elif 'Computation' in inputType:
 		return MetadataTypeEnum.COMPUTATION
+	elif 'EvidenceGraph' in inputType:
+		return MetadataTypeEnum.EVIDENCE_GRAPH
+	elif 'AIReadyScore' in inputType:
+		return MetadataTypeEnum.AI_READY_SCORE
 	elif 'Schema' in inputType:
 		return MetadataTypeEnum.SCHEMA
 	elif 'BioChemEntity' in inputType:
@@ -114,10 +142,6 @@ def determineMetadataType(inputType)->MetadataTypeEnum:
 		return MetadataTypeEnum.ML_MODEL
 	elif 'Annotation' in inputType:
 		return MetadataTypeEnum.ANNOTATION
-	elif 'EvidenceGraph' in inputType:
-		return MetadataTypeEnum.EVIDENCE_GRAPH
-	elif 'AIReadyScore' in inputType:
-		return MetadataTypeEnum.AI_READY_SCORE
 	else:
 		raise Exception(f"Type not found for value {inputType}")
 	

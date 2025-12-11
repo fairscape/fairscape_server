@@ -195,7 +195,7 @@ def score_ai_ready_task(self, task_guid: str, rocrate_id: str):
             )
             return {"status": "FAILURE", "error": error_msg}
         
-        score = AIReadyScore()
+        score = AIReadyScore(name=f"AI-Ready Score for {root_data.get('name', rocrate_id)}")
         _score_fairness(score.fairness, root_data)
         _score_provenance(score.provenance, root_data, metadata_graph)
         _score_characterization(score.characterization, root_data, metadata_graph)

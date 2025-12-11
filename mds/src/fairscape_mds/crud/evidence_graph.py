@@ -1,10 +1,13 @@
 import pymongo
 import datetime
+import logging
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.models.user import UserWriteModel, Permissions
 from fairscape_mds.models.evidence_graph import EvidenceGraph, EvidenceGraphCreate
 from fairscape_mds.models.identifier import StoredIdentifier, PublicationStatusEnum, MetadataTypeEnum
+
+logger = logging.getLogger(__name__)
 
 class FairscapeEvidenceGraphRequest(FairscapeRequest):
 
@@ -30,12 +33,12 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
         }
 
         try:
+            print(evidence_graph_data)
             evidence_graph = EvidenceGraph.model_validate(evidence_graph_data)
 
             default_permissions = Permissions(
                 owner=requesting_user.email,
-                group=[],
-                public=True
+                group=requesting_user.groups[0] if requesting_user.groups else None
             )
 
             now = datetime.datetime.utcnow()
@@ -52,6 +55,7 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
             )
 
             insert_data = stored_identifier.model_dump(by_alias=True, mode="json")
+            logger.warning(f"insert_data after model_dump: {insert_data}")
             result = self.config.identifierCollection.insert_one(insert_data)
             if result.inserted_id:
                 return FairscapeResponse(success=True, statusCode=201, model=stored_identifier)
@@ -158,8 +162,7 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
 
         default_permissions = Permissions(
             owner=requesting_user.email,
-            group=[],
-            public=True
+            group=requesting_user.groups[0] if requesting_user.groups else None
         )
 
         now = datetime.datetime.utcnow()
@@ -177,6 +180,7 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
 
         try:
             insert_data = stored_identifier.model_dump(by_alias=True, mode="json")
+            logger.warning(f"build_evidence_graph insert_data: {insert_data}")
             self.config.identifierCollection.insert_one(insert_data)
         except pymongo.errors.DuplicateKeyError:
             return FairscapeResponse(
