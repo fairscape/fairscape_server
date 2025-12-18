@@ -1,12 +1,14 @@
 from typing import (
-	Annotated
+	Annotated,
+	Optional
 )
 from fastapi import (
-	APIRouter, 
-	Depends, 
-	HTTPException, 
-	Request, 
-	UploadFile
+	APIRouter,
+	Depends,
+	HTTPException,
+	Request,
+	UploadFile,
+	Query
 )
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.encoders import jsonable_encoder
@@ -17,6 +19,7 @@ import datetime
 from fairscape_mds.crud.rocrate import FairscapeROCrateRequest
 
 from fairscape_mds.models.user import UserWriteModel
+from fairscape_mds.models.identifier import StoredIdentifier
 from fairscape_mds.core.config import appConfig
 from fairscape_models.rocrate import ROCrateV1_2, ROCrateMetadataElem
 from fairscape_mds.deps import getCurrentUser
@@ -65,13 +68,15 @@ def uploadROCrate(
 )
 def publishMetadataOnly(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
-	crateMetadata: ROCrateV1_2
+	crateMetadata: ROCrateV1_2,
+	baseDatasetArk: Optional[str] = Query(default=None, description="Optional base dataset ARK identifier")
 ):
 	try:
 		# Call the mintMetadataOnlyROCrate method on the existing rocrateRequest
 		result = rocrateRequest.mintMetadataOnlyROCrate(
 			requestingUser=currentUser,
-			crateModel=crateMetadata
+			crateModel=crateMetadata,
+			baseDatasetArk=baseDatasetArk
 		)
 		
 		if result.success:
@@ -232,18 +237,27 @@ def get_or_create_ai_ready_score(
 			status_code=404,
 			content={"error": f"Entity {ark_id} not found"}
 		)
-	
-	entity_type = entity.get("@type", [])
+
+	entity_type = entity.get("@type")
 	if isinstance(entity_type, str):
-		entity_type = [entity_type]
-	
-	if "AIReadyScore" in entity_type:
-		return JSONResponse(
-			status_code=200,
-			content=entity
-		)
-	
-	is_rocrate = any("ROCrate" in t for t in entity_type)
+		entity_type_list = [entity_type]
+	else:
+		entity_type_list = entity_type if entity_type else []
+
+	if "evi:AIReadyScore" in entity_type_list or entity_type == "evi:AIReadyScore":
+		try:
+			stored_identifier = StoredIdentifier.model_validate(entity)
+			return JSONResponse(
+				status_code=200,
+				content=stored_identifier.model_dump(by_alias=True, mode="json")
+			)
+		except Exception as e:
+			return JSONResponse(
+				status_code=500,
+				content={"error": f"Error validating AIReadyScore: {str(e)}"}
+			)
+
+	is_rocrate = any("ROCrate" in str(t) for t in entity_type_list)
 	if not is_rocrate:
 		return JSONResponse(
 			status_code=400,
@@ -254,10 +268,17 @@ def get_or_create_ai_ready_score(
 		score_id = entity["metadata"]["hasAIReadyScore"].get("@id")
 		score_entity = appConfig.identifierCollection.find_one({"@id": score_id}, {"_id": 0})
 		if score_entity:
-			return JSONResponse(
-				status_code=200,
-				content=score_entity
-			)
+			try:
+				stored_identifier = StoredIdentifier.model_validate(score_entity)
+				return JSONResponse(
+					status_code=200,
+					content=stored_identifier.model_dump(by_alias=True, mode="json")
+				)
+			except Exception as e:
+				return JSONResponse(
+					status_code=500,
+					content={"error": f"Error validating existing AIReadyScore: {str(e)}"}
+				)
 	
 	task_doc = appConfig.asyncCollection.find_one({
 		"task_type": "AIReadyScoring",

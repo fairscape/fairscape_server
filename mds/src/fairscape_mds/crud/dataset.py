@@ -176,14 +176,17 @@ class FairscapeDatasetRequest(FairscapeRequest):
 				userInstance, 
 				basePath= self.config.minioDefaultPath
 			)
-			
+
 			# upload content and return a dataset distribution
 			distribution = uploadObjectMinio(
-				self.config.minioClient, 
-				self.config.minioBucket, 
-				uploadKey, 
+				self.config.minioClient,
+				self.config.minioBucket,
+				uploadKey,
 				datasetContent.file
 				)
+
+			# Update contentUrl to point to download endpoint
+			inputDataset.contentUrl = f"{self.config.baseUrl}/dataset/download/{inputDataset.guid}"
 
 		# set remainder of metadata for storage
 		permissionsSet = userInstance.getPermissions()

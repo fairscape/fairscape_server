@@ -5,7 +5,7 @@ import datetime
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 
 
-class EvidenceNode: 
+class EvidenceNode:
    def __init__(self, id: str, type: str):
        self.id = id
        self.type = type
@@ -13,6 +13,7 @@ class EvidenceNode:
        self.usedDataset: Optional[List[str]] = None
        self.usedSample: Optional[List[str]] = None
        self.usedInstrument: Optional[List[str]] = None
+       self.usedMLModel: Optional[List[str]] = None
        self.generatedBy: Optional[str] = None
 
 class EvidenceGraph(BaseModel):
@@ -61,7 +62,7 @@ class EvidenceGraph(BaseModel):
 
     def _extract_referenced_ids(self, node: Dict) -> Set[str]:
         referenced_ids = set()
-        
+
         node_type_field = node.get("@type", "")
         current_node_type_str = ""
         if isinstance(node_type_field, list):
@@ -69,6 +70,7 @@ class EvidenceGraph(BaseModel):
             elif "Computation" in node_type_field: current_node_type_str = "Computation"
             elif "Sample" in node_type_field: current_node_type_str = "Sample"
             elif "Software" in node_type_field: current_node_type_str = "Software"
+            elif "MLModel" in node_type_field: current_node_type_str = "MLModel"
             elif "Experiment" in node_type_field: current_node_type_str = "Experiment"
             elif node_type_field: current_node_type_str = node_type_field[0]
         elif isinstance(node_type_field, str):
@@ -77,7 +79,8 @@ class EvidenceGraph(BaseModel):
         if "Dataset" in current_node_type_str or \
            "Sample" in current_node_type_str or \
            "Instrument" in current_node_type_str or \
-           "Software" in current_node_type_str: 
+           "Software" in current_node_type_str or \
+           "MLModel" in current_node_type_str: 
             generated_by_info = node.get("generatedBy")
             if generated_by_info:
                 if isinstance(generated_by_info, list) and generated_by_info:
@@ -90,8 +93,9 @@ class EvidenceGraph(BaseModel):
                         referenced_ids.add(comp_id)
 
         elif "Computation" in current_node_type_str or \
-             "Experiment" in current_node_type_str: 
-            for field_name in ["usedDataset", "usedSoftware", "usedSample", "usedInstrument"]:
+             "Experiment" in current_node_type_str or \
+             "Annotation" in current_node_type_str:
+            for field_name in ["usedDataset", "usedSoftware", "usedSample", "usedInstrument", "usedMLModel"]:
                 field_info = node.get(field_name)
                 if field_info:
                     items = field_info if isinstance(field_info, list) else [field_info]
@@ -138,7 +142,14 @@ class EvidenceGraph(BaseModel):
                 
         return result_refs
 
-    def _build_node_from_cache(self, node_id: str, node_cache: Dict[str, Dict], graph_dict: Dict[str, Dict]) -> None:
+    def _build_node_from_cache(
+        self,
+        node_id: str,
+        node_cache: Dict[str, Dict],
+        graph_dict: Dict[str, Dict],
+        start_rocrate_id: Optional[str] = None,
+        rocrate_outputs: Optional[List[Dict]] = None
+    ) -> None:
         if node_id in graph_dict:
             return
 
@@ -158,13 +169,23 @@ class EvidenceGraph(BaseModel):
             "description": node.get("description")
         }
 
+        created_by = node.get("createdBy")
+        if created_by:
+            result_node["createdBy"] = created_by
+
         node_type_field = node.get("@type", "")
+
+        if start_rocrate_id and node_id == start_rocrate_id and self._is_rocrate(node_type_field):
+            if rocrate_outputs:
+                result_node["hasOutputs"] = rocrate_outputs
+
         current_node_type_str = ""
         if isinstance(node_type_field, list):
             if "Dataset" in node_type_field: current_node_type_str = "Dataset"
             elif "Computation" in node_type_field: current_node_type_str = "Computation"
             elif "Sample" in node_type_field: current_node_type_str = "Sample"
             elif "Software" in node_type_field: current_node_type_str = "Software"
+            elif "MLModel" in node_type_field: current_node_type_str = "MLModel"
             elif "Experiment" in node_type_field: current_node_type_str = "Experiment"
             elif node_type_field: current_node_type_str = node_type_field[0]
         elif isinstance(node_type_field, str):
@@ -173,7 +194,8 @@ class EvidenceGraph(BaseModel):
         if "Dataset" in current_node_type_str or \
            "Sample" in current_node_type_str or \
            "Instrument" in current_node_type_str or \
-           "Software" in current_node_type_str: 
+           "Software" in current_node_type_str or \
+           "MLModel" in current_node_type_str:
             generated_by_info = node.get("generatedBy")
             if generated_by_info:
                 if isinstance(generated_by_info, list) and generated_by_info:
@@ -184,13 +206,14 @@ class EvidenceGraph(BaseModel):
                     comp_id = None
 
                 if comp_id:
-                    self._build_node_from_cache(comp_id, node_cache, graph_dict)
+                    self._build_node_from_cache(comp_id, node_cache, graph_dict, start_rocrate_id, rocrate_outputs)
                     result_node["generatedBy"] = {"@id": comp_id}
                 elif generated_by_info:
                     result_node["generatedBy"] = generated_by_info
 
         elif "Computation" in current_node_type_str or \
-             "Experiment" in current_node_type_str: 
+             "Experiment" in current_node_type_str or \
+             "Annotation" in current_node_type_str:
             used_dataset_info = node.get("usedDataset")
             if used_dataset_info:
                 dataset_refs = self._process_used_dataset(used_dataset_info, node_cache)
@@ -198,7 +221,7 @@ class EvidenceGraph(BaseModel):
                     result_node["usedDataset"] = dataset_refs
                     for ref in dataset_refs:
                         if ref.get("@id"):
-                            self._build_node_from_cache(ref.get("@id"), node_cache, graph_dict)
+                            self._build_node_from_cache(ref.get("@id"), node_cache, graph_dict, start_rocrate_id, rocrate_outputs)
 
             used_software_info = node.get("usedSoftware")
             if used_software_info:
@@ -206,10 +229,10 @@ class EvidenceGraph(BaseModel):
                 if isinstance(used_software_info, list):
                     for item in used_software_info:
                         if item.get("@id"):
-                            self._build_node_from_cache(item.get("@id"), node_cache, graph_dict)
+                            self._build_node_from_cache(item.get("@id"), node_cache, graph_dict, start_rocrate_id, rocrate_outputs)
                             software_refs.append({"@id": item.get("@id")})
                 elif isinstance(used_software_info, dict) and used_software_info.get("@id"):
-                    self._build_node_from_cache(used_software_info.get("@id"), node_cache, graph_dict)
+                    self._build_node_from_cache(used_software_info.get("@id"), node_cache, graph_dict, start_rocrate_id, rocrate_outputs)
                     software_refs.append({"@id": used_software_info.get("@id")})
                 if software_refs:
                     result_node["usedSoftware"] = software_refs
@@ -220,10 +243,10 @@ class EvidenceGraph(BaseModel):
                 if isinstance(used_sample_info, list):
                     for item in used_sample_info:
                         if item.get("@id"):
-                            self._build_node_from_cache(item.get("@id"), node_cache, graph_dict)
+                            self._build_node_from_cache(item.get("@id"), node_cache, graph_dict, start_rocrate_id, rocrate_outputs)
                             sample_refs.append({"@id": item.get("@id")})
                 elif isinstance(used_sample_info, dict) and used_sample_info.get("@id"):
-                    self._build_node_from_cache(used_sample_info.get("@id"), node_cache, graph_dict)
+                    self._build_node_from_cache(used_sample_info.get("@id"), node_cache, graph_dict, start_rocrate_id, rocrate_outputs)
                     sample_refs.append({"@id": used_sample_info.get("@id")})
                 if sample_refs:
                     result_node["usedSample"] = sample_refs
@@ -234,13 +257,27 @@ class EvidenceGraph(BaseModel):
                 if isinstance(used_instrument_info, list):
                     for item in used_instrument_info:
                         if item.get("@id"):
-                            self._build_node_from_cache(item.get("@id"), node_cache, graph_dict)
+                            self._build_node_from_cache(item.get("@id"), node_cache, graph_dict, start_rocrate_id, rocrate_outputs)
                             instrument_refs.append({"@id": item.get("@id")})
                 elif isinstance(used_instrument_info, dict) and used_instrument_info.get("@id"):
-                    self._build_node_from_cache(used_instrument_info.get("@id"), node_cache, graph_dict)
+                    self._build_node_from_cache(used_instrument_info.get("@id"), node_cache, graph_dict, start_rocrate_id, rocrate_outputs)
                     instrument_refs.append({"@id": used_instrument_info.get("@id")})
                 if instrument_refs:
                     result_node["usedInstrument"] = instrument_refs
+
+            used_mlmodel_info = node.get("usedMLModel")
+            if used_mlmodel_info:
+                mlmodel_refs = []
+                if isinstance(used_mlmodel_info, list):
+                    for item in used_mlmodel_info:
+                        if item.get("@id"):
+                            self._build_node_from_cache(item.get("@id"), node_cache, graph_dict, start_rocrate_id, rocrate_outputs)
+                            mlmodel_refs.append({"@id": item.get("@id")})
+                elif isinstance(used_mlmodel_info, dict) and used_mlmodel_info.get("@id"):
+                    self._build_node_from_cache(used_mlmodel_info.get("@id"), node_cache, graph_dict, start_rocrate_id, rocrate_outputs)
+                    mlmodel_refs.append({"@id": used_mlmodel_info.get("@id")})
+                if mlmodel_refs:
+                    result_node["usedMLModel"] = mlmodel_refs
 
         graph_dict[node_id] = result_node
 
@@ -261,11 +298,17 @@ class EvidenceGraph(BaseModel):
         node_cache = {start_node_id: start_node}
         
         node_type = start_node.get("@type", "")
+        start_rocrate_id = None
+        start_rocrate_outputs: Optional[List[Dict]] = None
         
         if self._is_rocrate(node_type):
             rocrate_outputs = self._get_rocrate_outputs(start_node)
-            if rocrate_outputs:
-                for output_ref in rocrate_outputs:
+            start_rocrate_outputs = list(rocrate_outputs) if rocrate_outputs else []
+            traversal_outputs = list(start_rocrate_outputs)
+            traversal_outputs.append({"@id": start_node_id})
+            start_rocrate_id = start_node_id
+            if traversal_outputs:
+                for output_ref in traversal_outputs:
                     if output_ref.get("@id"):
                         output_id = output_ref.get("@id")
                         output_nodes.append({"@id": output_id})
@@ -306,7 +349,7 @@ class EvidenceGraph(BaseModel):
         for output_node in output_nodes:
             output_id = output_node.get("@id")
             if output_id:
-                self._build_node_from_cache(output_id, node_cache, graph_dict)
+                self._build_node_from_cache(output_id, node_cache, graph_dict, start_rocrate_id, start_rocrate_outputs)
         
         self.outputs = output_nodes
         self.graph = graph_dict
@@ -322,9 +365,10 @@ class EvidenceGraphCreate(BaseModel):
 
 
 def list_evidence_graphs_from_db(mongo_collection: pymongo.collection.Collection) -> FairscapeResponse:
+    from fairscape_mds.models.identifier import StoredIdentifier
     try:
-        cursor = mongo_collection.find({"@type": "evi:EvidenceGraph"}, {"_id": 0, "@id": 1, "name": 1, "@type": 1, "description": 1, "owner": 1})
-        graphs = [EvidenceGraph.model_validate(graph_data) for graph_data in cursor]
+        cursor = mongo_collection.find({"@type": "evi:EvidenceGraph"}, {"_id": 0})
+        graphs = [StoredIdentifier.model_validate(graph_data) for graph_data in cursor]
         return FairscapeResponse(success=True, statusCode=200, model=graphs)
     except Exception as e:
         return FairscapeResponse(success=False, statusCode=500, error={"message": f"Error listing evidence graphs: {str(e)}"})
