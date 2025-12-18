@@ -647,7 +647,7 @@ class DeleteIdentifier():
 			)
 
 		else:
-			self.config.identifier.update_one(
+			self.config.identifierCollection.update_one(
 				{"@id": identifier.guid},
 				{"$set": {"publicationStatus": PublicationStatusEnum.ARCHIVED}}
 			)
@@ -764,7 +764,7 @@ class DeleteIdentifier():
 			)
 
 		try:
-			identifierInstance = StoredIdentifier.model_validate(metadata)
+			identifierInstance = StoredIdentifier.model_validate(metadata, by_alias=True)
 			self.identifier = identifierInstance
 		except:
 			return FairscapeResponse(
@@ -782,7 +782,7 @@ class DeleteIdentifier():
 			)
 
 		# delete based on type 
-		match StoredIdentifier.metadataType:
+		match self.identifier.metadataType:
 			case MetadataTypeEnum.DATASET:
 				return self.deleteDataset(identifierInstance)
 
