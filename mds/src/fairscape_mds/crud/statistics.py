@@ -1,6 +1,7 @@
 import pandas
 import numpy
 from typing import Dict
+from fairscape_mds.core.config import descriptiveStatisticsMaxCols
 from fairscape_mds.models.statistics import (
 	DescriptiveStatistics,
 	CategoricalStatistics,
@@ -52,7 +53,10 @@ def generateCategoricalStatistics(series) -> DescriptiveStatistics:
 
 def generateSummaryStatistics(dataframe)-> Dict[str, DescriptiveStatistics]:
 
-	
+	# if too many columns
+	if dataframe.shape[1] > descriptiveStatisticsMaxCols:
+		return {}
+
 	statistics = {}
 	numColumns = dataframe.shape[1]
 

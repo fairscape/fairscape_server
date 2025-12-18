@@ -17,6 +17,7 @@ from fairscape_models.instrument import Instrument
 from fairscape_models.medical_condition import MedicalCondition
 from fairscape_models.annotation import Annotation
 from fairscape_models.conversion.models.AIReady import AIReadyScore
+from fairscape_models.model_card import ModelCard
 
 import datetime
 
@@ -66,6 +67,7 @@ MetadataUnion = Union[
 	Annotation,
 	EvidenceGraph,
 	AIReadyScore,
+	ModelCard,
 	GenericMetadataElem
 	]
 
