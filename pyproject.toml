@@ -15,7 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3"]
 keywords = ["fairscape", "reproducibility", "fair"]
 dependencies = [
-	"fairscape_models>=1.0.14",
+	"fairscape_models>=1.0.15",
 	"fastapi>=0.109.0",
 	"uvicorn>=0.27.0",
 	"requests>=2.31.0",
@@ -40,6 +40,8 @@ dependencies = [
 	"google-generativeai>=0.3.0",
 	"werkzeug>=3.0.0",
 	"pandas>=2.3.3",
+	"PyYaml==6.0.1",
+	"PyGithub"
 ]
 requires-python = ">=3.9"                                                                                                                                                         
                                                        

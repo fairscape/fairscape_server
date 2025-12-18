@@ -4,7 +4,7 @@ from typing import Annotated, List
 import uuid
 
 from fairscape_mds.models.user import UserWriteModel
-from fairscape_mds.models.llm_assist import LLMAssistTask
+from fairscape_mds.models.llm_assist import LLMAssistTask, D4DFromIssueRequest
 from fairscape_mds.crud.llm_assist import FairscapeLLMAssistRequest
 from fairscape_mds.deps import getCurrentUser
 from fairscape_mds.core.config import appConfig
@@ -52,15 +52,66 @@ def create_llm_assist_task_route(
 
 @router.get(
     "/status/{task_id}",
-    response_model=LLMAssistTask,
     summary="Get the status of an LLM processing task"
 )
 def get_llm_assist_task_status_route(
     task_id: str,
 ):
     response = llm_assist_request_handler.get_task_status(task_guid=task_id)
-    
+
     if not response.success:
         raise HTTPException(status_code=response.statusCode, detail=response.error)
-    
-    return response.model
+
+    task = response.model
+
+    response_data = {
+        "task_id": task.guid,
+        "status": task.status,
+        "time_created": task.time_created.isoformat() if task.time_created else None,
+        "time_started": task.time_started.isoformat() if task.time_started else None,
+        "time_finished": task.time_finished.isoformat() if task.time_finished else None,
+    }
+
+    if task.status == "SUCCESS":
+        response_data["rocrate"] = task.result
+        response_data["provenance"] = {
+            "inputArk": task.input_dataset_ark,
+            "outputArk": task.output_dataset_ark,
+            "computationArk": task.computation_ark,
+            "requiresGithubPush": False,
+            "sourceFlow": "direct"
+        }
+    elif task.status == "ERROR":
+        response_data["error"] = task.error
+
+    return response_data
+
+
+@router.post(
+    "/from-issue",
+    status_code=status.HTTP_200_OK,
+    response_model=dict,
+    summary="Process a D4D GitHub issue with full provenance tracking"
+)
+def create_d4d_from_issue_route(
+    request: D4DFromIssueRequest,
+    current_user: Annotated[UserWriteModel, Depends(getCurrentUser)],
+):
+    """
+    Process a D4D generation request from a GitHub issue.
+    Creates full provenance chain: user request -> computation -> YAML dataset.
+    Returns RO-Crate JSON and provenance information.
+    """
+    try:
+        result = llm_assist_request_handler.process_d4d_issue_with_provenance(
+            request=request,
+            requesting_user=current_user
+        )
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process D4D issue: {str(e)}"
+        )

@@ -36,6 +36,8 @@ def resolveARK(
     metadata = response.model.model_dump(mode='json', by_alias=True)
 
     if isinstance(metadata, dict) and not metadata.get("metadata", {}).get("@context"):
+        if metadata.get('metadata',{}) == {}:
+            metadata['metadata'] = {}
         metadata['metadata']["@context"] = {
             "@vocab": "https://schema.org/",
             "EVI": "https://w3id.org/EVI#"

@@ -5,6 +5,8 @@ from fairscape_models.conversion.models.AIReady import AIReadyScore
 
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
+from fairscape_mds.models.identifier import StoredIdentifier, PublicationStatusEnum, MetadataTypeEnum
+from fairscape_mds.models.user import Permissions
 
 class FairscapeAIReadyScoreRequest(FairscapeRequest):
     
@@ -15,7 +17,7 @@ class FairscapeAIReadyScoreRequest(FairscapeRequest):
         owner_email: Optional[str] = None
     ) -> FairscapeResponse:
         score_id = f"{rocrate_id}-ai-ready-score"
-        
+
         existing = self.config.identifierCollection.find_one({"@id": score_id})
         if existing:
             return FairscapeResponse(
@@ -23,7 +25,7 @@ class FairscapeAIReadyScoreRequest(FairscapeRequest):
                 statusCode=409,
                 error={"message": f"AI-Ready Score {score_id} already exists"}
             )
-        
+
         # Fetch the RO-Crate to get its name
         rocrate_entity = self.config.identifierCollection.find_one({"@id": rocrate_id}, {"_id": 0})
         rocrate_name = "Unknown RO-Crate"
@@ -32,35 +34,40 @@ class FairscapeAIReadyScoreRequest(FairscapeRequest):
                 rocrate_name = rocrate_entity["metadata"].get("name", rocrate_entity.get("name", rocrate_id))
             else:
                 rocrate_name = rocrate_entity.get("name", rocrate_id)
-        
-        score_doc = {
-            "@id": score_id,
-            "@type": "AIReadyScore",
-            "name": rocrate_name,
-            "sourceROCrate": {"@id": rocrate_id},
-            "owner": owner_email or "system@fairscape.org",
-            "dateCreated": datetime.datetime.utcnow().isoformat(),
-            "fairness": score.fairness.model_dump(),
-            "provenance": score.provenance.model_dump(),
-            "characterization": score.characterization.model_dump(),
-            "pre_model_explainability": score.pre_model_explainability.model_dump(),
-            "ethics": score.ethics.model_dump(),
-            "sustainability": score.sustainability.model_dump(),
-            "computability": score.computability.model_dump()
-        }
-        
+
+        score_metadata = score 
+
+        default_permissions = Permissions(
+            owner=owner_email,
+            group=None
+        )
+
+        now = datetime.datetime.utcnow()
+        stored_identifier = StoredIdentifier(
+            guid=score_id,
+            metadataType=MetadataTypeEnum.AI_READY_SCORE,
+            metadata=score_metadata,
+            publicationStatus=PublicationStatusEnum.PUBLISHED,
+            permissions=default_permissions,
+            distribution=None,
+            descriptiveStatistics={},
+            dateCreated=now,
+            dateModified=now
+        )
+
         try:
-            self.config.identifierCollection.insert_one(score_doc)
-            
+            insert_data = stored_identifier.model_dump(by_alias=True, mode="json")
+            self.config.identifierCollection.insert_one(insert_data)
+
             self.config.identifierCollection.update_one(
                 {"@id": rocrate_id},
                 {"$set": {"metadata.hasAIReadyScore": {"@id": score_id}}}
             )
-            
+
             return FairscapeResponse(
                 success=True,
                 statusCode=201,
-                model=score_doc
+                model=stored_identifier
             )
         except Exception as e:
             return FairscapeResponse(

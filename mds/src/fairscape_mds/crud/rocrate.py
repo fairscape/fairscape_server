@@ -15,8 +15,8 @@ from fairscape_mds.models.identifier import (
 )
 
 from typing import Optional, Dict, Any
-from fairscape_models import ROCrateV1_2, ROCrateMetadataElem, Dataset, GenericMetadataElem, IdentifierValue
-from fairscape_models.model_card import ModelCard
+from fairscape_models import ROCrateV1_2, ROCrateMetadataElem, Dataset, GenericMetadataElem, IdentifierValue, Annotation
+from fairscape_models.fairscape_base import DEFAULT_ARK_NAAN
 import traceback
 
 import pydantic
@@ -242,9 +242,9 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						mode='json'
 					)
 
-				if 'file:///' in datasetElem.contentUrl:	
+				if 'file:///' in datasetElem.contentUrl:
 					# match the metadata path to content
-					contentUrlKey = datasetElem.contentUrl.lstrip("file:///")
+					contentUrlKey = datasetElem.contentUrl.removeprefix("file:///")
 
 					# overwrite dataset mimetype
 					datasetMimetype, _ = mimetypes.guess_type(contentUrlKey)
@@ -1135,7 +1135,8 @@ class FairscapeROCrateRequest(FairscapeRequest):
 	def mintMetadataOnlyROCrate(
 			self,
 			requestingUser: UserWriteModel,
-			crateModel: ROCrateV1_2
+			crateModel: ROCrateV1_2,
+			baseDatasetArk: Optional[str] = None
 		) -> FairscapeResponse:
 			try:
 				crateModel.cleanIdentifiers()
@@ -1161,9 +1162,36 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			user_permissions = requestingUser.getPermissions()
 
 			now = datetime.datetime.now()
-		
+
 			user_permissions = requestingUser.getPermissions().model_dump(mode='json')
-			
+
+			# create upload annotation
+			annotation_guid = f"ark:{DEFAULT_ARK_NAAN}/annotation-upload-{uuid.uuid4()}"
+			annotation_name = f"Annotation {root_metadata_entity.name}"
+
+			used_datasets = []
+			if baseDatasetArk:
+				used_datasets.append(IdentifierValue.model_validate({"@id": baseDatasetArk}))
+
+			generated_list = [IdentifierValue.model_validate({"@id": root_guid})]
+
+			upload_annotation = Annotation.model_validate({
+				"@id": annotation_guid,
+				"name": annotation_name,
+				"@type": "https://w3id.org/EVI#Annotation",
+				"additionalType": "https://w3id.org/EVI#Annotation",
+				"createdBy": requestingUser.email,
+				"description": f"Annotation documenting the upload of ROCrate {root_metadata_entity.name}",
+				"dateCreated": now.isoformat(),
+				"usedDataset": used_datasets,
+				"generated": generated_list
+			})
+
+			crateModel.metadataGraph.append(upload_annotation)
+
+			# Add generatedBy to the root ROCrate metadata
+			root_metadata_entity.generatedBy = IdentifierValue.model_validate({"@id": annotation_guid})
+
 			documents_for_identifier_collection = []
 			minted_element_guids = []
 

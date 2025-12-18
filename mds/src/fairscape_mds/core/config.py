@@ -42,11 +42,14 @@ class Settings(BaseSettings):
     FAIRSCAPE_REDIS_JOB_DATABASE: str
     FAIRSCAPE_REDIS_RESULT_DATABASE: str
 
-    FAIRSCAPE_JWT_SECRET: str 
+    FAIRSCAPE_JWT_SECRET: str
     FAIRSCAPE_ADMIN_GROUP: str
 
     FAIRSCAPE_BASE_URL: str
     FAIRSCAPE_DESCRIPTIVE_STATISTICS_MAX_COLUMNS: int = 100
+
+    GITHUB_TOKEN: Optional[str] = Field(default=None)
+    GITHUB_REPO_NAME: str = Field(default="bridge2ai/data-sheets-schema")
 
 
 class FairscapeConfig():
