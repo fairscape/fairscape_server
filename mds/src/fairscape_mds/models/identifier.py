@@ -35,18 +35,18 @@ class PublicationStatusEnum(str, Enum):
 
 
 class MetadataTypeEnum(Enum):
-	DATASET = "https://w3id.org/EVI#Dataset"
-	SOFTWARE ="https://w3id.org/EVI#Software"
-	COMPUTATION ="https://w3id.org/EVI#Computation"
+	DATASET = ["prov:Entity","https://w3id.org/EVI#Dataset"]
+	SOFTWARE = ["prov:Entity","https://w3id.org/EVI#Software"]
+	COMPUTATION =["prov:Activity","https://w3id.org/EVI#Computation"]
 	SCHEMA ="https://w3id.org/EVI#Schema"
 	ROCRATE = ["https://w3id.org/EVI#Dataset", "https://w3id.org/EVI#ROCrate"]
-	SAMPLE = "https://w3id.org/EVI#Sample"
-	BIOCHEM_ENTITY = "https://schema.org/BioChemEntity"
-	EXPERIMENT = "https://w3id.org/EVI#Experiment"
-	INSTRUMENT = "https://w3id.org/EVI#Instrument"
+	SAMPLE = ["prov:Entity","https://w3id.org/EVI#Sample"]
+	BIOCHEM_ENTITY = ["prov:Entity","https://w3id.org/EVI#BioChemEntity"]
+	EXPERIMENT = ["prov:Activity","https://w3id.org/EVI#Experiment"]
+	INSTRUMENT = ["prov:Entity","https://w3id.org/EVI#Instrument"]
 	MEDICAL_CONDITION = "https://schema.org/MedicalCondition"
 	CREATIVE_WORK = "https://schema.org/CreativeWork"
-	ML_MODEL = "https://w3id.org/EVI#MLModel"
+	ML_MODEL = ["prov:Entity","https://w3id.org/EVI#MLModel"]
 	ANNOTATION = "https://w3id.org/EVI#Annotation"
 	EVIDENCE_GRAPH = "evi:EvidenceGraph"
 	AI_READY_SCORE = "evi:AIReadyScore"
@@ -113,8 +113,10 @@ class UpdatePublishRequest(BaseModel):
 
 
 def determineMetadataType(inputType)->MetadataTypeEnum:
-	# TODO future proof for more list types
+	# ASSUMES LAST TYPE OF LIST IS OUR CLASSISFER
 	if isinstance(inputType, list):
+		inputType = inputType[-1]
+	if 'ROCrate' in inputType:
 		return MetadataTypeEnum.ROCRATE
 	elif 'Dataset' in inputType:
 		return MetadataTypeEnum.DATASET
