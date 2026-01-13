@@ -72,7 +72,7 @@ class EvidenceGraph(BaseModel):
             elif "Software" in node_type_field: current_node_type_str = "Software"
             elif "MLModel" in node_type_field: current_node_type_str = "MLModel"
             elif "Experiment" in node_type_field: current_node_type_str = "Experiment"
-            elif node_type_field: current_node_type_str = node_type_field[0]
+            elif node_type_field: current_node_type_str = node_type_field[-1]
         elif isinstance(node_type_field, str):
             current_node_type_str = node_type_field
 
