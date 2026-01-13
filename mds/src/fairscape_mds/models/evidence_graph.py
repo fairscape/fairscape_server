@@ -72,7 +72,7 @@ class EvidenceGraph(BaseModel):
             elif "Software" in node_type_field: current_node_type_str = "Software"
             elif "MLModel" in node_type_field: current_node_type_str = "MLModel"
             elif "Experiment" in node_type_field: current_node_type_str = "Experiment"
-            elif node_type_field: current_node_type_str = node_type_field[0]
+            elif node_type_field: current_node_type_str = node_type_field[-1]
         elif isinstance(node_type_field, str):
             current_node_type_str = node_type_field
 
@@ -187,7 +187,7 @@ class EvidenceGraph(BaseModel):
             elif "Software" in node_type_field: current_node_type_str = "Software"
             elif "MLModel" in node_type_field: current_node_type_str = "MLModel"
             elif "Experiment" in node_type_field: current_node_type_str = "Experiment"
-            elif node_type_field: current_node_type_str = node_type_field[0]
+            elif node_type_field: current_node_type_str = node_type_field[-1]
         elif isinstance(node_type_field, str):
             current_node_type_str = node_type_field
 
@@ -300,7 +300,6 @@ class EvidenceGraph(BaseModel):
         node_type = start_node.get("@type", "")
         start_rocrate_id = None
         start_rocrate_outputs: Optional[List[Dict]] = None
-        
         if self._is_rocrate(node_type):
             rocrate_outputs = self._get_rocrate_outputs(start_node)
             start_rocrate_outputs = list(rocrate_outputs) if rocrate_outputs else []
