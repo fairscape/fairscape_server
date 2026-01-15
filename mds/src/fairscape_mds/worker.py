@@ -202,7 +202,7 @@ def score_ai_ready_task(self, task_guid: str, rocrate_id: str):
         _score_pre_model(score.pre_model_explainability, root_data, metadata_graph)
         _score_ethics(score.ethics, root_data)
         _score_sustainability(score.sustainability, root_data)
-        _score_computability(score.computability, metadata_graph)
+        _score_computability(score.computability, root_data, metadata_graph)
         
         response = ai_ready_request.create_ai_ready_score(
             rocrate_id=rocrate_id,
