@@ -72,7 +72,6 @@ def publishMetadataOnly(
 	baseDatasetArk: Optional[str] = Query(default=None, description="Optional base dataset ARK identifier")
 ):
 	try:
-		# Call the mintMetadataOnlyROCrate method on the existing rocrateRequest
 		result = rocrateRequest.mintMetadataOnlyROCrate(
 			requestingUser=currentUser,
 			crateModel=crateMetadata,
@@ -175,6 +174,55 @@ def getROCrateArchive(
 			status_code = response.statusCode,
 			content = response.error
 		)
+
+
+@rocrateRouter.get(
+	"/rocrate/summary/ark:{NAAN}/{postfix}",
+	summary="Get a summary of RO-Crate contents",
+	response_description="Paginated list of datasets, software, computations, etc. with counts"
+)
+def getROCrateContentSummary(
+	NAAN: str,
+	postfix: str,
+	limit: int = Query(default=10, ge=1, le=100, description="Max items per category"),
+	offset: int = Query(default=0, ge=0, description="Starting index for pagination")
+):
+	"""
+	Retrieve a lightweight summary of RO-Crate contents.
+
+	Returns the first N items (by default 10) of each category:
+	- datasets
+	- software
+	- computations
+	- schemas
+	- samples
+	- mlModels
+	- rocrates (nested RO-Crates)
+	- other
+
+	Also includes total counts for each category.
+
+	Use `offset` and `limit` for pagination through large collections.
+	"""
+	guid = f"ark:{NAAN}/{postfix}"
+
+	response = rocrateRequest.getROCrateContentSummary(
+		rocrateGUID=guid,
+		limit=limit,
+		offset=offset
+	)
+
+	if response.success:
+		return JSONResponse(
+			status_code=200,
+			content=response.model
+		)
+	else:
+		return JSONResponse(
+			status_code=response.statusCode,
+			content=response.error
+		)
+
 
 @rocrateRouter.get("/rocrate/ark:{NAAN}/{postfix}")
 def getROCrateMetadata(

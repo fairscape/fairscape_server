@@ -33,3 +33,37 @@ class ROCrateMetadataElemWrite(ROCrateMetadataElem):
 	published: Optional[bool] = Field(default=True)
 	hasPart: Optional[List[dict]]
 	distribution: Optional[DatasetDistribution]
+
+
+class ContentSummaryItem(BaseModel):
+	"""Minimal info for a single element in the summary"""
+	guid: str = Field(alias="@id")
+	name: str
+	metadataType: Optional[str] = Field(default=None, alias="@type")
+
+
+class ContentCounts(BaseModel):
+	"""Counts of each element type"""
+	datasets: int = 0
+	software: int = 0
+	computations: int = 0
+	schemas: int = 0
+	samples: int = 0
+	mlModels: int = 0
+	rocrates: int = 0
+	other: int = 0
+	total: int = 0
+
+
+class ROCrateContentSummary(BaseModel):
+	"""Pre-computed summary of RO-Crate contents"""
+	datasets: List[ContentSummaryItem] = []
+	software: List[ContentSummaryItem] = []
+	computations: List[ContentSummaryItem] = []
+	schemas: List[ContentSummaryItem] = []
+	samples: List[ContentSummaryItem] = []
+	mlModels: List[ContentSummaryItem] = []
+	rocrates: List[ContentSummaryItem] = []
+	other: List[ContentSummaryItem] = []
+	counts: ContentCounts = ContentCounts()
+	generatedAt: datetime.datetime = Field(default_factory=datetime.datetime.now)

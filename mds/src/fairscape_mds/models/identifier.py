@@ -1,11 +1,14 @@
 from pydantic import BaseModel, Field, ConfigDict, model_validator
-from typing import Optional, Union, Dict
+from typing import Optional, Union, Dict, TYPE_CHECKING, List
 from fairscape_mds.models.user import Permissions
 from fairscape_mds.models.dataset import DatasetDistribution
 from fairscape_mds.models.statistics import DescriptiveStatistics
 from fairscape_mds.models.evidence_graph import EvidenceGraph
 
 from fairscape_models.rocrate import ROCrateV1_2, ROCrateMetadataElem, GenericMetadataElem
+
+if TYPE_CHECKING:
+	from fairscape_mds.models.rocrate import ROCrateContentSummary
 from fairscape_models.dataset import Dataset
 from fairscape_models.software import Software
 from fairscape_models.computation import Computation
@@ -18,6 +21,7 @@ from fairscape_models.medical_condition import MedicalCondition
 from fairscape_models.annotation import Annotation
 from fairscape_models.conversion.models.AIReady import AIReadyScore
 from fairscape_models.model_card import ModelCard
+from fairscape_models.fairscape_base import IdentifierValue
 
 import datetime
 
@@ -81,8 +85,10 @@ class StoredIdentifier(BaseModel):
 	permissions: Permissions
 	distribution: Optional[DatasetDistribution]
 	descriptiveStatistics: Optional[Dict[str, DescriptiveStatistics]] = Field(default = {})
+	contentSummary: Optional[Dict] = Field(default=None)
 	dateCreated: datetime.datetime
 	dateModified: datetime.datetime
+	isPartOf: Optional[List[IdentifierValue]] = None
 
 	@model_validator(mode='before')
 	@classmethod
