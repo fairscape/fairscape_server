@@ -4,8 +4,11 @@ from fairscape_mds.models.dataset import DatasetWriteModel, DatasetDistribution,
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.models.rocrate import (
-	ROCrateUploadRequest, 
-	ROCrateMetadataElemWrite
+	ROCrateUploadRequest,
+	ROCrateMetadataElemWrite,
+	ROCrateContentSummary,
+	ContentSummaryItem,
+	ContentCounts
 )
 from fairscape_mds.models.identifier import (
 	StoredIdentifier,
@@ -15,7 +18,7 @@ from fairscape_mds.models.identifier import (
 )
 
 from typing import Optional, Dict, Any
-from fairscape_models import ROCrateV1_2, ROCrateMetadataElem, Dataset, GenericMetadataElem, IdentifierValue, Annotation
+from fairscape_models import ROCrateV1_2, ROCrateMetadataElem, Dataset, GenericMetadataElem, IdentifierValue, Annotation, ModelCard, Software, Computation, Schema, Sample
 from fairscape_models.fairscape_base import DEFAULT_ARK_NAAN
 import traceback
 
@@ -42,8 +45,8 @@ def userPath(inputEmail):
 
 
 def setDatasetObjectKey(
-	datasetFilename: str, 
-	userInstance: UserWriteModel, 
+	datasetFilename: str,
+	userInstance: UserWriteModel,
 	basePath: str = ""
 	):
 	contentName = pathlib.Path(datasetFilename).name
@@ -51,6 +54,91 @@ def setDatasetObjectKey(
 		return f"{userInstance.email}/datasets/{contentName}"
 	else:
 		return f"{basePath}/{userInstance.email}/datasets/{contentName}"
+
+
+def buildContentSummary(rocrateInstance: ROCrateV1_2) -> ROCrateContentSummary:
+	"""
+	Build a content summary from an RO-Crate model.
+	Extracts @id and name for each element, organized by type.
+	"""
+	datasets = []
+	software = []
+	computations = []
+	schemas = []
+	samples = []
+	ml_models = []
+	rocrates = []
+	other = []
+
+	root_elem = rocrateInstance.getCrateMetadata()
+	root_guid = root_elem.guid if root_elem else None
+
+	for elem in rocrateInstance.metadataGraph:
+
+		if elem.guid == "ro-crate-metadata.json":
+			continue
+		if elem.guid == root_guid:
+			continue
+
+		elem_type = elem.metadataType
+		if isinstance(elem_type, list):
+			elem_type_str = elem_type[-1] if elem_type else ""
+		else:
+			elem_type_str = str(elem_type) if elem_type else ""
+
+		summary_item = ContentSummaryItem(
+			**{
+				"@id": elem.guid,
+				"name": elem.name or "Unnamed",
+				"@type": elem_type_str
+			}
+		)
+
+		if 'ROCrate' in elem_type_str:
+			rocrates.append(summary_item)
+		elif isinstance(elem, Dataset) or 'Dataset' in elem_type_str:
+			datasets.append(summary_item)
+		elif isinstance(elem, Software) or 'Software' in elem_type_str:
+			software.append(summary_item)
+		elif isinstance(elem, Computation) or 'Computation' in elem_type_str:
+			computations.append(summary_item)
+		elif isinstance(elem, Schema) or 'Schema' in elem_type_str:
+			schemas.append(summary_item)
+		elif isinstance(elem, Sample) or 'Sample' in elem_type_str:
+			samples.append(summary_item)
+		elif isinstance(elem, ModelCard) or 'MLModel' in elem_type_str:
+			ml_models.append(summary_item)
+		elif 'CreativeWork' in elem_type_str:
+			# Skip CreativeWork (usually just the ro-crate-metadata.json descriptor)
+			continue
+		else:
+			other.append(summary_item)
+
+	counts = ContentCounts(
+		datasets=len(datasets),
+		software=len(software),
+		computations=len(computations),
+		schemas=len(schemas),
+		samples=len(samples),
+		mlModels=len(ml_models),
+		rocrates=len(rocrates),
+		other=len(other),
+		total=len(datasets) + len(software) + len(computations) +
+			  len(schemas) + len(samples) + len(ml_models) + len(rocrates) + len(other)
+	)
+
+	return ROCrateContentSummary(
+		datasets=datasets,
+		software=software,
+		computations=computations,
+		schemas=schemas,
+		samples=samples,
+		mlModels=ml_models,
+		rocrates=rocrates,
+		other=other,
+		counts=counts,
+		generatedAt=datetime.datetime.now()
+	)
 
 
 class FairscapeROCrateRequest(FairscapeRequest):
@@ -494,6 +582,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 					"publicationStatus": PublicationStatusEnum.DRAFT,
 					"dateCreated": now,
 					"dateModified": now,
+					"isPartOf": [partOfROCrate.model_dump(by_alias=True, mode='json')]
 				})
 				
 				insertResult = metadataCollection.insert_one(
@@ -820,16 +909,20 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			}) for elem in roCrateModel.metadataGraph if elem.guid != "ro-crate-metadata.json" and elem.guid != roCrateGUID
 			]
 
-		# TODO needs to be stored identifier		
+		# Build content summary
+		contentSummary = buildContentSummary(roCrateModel)
+
+		# TODO needs to be stored identifier
 		storedMetadataElem = StoredIdentifier.model_validate({
 			"@id": metadataElem.guid,
 			"@type": MetadataTypeEnum.ROCRATE,
-			"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True) ,              
+			"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True) ,
 			"metadata": metadataElem,
 			"distribution": roCrateDistribution.model_dump(
-				mode='json', 
+				mode='json',
 				by_alias=True
-			),                
+			),
+			"contentSummary": contentSummary.model_dump(mode='json', by_alias=True),
 			"publicationStatus": PublicationStatusEnum.DRAFT,
 			"dateCreated": now,
 			"dateModified": now
@@ -1015,8 +1108,117 @@ class FairscapeROCrateRequest(FairscapeRequest):
 					model=rocrateModel,
 					statusCode=200
 			)
-		
-	
+
+
+	def getROCrateContentSummary(
+		self,
+		rocrateGUID: str,
+		limit: int = 10,
+		offset: int = 0
+	) -> FairscapeResponse:
+		"""
+		Get the pre-computed content summary for an RO-Crate.
+
+		Args:
+			rocrateGUID: The ARK identifier of the RO-Crate
+			limit: Maximum number of items per category (default 10)
+			offset: Starting index for pagination (default 0)
+
+		Returns:
+			FairscapeResponse with sliced summary data
+		"""
+
+		# Only fetch the contentSummary field
+		rocrate_doc = self.config.identifierCollection.find_one(
+			{"@id": rocrateGUID},
+			projection={
+				"_id": False,
+				"contentSummary": 1,
+				"@type": 1
+			}
+		)
+
+		if not rocrate_doc:
+			return FairscapeResponse(
+				success=False,
+				statusCode=404,
+				error={"message": "RO-Crate not found"}
+			)
+
+		# Verify this is an ROCrate
+		doc_type = rocrate_doc.get("@type", [])
+		if isinstance(doc_type, str):
+			doc_type = [doc_type]
+
+		is_rocrate = any("ROCrate" in str(t) for t in doc_type)
+		if not is_rocrate:
+			return FairscapeResponse(
+				success=False,
+				statusCode=400,
+				error={"message": "Identifier is not an RO-Crate"}
+			)
+
+		content_summary = rocrate_doc.get("contentSummary")
+
+		if not content_summary:
+			# RO-Crate exists but has no summary (uploaded before this feature)
+			# Return empty summary with a flag
+			return FairscapeResponse(
+				success=True,
+				statusCode=200,
+				model={
+					"datasets": [],
+					"software": [],
+					"computations": [],
+					"schemas": [],
+					"samples": [],
+					"mlModels": [],
+					"rocrates": [],
+					"other": [],
+					"counts": {
+						"datasets": 0,
+						"software": 0,
+						"computations": 0,
+						"schemas": 0,
+						"samples": 0,
+						"mlModels": 0,
+						"rocrates": 0,
+						"other": 0,
+						"total": 0
+					},
+					"generatedAt": None,
+					"summaryAvailable": False
+				}
+			)
+
+		# Apply pagination (offset and limit) to each category
+		end_idx = offset + limit
+
+		paginated_summary = {
+			"datasets": content_summary.get("datasets", [])[offset:end_idx],
+			"software": content_summary.get("software", [])[offset:end_idx],
+			"computations": content_summary.get("computations", [])[offset:end_idx],
+			"schemas": content_summary.get("schemas", [])[offset:end_idx],
+			"samples": content_summary.get("samples", [])[offset:end_idx],
+			"mlModels": content_summary.get("mlModels", [])[offset:end_idx],
+			"rocrates": content_summary.get("rocrates", [])[offset:end_idx],
+			"other": content_summary.get("other", [])[offset:end_idx],
+			"counts": content_summary.get("counts", {}),
+			"generatedAt": content_summary.get("generatedAt"),
+			"summaryAvailable": True,
+			"pagination": {
+				"offset": offset,
+				"limit": limit
+			}
+		}
+
+		return FairscapeResponse(
+			success=True,
+			statusCode=200,
+			model=paginated_summary
+		)
+
+
 	def downloadROCrateArchive(
 		self, 
 		requestingUser: UserWriteModel, 
@@ -1165,6 +1367,14 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 			user_permissions = requestingUser.getPermissions().model_dump(mode='json')
 
+			# Create isPartOf reference for elements in this ROCrate
+			root_name = root_metadata_entity.name
+			partOfROCrate = IdentifierValue.model_validate({
+				"@id": root_guid,
+				"@type": MetadataTypeEnum.ROCRATE,
+				"name": root_name
+			})
+
 			# create upload annotation
 			annotation_guid = f"ark:{DEFAULT_ARK_NAAN}/annotation-upload-{uuid.uuid4()}"
 			annotation_name = f"Annotation {root_metadata_entity.name}"
@@ -1191,6 +1401,9 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 			# Add generatedBy to the root ROCrate metadata
 			root_metadata_entity.generatedBy = IdentifierValue.model_validate({"@id": annotation_guid})
+
+			# Build content summary for the ROCrate
+			contentSummary = buildContentSummary(crateModel)
 
 			documents_for_identifier_collection = []
 			minted_element_guids = []
@@ -1227,19 +1440,37 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				try:
 
 					elemMetadataType = determineMetadataType(elem.metadataType)
-					
+
+					if elem.guid != root_guid:
+						elem.isPartOf = [partOfROCrate]
+
 					metadataDict = elem.model_dump(by_alias=True, mode="json")
-					element_document_data = StoredIdentifier.model_validate({
+
+					# Check if this is a ROCrate element
+					is_rocrate = "https://w3id.org/EVI#ROCrate" in elem.metadataType
+
+					# Build element document with contentSummary for ROCrate types
+					element_doc_dict = {
 						"@id": elem.guid,
-						"@type": elemMetadataType, 
-						"owner": requestingUser.email, 
+						"@type": elemMetadataType,
+						"owner": requestingUser.email,
 						"permissions": user_permissions,
 						"metadata": metadataDict,
 						"distribution": None,
-						"publicationStatus": PublicationStatusEnum.DRAFT,	
+						"publicationStatus": PublicationStatusEnum.DRAFT,
 						"dateCreated": now,
 						"dateModified": now
-					})
+					}
+
+					if elem.guid != root_guid:
+						element_doc_dict["isPartOf"] = [partOfROCrate.model_dump(by_alias=True, mode='json')]
+					else:
+						element_doc_dict["isPartOf"] = metadataDict.get("isPartOf", [])
+						#FIX THIS LATER IS PART OF MAY POINT TO UNPUBLISHED RELEASE
+					if is_rocrate:
+						element_doc_dict["contentSummary"] = contentSummary.model_dump(mode='json', by_alias=True)
+
+					element_document_data = StoredIdentifier.model_validate(element_doc_dict)
 
 					documents_for_identifier_collection.append(element_document_data.model_dump(by_alias=True, mode="json"))
 					minted_element_guids.append(elem.guid)
@@ -1317,17 +1548,27 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						"_id": 0,
 						"@id": 1,
 						"metadata": 1,
+						"contentSummary.counts": 1,
 					}
 				)
 
 				crates_list = []
 				for crate_doc in cursor:
 					metadata = crate_doc.get("metadata", {})
-					crates_list.append({
+					content_summary = crate_doc.get("contentSummary", {})
+					counts = content_summary.get("counts", None)
+
+					crate_entry = {
 						"@id": crate_doc.get("@id"),
 						"name": metadata.get("name"),
 						"description": metadata.get("description")
-					})
+					}
+
+					# Only include counts if they exist
+					if counts:
+						crate_entry["counts"] = counts
+
+					crates_list.append(crate_entry)
 
 				return FairscapeResponse(
 					success=True,
