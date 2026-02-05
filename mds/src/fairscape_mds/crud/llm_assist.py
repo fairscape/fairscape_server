@@ -5,13 +5,26 @@ import re
 import io
 import uuid
 import datetime
+import socket
 import requests
 import yaml
 from typing import List, Dict, Any
 from werkzeug.utils import secure_filename
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import PyPDF2
 from fastapi import UploadFile
+
+# Makes new genai thing work
+# See: https://github.com/googleapis/python-genai/issues/1893
+_old_getaddrinfo = socket.getaddrinfo
+
+def _new_getaddrinfo(*args, **kwargs):
+    """Force IPv4 only to prevent socket hangs with google-genai"""
+    responses = _old_getaddrinfo(*args, **kwargs)
+    return [r for r in responses if r[0] == socket.AF_INET]
+
+socket.getaddrinfo = _new_getaddrinfo
 
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
@@ -328,20 +341,22 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
         task_doc = self.config.asyncCollection.find_one({"@id": task_guid})
         if not task_doc:
             raise Exception(f"Task {task_guid} not found")
-        
+
         task = LLMAssistTask.model_validate(task_doc)
-        
+
         user_doc = self.config.userCollection.find_one({"email": task.owner_email})
         if not user_doc:
             raise Exception(f"User {task.owner_email} not found")
-        
+
         requesting_user = UserWriteModel.model_validate(user_doc)
-        
+
         input_dataset_ark = None
         computation_ark = None
         output_dataset_ark = None
-        
+        raw_llm_response = None
+
         try:
+            # Update status to PROCESSING
             self.config.asyncCollection.update_one(
                 {"@id": task_guid},
                 {
@@ -351,54 +366,88 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
                     }
                 }
             )
-            
+
             input_dataset_ark = self.create_input_text_dataset(
                 document_texts=task.document_texts,
                 filenames=task.filenames,
                 requesting_user=requesting_user,
                 task_guid=task_guid
             )
-            
+
             computation_ark = self.create_llm_computation(
                 input_dataset_ark=input_dataset_ark,
                 requesting_user=requesting_user,
                 task_guid=task_guid
             )
-            
+
             combined_text = "\n\n--- DOCUMENT SEPARATOR ---\n\n".join(task.document_texts)
-            
-            genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-            model = genai.GenerativeModel('gemini-2.5-flash')
-            
-            response = model.generate_content(
-                SYSTEM_PROMPT + "\n\n" + combined_text,
-                generation_config=genai.types.GenerationConfig(
+
+            # Update status to WAITING_FOR_API
+            self.config.asyncCollection.update_one(
+                {"@id": task_guid},
+                {"$set": {"status": "WAITING_FOR_API"}}
+            )
+
+            # Configure new google-genai client
+            client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
+            # Call Gemini API with new library
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=SYSTEM_PROMPT + "\n\n" + combined_text,
+                config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     temperature=0.1,
                     max_output_tokens=8192,
                 )
             )
-            
+
+            # Store raw response for debugging
+            raw_llm_response = response.text
+
             cleaned_response = self.clean_llm_response(response.text)
-            
+
+            # Attempt to parse JSON
             try:
                 json.loads(cleaned_response)
             except json.JSONDecodeError as e:
+                # JSON parsing failed - store raw response and update status
+                self.config.asyncCollection.update_one(
+                    {"@id": task_guid},
+                    {
+                        "$set": {
+                            "status": "JSON_PARSE_FAILED",
+                            "error": {
+                                "message": f"LLM returned invalid JSON: {str(e)}",
+                                "error_type": "JSONDecodeError",
+                                "error_position": e.pos,
+                                "error_line": e.lineno,
+                                "error_column": e.colno,
+                                "input_dataset_ark": input_dataset_ark,
+                                "computation_ark": computation_ark
+                            },
+                            "raw_llm_response": raw_llm_response,
+                            "time_finished": datetime.datetime.utcnow()
+                        }
+                    }
+                )
                 raise ValueError(f"LLM returned invalid JSON: {str(e)}")
-            
+
             output_dataset_ark = self.create_output_json_dataset(
                 json_content=cleaned_response,
                 computation_ark=computation_ark,
                 requesting_user=requesting_user,
                 task_guid=task_guid
             )
-            
+
+            # Update status to SUCCESS
             self.config.asyncCollection.update_one(
-                {"@id": task_guid},
+{"@id": task_guid},
                 {
                     "$set": {
                         "status": "SUCCESS",
                         "result": cleaned_response,
+                        "raw_llm_response": raw_llm_response,
                         "time_finished": datetime.datetime.utcnow(),
                         "input_dataset_ark": input_dataset_ark,
                         "output_dataset_ark": output_dataset_ark,
@@ -406,27 +455,36 @@ class FairscapeLLMAssistRequest(FairscapeRequest):
                     }
                 }
             )
-            
+
             return cleaned_response
-            
+
         except Exception as e:
+            # General error handling
             error_info = {
                 "message": str(e),
+                "error_type": type(e).__name__,
                 "input_dataset_ark": input_dataset_ark,
                 "computation_ark": computation_ark
             }
-            
+
+            # Determine if this is a JSON parse error or general error
+            status = "JSON_PARSE_FAILED" if isinstance(e, ValueError) and "invalid JSON" in str(e) else "ERROR"
+
+            update_data = {
+                "status": status,
+                "error": error_info,
+                "time_finished": datetime.datetime.utcnow()
+            }
+
+            # Include raw response if available for debugging
+            if raw_llm_response:
+                update_data["raw_llm_response"] = raw_llm_response
+
             self.config.asyncCollection.update_one(
                 {"@id": task_guid},
-                {
-                    "$set": {
-                        "status": "ERROR",
-                        "error": error_info,
-                        "time_finished": datetime.datetime.utcnow()
-                    }
-                }
+                {"$set": update_data}
             )
-            
+
             raise
 
     def create_llm_assist_task(

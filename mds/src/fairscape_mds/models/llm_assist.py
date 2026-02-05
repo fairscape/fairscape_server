@@ -9,12 +9,13 @@ class LLMAssistTask(BaseModel):
     owner_email: str
     filenames: List[str] = Field(default_factory=list)
     document_texts: List[str] = Field(default_factory=list)
-    status: str = Field(default="PENDING")
+    status: str = Field(default="PENDING")  # PENDING, PROCESSING, WAITING_FOR_API, SUCCESS, ERROR, JSON_PARSE_FAILED
     time_created: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
     time_started: Optional[datetime.datetime] = None
     time_finished: Optional[datetime.datetime] = None
     result: Optional[str] = None
     error: Optional[Dict[str, Any]] = None
+    raw_llm_response: Optional[str] = None  # For debugging invalid JSON responses
     input_dataset_ark: Optional[str] = None
     output_dataset_ark: Optional[str] = None
     computation_ark: Optional[str] = None

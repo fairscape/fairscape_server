@@ -81,8 +81,10 @@ def get_llm_assist_task_status_route(
             "requiresGithubPush": False,
             "sourceFlow": "direct"
         }
-    elif task.status == "ERROR":
+    elif task.status in ["ERROR", "JSON_PARSE_FAILED"]:
         response_data["error"] = task.error
+        if task.raw_llm_response:
+            response_data["raw_llm_response"] = task.raw_llm_response
 
     return response_data
 
