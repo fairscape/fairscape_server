@@ -1,8 +1,10 @@
 from celery import chain
+from celery.signals import worker_init
 import datetime
 import mimetypes
+import logfire
 
-from fairscape_mds.core.config import appConfig, celeryApp
+from fairscape_mds.core.config import appConfig, celeryApp, settings
 from fairscape_mds.crud.rocrate import FairscapeROCrateRequest
 from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.models.identifier import (
@@ -26,6 +28,17 @@ rocrateRequests = FairscapeROCrateRequest(appConfig)
 evidenceGraphRequests = FairscapeEvidenceGraphRequest(appConfig)
 llmAssistRequests = FairscapeLLMAssistRequest(appConfig)
 identifierRequestFactory = IdentifierRequest(appConfig)
+
+# add support for logfire worker token
+@worker_init.connect()
+def init_worker(*args, **kwargs):
+    if settings.FAIRSCAPE_LOGFIRE_ENV and settings.FAIRSCAPE_LOGFIRE_TOKEN:
+        logfire.configure(
+            environment = settings.FAIRSCAPE_LOGFIRE_ENV,
+            token = settings.FAIRSCAPE_LOGFIRE_TOKEN,
+            service_name="worker"
+        )
+        logfire.instrument_celery()
 
 def celeryUploadROCrate(transactionGUID: str):
     ''' Chain Together Tasks for Uploading an ROCrate
