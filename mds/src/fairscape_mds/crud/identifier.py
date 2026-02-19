@@ -682,23 +682,35 @@ class DeleteIdentifier():
 			distributionType = None
 			objectKey = None
 		
-		if isPartOf and distributionType  == DistributionTypeEnum.MINIO and self.force:
-			return FairscapeResponse(
-				success=False,
-				statusCode = 400,
-				error = {"error": "identifier is a dataset with a file included in an rocrate, delete the rocrate to remove this record"}
-			)
-		
-		elif distributionType == DistributionTypeEnum.MINIO and self.force:
+		if distributionType == DistributionTypeEnum.MINIO and self.force:
 			# delete object from minio
 			self.config.minioClient.delete_object(
 				Bucket = self.config.minioBucket,
 				Key = objectKey
 			)
 
-		#elif isPartOf:
-			# remove the metadata record from the ROCrate
-			#rocrateGUID = isPartOf.get("@id")
+		# Remove from parent RO-Crates before deleting
+		if isPartOf and len(isPartOf) > 0:
+			from fairscape_mds.crud.entity_creation_utils import removeEntityFromROCrate
+
+			for parent in isPartOf:
+				# Best-effort removal - don't fail if parent already deleted
+				try:
+					# Only remove from RO-Crates (not Orgs/Projects)
+					parent_doc = self.config.identifierCollection.find_one(
+						{"@id": parent.guid},
+						projection={"@type": 1, "_id": 0}
+					)
+
+					if parent_doc and parent_doc.get('@type') == MetadataTypeEnum.ROCRATE.value:
+						removeEntityFromROCrate(
+							self.config.identifierCollection,
+							parent.guid,
+							self.guid
+						)
+				except Exception as e:
+					# Log warning but continue - parent might have been deleted already
+					print(f"Warning: Could not remove {self.guid} from parent {parent.guid}: {e}")
 
 		if self.force:
 			# remove metadata record
