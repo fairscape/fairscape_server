@@ -106,7 +106,8 @@ class StoredIdentifier(BaseModel):
 					MetadataTypeEnum.AI_READY_SCORE: AIReadyScore,
 				}
 
-				if metadata_type in type_map:
+				lookup_key = tuple(metadata_type) if isinstance(metadata_type, list) else metadata_type
+				if lookup_key in type_map:
 					model_class = type_map[metadata_type]
 					data['metadata'] = model_class.model_validate(metadata_dict)
 

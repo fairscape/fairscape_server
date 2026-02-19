@@ -1,6 +1,9 @@
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.models.user import UserWriteModel, Permissions, checkPermissions
+from fairscape_mds.crud.entity_creation_utils import validateROCrateParents
+from fairscape_mds.crud.entity_creation_utils import addEntityToROCrate
+from fairscape_mds.crud.identifier import IdentifierRequest
 from fairscape_mds.models.dataset import (
 	DatasetWriteModel, 
 	DatasetDistribution, 
@@ -102,7 +105,6 @@ class FairscapeDatasetRequest(FairscapeRequest):
 
 		if storedDataset.distribution:
 			if storedDataset.distribution.distributionType == DistributionTypeEnum.MINIO:
-				# get the distribution location from metadata
 				objectKey = storedDataset.distribution.location.path
 
 				response = self.config.minioClient.get_object(
@@ -146,8 +148,25 @@ class FairscapeDatasetRequest(FairscapeRequest):
 				statusCode=400,
 				error={"error": "identifier already exists"}
 			)
-		
-		# if no content is passed
+
+		if inputDataset.isPartOf and len(inputDataset.isPartOf) > 0:
+
+			validation = validateROCrateParents(
+				self.config.identifierCollection,
+				inputDataset.isPartOf,
+				userInstance
+			)
+
+			if not validation['valid']:
+				return FairscapeResponse(
+					success=False,
+					statusCode=400,
+					error={
+						"error": "Invalid parent RO-Crate(s)",
+						"details": validation['errors']
+					}
+				)
+
 		if datasetContent is None:
 			
 			if inputDataset.contentUrl is None:
@@ -169,13 +188,26 @@ class FairscapeDatasetRequest(FairscapeRequest):
 
 		# upload dataset content to minio
 		else:
-				
-			# determine object key
-			uploadKey = setDatasetObjectKey(
-				datasetContent.filename, 
-				userInstance, 
-				basePath= self.config.minioDefaultPath
-			)
+			# Check if dataset belongs to a RO-Crate
+			rocrate_guid = None
+			if inputDataset.isPartOf and len(inputDataset.isPartOf) > 0:
+				from fairscape_mds.crud.entity_creation_utils import findFirstROCrateInIsPartOf
+				rocrate_guid = findFirstROCrateInIsPartOf(
+					self.config.identifierCollection,
+					inputDataset.isPartOf
+				)
+
+			if rocrate_guid:
+				sanitized_guid = rocrate_guid.replace("ark:", "").replace("/", "-")
+
+				contentName = pathlib.Path(datasetContent.filename).name
+				uploadKey = f"{self.config.minioDefaultPath}/{userInstance.email}/rocrates/{sanitized_guid}/datasets/{contentName}"
+			else:
+				uploadKey = setDatasetObjectKey(
+					datasetContent.filename,
+					userInstance,
+					basePath=self.config.minioDefaultPath
+				)
 
 			# upload content and return a dataset distribution
 			distribution = uploadObjectMinio(
@@ -183,7 +215,7 @@ class FairscapeDatasetRequest(FairscapeRequest):
 				self.config.minioBucket,
 				uploadKey,
 				datasetContent.file
-				)
+			)
 
 			# Update contentUrl to point to download endpoint
 			inputDataset.contentUrl = f"{self.config.baseUrl}/dataset/download/{inputDataset.guid}"
@@ -198,9 +230,11 @@ class FairscapeDatasetRequest(FairscapeRequest):
 			"@id": inputDataset.guid,
 			"@type": MetadataTypeEnum.DATASET,
 			"metadata": inputDataset,
-			"permissions": permissionsSet, 
+			"permissions": permissionsSet,
 			"distribution": distribution,
 			"publicationStatus": PublicationStatusEnum.DRAFT,
+			"descriptiveStatistics": {}, 
+			"isPartOf": inputDataset.isPartOf if inputDataset.isPartOf else None,
 			"dateCreated": now,
 			"dateModified": now
 			})
@@ -212,7 +246,53 @@ class FairscapeDatasetRequest(FairscapeRequest):
 
 		# TODO handle insert errors
 
+		# Update parent RO-Crates' hasPart if isPartOf is set
+		if inputDataset.isPartOf and len(inputDataset.isPartOf) > 0:
+
+			failed_updates = []
+			for parent in inputDataset.isPartOf:
+				# Only update if parent is a RO-Crate
+				parent_doc = self.config.identifierCollection.find_one(
+					{"@id": parent.guid},
+					projection={"@type": 1, "_id": 0}
+				)
+
+				if parent_doc and parent_doc.get('@type') == MetadataTypeEnum.ROCRATE.value:
+					success = addEntityToROCrate(
+						self.config.identifierCollection,
+						parent.guid,
+						inputDataset.guid,
+						MetadataTypeEnum.DATASET.value,
+						inputDataset.name
+					)
+
+					if not success:
+						failed_updates.append(parent.guid)
+
+			# Rollback if any RO-Crate update failed
+			if failed_updates:
+				#TO-DO handle failed update
+				pass
 		
+  		# Logic
+		if distribution and distribution.distributionType == DistributionTypeEnum.MINIO:
+			
+			file_path = distribution.location.path
+			filename = file_path.split('/')[-1]
+			_, file_ext = pathlib.Path(filename).stem, pathlib.Path(filename).suffix
+			supported_extensions = ['.csv', '.tsv', '.xlsx', '.xls', '.parquet', '.hdf5']
+
+			if file_ext.lower() in supported_extensions:
+				try:
+					identifier_request = IdentifierRequest(self.config)
+					stats = identifier_request.generateStatistics(
+						guid=inputDataset.guid,
+						fileName=filename
+					)
+					print(f"Generated statistics for dataset {inputDataset.guid}")
+				except Exception as e:
+					print(f"Warning: Failed to generate statistics for {inputDataset.guid}: {e}")
+
 		# add identifier to users'dataset
 		updateResult = self.config.userCollection.update_one(
 				{"email": userInstance.email}, 
@@ -259,8 +339,8 @@ class FairscapeDatasetRequest(FairscapeRequest):
 					jsonResponse={"error": "user unauthorized to edit dataset metadata"}
 				)
 		
-		setUpdateValues = updateInsance.set.model_dump(mode="json", exclude_unset=True)
-		pushUpdateValues = updateInsance.push.model_dump(mode="json", exclude_unset=True)
+		setUpdateValues = updateInstance.set.model_dump(mode="json", exclude_unset=True)
+		pushUpdateValues = updateInstance.push.model_dump(mode="json", exclude_unset=True)
 
 		# push cannot overwrite null fields
 		# check that no push updates are on fields set to none
