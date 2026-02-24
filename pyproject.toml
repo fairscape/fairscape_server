@@ -15,7 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3"]
 keywords = ["fairscape", "reproducibility", "fair"]
 dependencies = [
-	"fairscape_models>=1.0.15",
+	"fairscape_models>=1.0.26",
 	"fastapi>=0.109.0",
 	"uvicorn>=0.27.0",
 	"requests>=2.31.0",
