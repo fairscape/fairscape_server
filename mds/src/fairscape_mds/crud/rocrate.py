@@ -537,8 +537,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 		# mint all metadata elements
 		for metadataModel in rocrateInstance.metadataGraph:
-			if isinstance(metadataModel.metadataType,list):
-				#if 'https://w3id.org/EVI#ROCrate' in metadataModel.metadataType:
+			if isinstance(metadataModel.metadataType, list) and 'https://w3id.org/EVI#ROCrate' in metadataModel.metadataType:
 				continue
 
 			if 'Dataset' in metadataModel.metadataType or metadataModel.guid == 'ro-crate-metadata.json':
