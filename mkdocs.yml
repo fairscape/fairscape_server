@@ -1,8 +1,8 @@
 # Project Information
 site_name: FAIRSCAPE Server
 site_description: REST API documentation for the FAIRSCAPE metadata and data server.
-site_url: https://fairscape.github.io/fairscape_server/
-repo_name: fairscape/fairscape_server
+site_url: https://fairscape.github.io/mds_python/
+repo_name: fairscape/mds_python
 repo_url: https://github.com/fairscape/mds_python
 copyright: Copyright &copy; 2024 THE RECTOR AND VISITORS OF THE UNIVERSITY OF VIRGINIA
 

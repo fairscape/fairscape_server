@@ -68,3 +68,6 @@ See the [Upload & Fetch Workflow](server-api/workflow-upload-fetch.md) for a com
 ## GitHub Repository
 
 Source code: [github.com/fairscape/mds_python](https://github.com/fairscape/mds_python)
+
+!!! note
+    When the repository is renamed to `fairscape_server`, the docs URL will move to `https://fairscape.github.io/fairscape_server/` — update `site_url` in `mkdocs.yml` at that time.
