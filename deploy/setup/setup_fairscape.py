@@ -64,7 +64,11 @@ def setupMinio():
         minio_host_processed = minio_host_processed.split('/', 1)[0]
 
         # Construct the endpoint for Minio client (host:port)
-        minio_endpoint_for_client = f"{minio_host_processed}:{minio_port_config}"
+        # If the host already contains a port (e.g. "minio:9000"), use it as-is
+        if ':' in minio_host_processed:
+            minio_endpoint_for_client = minio_host_processed
+        else:
+            minio_endpoint_for_client = f"{minio_host_processed}:{minio_port_config}"
 
         minioClient = minio.Minio(
             endpoint=minio_endpoint_for_client,
@@ -78,7 +82,7 @@ def setupMinio():
         defaultBucketName = get_config('FAIRSCAPE_MINIO_DEFAULT_BUCKET', 'fairscape-default')
         rocrateBucketName = get_config('FAIRSCAPE_MINIO_ROCRATE_BUCKET', 'fairscape-rocrate')
 
-        for bucket_name in [defaultBucketName, rocrateBucketName]:
+        for bucket_name in [defaultBucketName, rocrateBucketName, "default"]:
             if not minioClient.bucket_exists(bucket_name):
                 minioClient.make_bucket(bucket_name)
                 print(f"INFO: Bucket '{bucket_name}' created.")
