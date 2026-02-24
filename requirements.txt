@@ -26,3 +26,6 @@ fairscape_models>=1.0.15
 httpx
 pydantic-settings
 pandas
+google-genai>=0.7.0
+PyPDF2>=3.0.0
+pyyaml>=6.0
