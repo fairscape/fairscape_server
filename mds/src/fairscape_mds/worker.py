@@ -54,12 +54,12 @@ def processStatisticsROCrate(guid):
     cursor = identifierRequestFactory.config.identifierCollection.find(
         {
             "metadata.isPartOf.@id": guid,
-            "@type": str(MetadataTypeEnum.DATASET.value),
+            "@type": {"$elemMatch": {"$regex": "EVI[#:]Dataset"}},
             "$or": [
-                {"distribution.location.path": {"$regex": ".csv$"}},
-                {"distribution.location.path": {"$regex": ".tsv$"}},
-                {"distribution.location.path": {"$regex": ".hdf5$"}},
-                {"distribution.location.path": {"$regex": ".parquet$"}},
+                {"distribution.location.path": {"$regex": "\\.csv$"}},
+                {"distribution.location.path": {"$regex": "\\.tsv$"}},
+                {"distribution.location.path": {"$regex": "\\.hdf5$"}},
+                {"distribution.location.path": {"$regex": "\\.parquet$"}},
             ]
         },
         projection={
