@@ -65,6 +65,53 @@ See the [Upload & Fetch Workflow](server-api/workflow-upload-fetch.md) for a com
 | [Search](server-api/search.md) | Keyword and semantic search across all objects |
 | [Publish & Content](server-api/publish.md) | Update publish status, view or download file content |
 
+## Deployment
+
+### Docker Compose (Local)
+
+The repository includes a `compose.yaml` for running a complete local stack:
+
+```bash
+git clone https://github.com/fairscape/mds_python
+cd mds_python
+docker compose up --build
+```
+
+This starts the following services:
+
+| Service | Description | Port |
+|---------|-------------|------|
+| `fairscape-api` | This REST API server | `8080` |
+| `fairscape-frontend` | React web UI | `5173` |
+| `mongo` | MongoDB metadata store | `27017` (internal) |
+| `mongo-express` | MongoDB admin UI | `8081` |
+| `minio` | S3-compatible object storage | `9000` / `9001` |
+| `redis` | Async job queue | `6379` (internal) |
+| `fairscape-worker` | Background job processor | — |
+
+Configuration is loaded from `deploy/docker_compose.env`. See the [Installation Guide](https://fairscape.github.io/getting-started/installation/) for default credentials and full setup details.
+
+### Optional Environment Variables
+
+Two environment variables enable optional server features. Docker Compose will warn at startup if they are not set — this is expected and the server functions normally without them.
+
+#### `GEMINI_API_KEY` — LLM Assist
+
+Set a Google Gemini API key to enable AI-powered metadata enrichment features. When absent, LLM-related endpoints degrade gracefully. Used by `fairscape_mds/crud/llm_assist.py`.
+
+#### `GITHUB_TOKEN` — D4D GitHub Integration
+
+Set a GitHub personal access token to enable the `/api/github/*` endpoint group. These endpoints power the D4D (Data Datasheet for Datasets) interactive creation workflow, which integrates with GitHub Issues (default repo: `bridge2ai/data-sheets-schema`).
+
+Without `GITHUB_TOKEN`, all `/api/github/*` requests return:
+```json
+HTTP 503: "GitHub integration is not configured. Please set GITHUB_TOKEN environment variable."
+```
+
+Optionally pair with `GITHUB_REPO_NAME` to point the integration at a different repository (default: `bridge2ai/data-sheets-schema`).
+
+Full variable reference: [Configuration Documentation](https://fairscape.github.io/getting-started/configuration/)
+
 ## GitHub Repository
 
 Source code: [github.com/fairscape/mds_python](https://github.com/fairscape/mds_python)
