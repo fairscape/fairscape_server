@@ -93,24 +93,12 @@ Configuration is loaded from `deploy/docker_compose.env`. See the [Installation 
 
 ### Optional Environment Variables
 
-Two environment variables enable optional server features. Docker Compose will warn at startup if they are not set — this is expected and the server functions normally without them.
+Two optional variables enable additional server features. Docker Compose will warn at startup when they are not set — this is expected and the server functions normally without them:
 
-#### `GEMINI_API_KEY` — LLM Assist
+- **`GEMINI_API_KEY`** — enables LLM-assisted metadata enrichment features
+- **`GITHUB_TOKEN`** — enables the `/api/github/*` endpoint group for the D4D GitHub integration
 
-Set a Google Gemini API key to enable AI-powered metadata enrichment features. When absent, LLM-related endpoints degrade gracefully. Used by `fairscape_mds/crud/llm_assist.py`.
-
-#### `GITHUB_TOKEN` — D4D GitHub Integration
-
-Set a GitHub personal access token to enable the `/api/github/*` endpoint group. These endpoints power the D4D (Data Datasheet for Datasets) interactive creation workflow, which integrates with GitHub Issues (default repo: `bridge2ai/data-sheets-schema`).
-
-Without `GITHUB_TOKEN`, all `/api/github/*` requests return:
-```json
-HTTP 503: "GitHub integration is not configured. Please set GITHUB_TOKEN environment variable."
-```
-
-Optionally pair with `GITHUB_REPO_NAME` to point the integration at a different repository (default: `bridge2ai/data-sheets-schema`).
-
-Full variable reference: [Configuration Documentation](https://fairscape.github.io/getting-started/configuration/)
+See the [Configuration Documentation](https://fairscape.github.io/getting-started/configuration/) for full details on these and all other environment variables.
 
 ## GitHub Repository
 
