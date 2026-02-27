@@ -53,17 +53,17 @@ See the [Upload & Fetch Workflow](server-api/workflow-upload-fetch.md) for a com
 
 ## Endpoint Groups
 
-| Section | Endpoints |
-|---------|-----------|
-| [Upload & Fetch Workflow](server-api/workflow-upload-fetch.md) | End-to-end guide: authenticate, upload, poll, fetch |
-| [ROCrate](server-api/rocrate.md) | Upload, list, download, metadata, AI-Ready scoring |
-| [Identifier Resolution](server-api/identifier-resolution.md) | Resolve, update, delete any ARK identifier |
-| [Dataset](server-api/dataset.md) | Create, fetch metadata, download, delete |
-| [Software & Computation](server-api/software-computation.md) | Register and retrieve software and computation records |
-| [Schema](server-api/schema.md) | Create and retrieve data schemas |
-| [Evidence Graph](server-api/evidence-graph.md) | Build and query provenance graphs |
-| [Search](server-api/search.md) | Keyword and semantic search across all objects |
-| [Publish & Content](server-api/publish.md) | Update publish status, view or download file content |
+| Section                                                        | Endpoints                                              |
+| -------------------------------------------------------------- | ------------------------------------------------------ |
+| [Upload & Fetch Workflow](server-api/workflow-upload-fetch.md) | End-to-end guide: authenticate, upload, poll, fetch    |
+| [ROCrate](server-api/rocrate.md)                               | Upload, list, download, metadata, AI-Ready scoring     |
+| [Identifier Resolution](server-api/identifier-resolution.md)   | Resolve, update, delete any ARK identifier             |
+| [Dataset](server-api/dataset.md)                               | Create, fetch metadata, download, delete               |
+| [Software & Computation](server-api/software-computation.md)   | Register and retrieve software and computation records |
+| [Schema](server-api/schema.md)                                 | Create and retrieve data schemas                       |
+| [Evidence Graph](server-api/evidence-graph.md)                 | Build and query provenance graphs                      |
+| [Search](server-api/search.md)                                 | Keyword and semantic search across all objects         |
+| [Publish & Content](server-api/publish.md)                     | Update publish status, view or download file content   |
 
 ## Deployment
 
@@ -79,30 +79,21 @@ docker compose up --build
 
 This starts the following services:
 
-| Service | Description | Port |
-|---------|-------------|------|
-| `fairscape-api` | This REST API server | `8080` |
-| `fairscape-frontend` | React web UI | `5173` |
-| `mongo` | MongoDB metadata store | `27017` (internal) |
-| `mongo-express` | MongoDB admin UI | `8081` |
-| `minio` | S3-compatible object storage | `9000` / `9001` |
-| `redis` | Async job queue | `6379` (internal) |
-| `fairscape-worker` | Background job processor | — |
+| Service              | Description                  | Port               |
+| -------------------- | ---------------------------- | ------------------ |
+| `fairscape-api`      | This REST API server         | `8080`             |
+| `fairscape-frontend` | React web UI                 | `5173`             |
+| `mongo`              | MongoDB metadata store       | `27017` (internal) |
+| `mongo-express`      | MongoDB admin UI             | `8081`             |
+| `minio`              | S3-compatible object storage | `9000` / `9001`    |
+| `redis`              | Async job queue              | `6379` (internal)  |
+| `fairscape-worker`   | Background job processor     | —                  |
 
 Configuration is loaded from `deploy/docker_compose.env`. See the [Installation Guide](https://fairscape.github.io/getting-started/installation/) for default credentials and full setup details.
-
-### Optional Environment Variables
-
-Two optional variables enable additional server features. Docker Compose will warn at startup when they are not set — this is expected and the server functions normally without them:
-
-- **`GEMINI_API_KEY`** — enables LLM-assisted metadata enrichment features
-- **`GITHUB_TOKEN`** — enables the `/api/github/*` endpoint group for the D4D GitHub integration
-
-See the [Configuration Documentation](https://fairscape.github.io/getting-started/configuration/) for full details on these and all other environment variables.
 
 ## GitHub Repository
 
 Source code: [github.com/fairscape/mds_python](https://github.com/fairscape/mds_python)
 
 !!! note
-    When the repository is renamed to `fairscape_server`, the docs URL will move to `https://fairscape.github.io/fairscape_server/` — update `site_url` in `mkdocs.yml` at that time.
+When the repository is renamed to `fairscape_server`, the docs URL will move to `https://fairscape.github.io/fairscape_server/` — update `site_url` in `mkdocs.yml` at that time.
