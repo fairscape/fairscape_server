@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="description" content="REST API documentation for the FAIRSCAPE metadata and data server." /><link rel="canonical" href="https://fairscape.github.io/fairscape_server/" />
+      <link rel="shortcut icon" href="img/favicon.ico" />
+    <title>FAIRSCAPE Server</title>
+    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Home";
+        var mkdocs_page_input_path = "index.md";
+        var mkdocs_page_url = "/fairscape_server/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="." class="icon icon-home"> FAIRSCAPE Server
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="./search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Home</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#base-url">Base URL</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#authentication">Authentication</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#ark-identifiers">ARK Identifiers</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#quickstart">Quickstart</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#endpoint-groups">Endpoint Groups</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#deployment">Deployment</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#docker-compose-local">Docker Compose (Local)</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#github-repository">GitHub Repository</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="server-api/workflow-upload-fetch/">Upload & Fetch Workflow</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="server-api/rocrate/">ROCrate Endpoints</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="server-api/identifier-resolution/">Identifier Resolution</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="server-api/dataset/">Dataset Endpoints</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="server-api/software-computation/">Software & Computation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="server-api/schema/">Schema Endpoints</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="server-api/evidence-graph/">Evidence Graph</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="server-api/search/">Search</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="server-api/publish/">Publish & Content</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href=".">FAIRSCAPE Server</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Home</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/fairscape/fairscape_server/edit/master/docs/index.md">Edit on fairscape/fairscape_server</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="fairscape-server-api">FAIRSCAPE Server API<a class="headerlink" href="#fairscape-server-api" title="Permanent link">&para;</a></h1>
+<p>The FAIRSCAPE Server is the core backend service of the FAIRSCAPE ecosystem, providing a REST API for storing, retrieving, and managing research objects and their provenance metadata.</p>
+<h2 id="base-url">Base URL<a class="headerlink" href="#base-url" title="Permanent link">&para;</a></h2>
+<pre class="highlight"><code>https://fairscape.net/api</code></pre>
+<p>The interactive Swagger UI (with "Try it out" support) is available at:</p>
+<pre class="highlight"><code>https://fairscape.net/api/docs</code></pre>
+<h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h2>
+<p>Most write operations require a <strong>Bearer token</strong>. Obtain one by posting credentials to <code>/login</code>:</p>
+<pre class="highlight"><code>POST /login</code></pre>
+<p>Include the token in subsequent requests:</p>
+<pre class="highlight"><code>Authorization: Bearer &lt;your_token&gt;</code></pre>
+<h2 id="ark-identifiers">ARK Identifiers<a class="headerlink" href="#ark-identifiers" title="Permanent link">&para;</a></h2>
+<p>Every object registered in FAIRSCAPE receives a persistent <strong>ARK identifier</strong>:</p>
+<pre class="highlight"><code>ark:{NAAN}/{postfix}</code></pre>
+<p>For example: <code>ark:59853/my-rocrate-2024</code></p>
+<p>ARK identifiers are resolvable universally via <code>GET /ark:{NAAN}/{postfix}</code> and work across all resource types.</p>
+<h2 id="quickstart">Quickstart<a class="headerlink" href="#quickstart" title="Permanent link">&para;</a></h2>
+<p>The most common workflow is:</p>
+<ol>
+<li><strong>Authenticate</strong> — <code>POST /login</code></li>
+<li><strong>Upload a RO-Crate</strong> — <code>POST /rocrate/upload-async</code></li>
+<li><strong>Poll upload status</strong> — <code>GET /rocrate/upload/status/{submissionUUID}</code></li>
+<li><strong>Fetch by ARK identifier</strong> — <code>GET /ark:{NAAN}/{postfix}</code></li>
+</ol>
+<p>See the <a href="server-api/workflow-upload-fetch/">Upload &amp; Fetch Workflow</a> for a complete walkthrough with Python and curl examples.</p>
+<h2 id="endpoint-groups">Endpoint Groups<a class="headerlink" href="#endpoint-groups" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Endpoints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="server-api/workflow-upload-fetch/">Upload &amp; Fetch Workflow</a></td>
+<td>End-to-end guide: authenticate, upload, poll, fetch</td>
+</tr>
+<tr>
+<td><a href="server-api/rocrate/">ROCrate</a></td>
+<td>Upload, list, download, metadata, AI-Ready scoring</td>
+</tr>
+<tr>
+<td><a href="server-api/identifier-resolution/">Identifier Resolution</a></td>
+<td>Resolve, update, delete any ARK identifier</td>
+</tr>
+<tr>
+<td><a href="server-api/dataset/">Dataset</a></td>
+<td>Create, fetch metadata, download, delete</td>
+</tr>
+<tr>
+<td><a href="server-api/software-computation/">Software &amp; Computation</a></td>
+<td>Register and retrieve software and computation records</td>
+</tr>
+<tr>
+<td><a href="server-api/schema/">Schema</a></td>
+<td>Create and retrieve data schemas</td>
+</tr>
+<tr>
+<td><a href="server-api/evidence-graph/">Evidence Graph</a></td>
+<td>Build and query provenance graphs</td>
+</tr>
+<tr>
+<td><a href="server-api/search/">Search</a></td>
+<td>Keyword and semantic search across all objects</td>
+</tr>
+<tr>
+<td><a href="server-api/publish/">Publish &amp; Content</a></td>
+<td>Update publish status, view or download file content</td>
+</tr>
+</tbody>
+</table>
+<h2 id="deployment">Deployment<a class="headerlink" href="#deployment" title="Permanent link">&para;</a></h2>
+<h3 id="docker-compose-local">Docker Compose (Local)<a class="headerlink" href="#docker-compose-local" title="Permanent link">&para;</a></h3>
+<p>The repository includes a <code>compose.yaml</code> for running a complete local stack:</p>
+<pre class="highlight"><code class="language-bash">git clone https://github.com/fairscape/mds_python
+cd mds_python
+docker compose up --build</code></pre>
+<p>This starts the following services:</p>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Description</th>
+<th>Port</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fairscape-api</code></td>
+<td>This REST API server</td>
+<td><code>8080</code></td>
+</tr>
+<tr>
+<td><code>fairscape-frontend</code></td>
+<td>React web UI</td>
+<td><code>5173</code></td>
+</tr>
+<tr>
+<td><code>mongo</code></td>
+<td>MongoDB metadata store</td>
+<td><code>27017</code> (internal)</td>
+</tr>
+<tr>
+<td><code>mongo-express</code></td>
+<td>MongoDB admin UI</td>
+<td><code>8081</code></td>
+</tr>
+<tr>
+<td><code>minio</code></td>
+<td>S3-compatible object storage</td>
+<td><code>9000</code> / <code>9001</code></td>
+</tr>
+<tr>
+<td><code>redis</code></td>
+<td>Async job queue</td>
+<td><code>6379</code> (internal)</td>
+</tr>
+<tr>
+<td><code>fairscape-worker</code></td>
+<td>Background job processor</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Configuration is loaded from <code>deploy/docker_compose.env</code>. See the <a href="https://fairscape.github.io/getting-started/installation/">Installation Guide</a> for default credentials and full setup details.</p>
+<h2 id="github-repository">GitHub Repository<a class="headerlink" href="#github-repository" title="Permanent link">&para;</a></h2>
+<p>Source code: <a href="https://github.com/fairscape/mds_python">github.com/fairscape/mds_python</a></p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+</div>
+<p>When the repository is renamed to <code>fairscape_server</code>, the docs URL will move to <code>https://fairscape.github.io/fairscape_server/</code> — update <code>site_url</code> in <code>mkdocs.yml</code> at that time.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="server-api/workflow-upload-fetch/" class="btn btn-neutral float-right" title="Upload & Fetch Workflow">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Copyright &copy; 2024 THE RECTOR AND VISITORS OF THE UNIVERSITY OF VIRGINIA</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/fairscape/fairscape_server" class="fa fa-code-fork" style="color: #fcfcfc"> fairscape/fairscape_server</a>
+        </span>
+    
+    
+    
+      <span><a href="server-api/workflow-upload-fetch/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = ".";</script>
+    <script src="js/theme_extra.js"></script>
+    <script src="js/theme.js"></script>
+      <script src="search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
+
+<!--
+MkDocs version : 1.6.1
+Build Date UTC : 2026-02-27 20:56:10.414948+00:00
+-->

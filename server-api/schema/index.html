@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://fairscape.github.io/fairscape_server/server-api/schema/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Schema Endpoints - FAIRSCAPE Server</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Schema Endpoints";
+        var mkdocs_page_input_path = "server-api/schema.md";
+        var mkdocs_page_url = "/fairscape_server/server-api/schema/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> FAIRSCAPE Server
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../workflow-upload-fetch/">Upload & Fetch Workflow</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../rocrate/">ROCrate Endpoints</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../identifier-resolution/">Identifier Resolution</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dataset/">Dataset Endpoints</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../software-computation/">Software & Computation</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Schema Endpoints</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#endpoint-summary">Endpoint Summary</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#post-schema">POST /schema</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#get-schemaarknaanpostfix">GET /schema/ark:{NAAN}/{postfix}</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#delete-schemaarknaanpostfix">DELETE /schema/ark:{NAAN}/{postfix}</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../evidence-graph/">Evidence Graph</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../search/">Search</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../publish/">Publish & Content</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">FAIRSCAPE Server</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Schema Endpoints</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/fairscape/fairscape_server/edit/master/docs/server-api/schema.md">Edit on fairscape/fairscape_server</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="schema-endpoints">Schema Endpoints<a class="headerlink" href="#schema-endpoints" title="Permanent link">&para;</a></h1>
+<p>Schemas define the expected structure and constraints for tabular or structured datasets registered in FAIRSCAPE. Associating a schema with a dataset enables automated validation.</p>
+<p>All URLs are relative to <code>https://fairscape.net/api</code>.</p>
+<hr />
+<h2 id="endpoint-summary">Endpoint Summary<a class="headerlink" href="#endpoint-summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th style="text-align: center;">Auth Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/schema</code></td>
+<td style="text-align: center;">✓</td>
+<td>Create a schema record</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/schema/ark:{NAAN}/{postfix}</code></td>
+<td style="text-align: center;">–</td>
+<td>Get schema metadata</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/schema/ark:{NAAN}/{postfix}</code></td>
+<td style="text-align: center;">✓</td>
+<td>Delete a schema</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="post-schema"><code>POST /schema</code><a class="headerlink" href="#post-schema" title="Permanent link">&para;</a></h2>
+<p>Register a schema. The request body is a JSON object describing the schema structure and its properties.</p>
+<p><strong>Key metadata fields:</strong></p>
+<pre class="highlight"><code class="language-json">{
+  "@id": "ark:59853/apms-embeddings-schema-2024",
+  "@type": "Schema",
+  "name": "AP-MS Embeddings Schema",
+  "description": "Schema for the AP-MS protein embedding CSV",
+  "author": "Krogan Lab",
+  "version": "1.0",
+  "datePublished": "2024-01-15",
+  "keywords": ["proteomics"],
+  "properties": [
+    {
+      "name": "protein_id",
+      "type": "string",
+      "description": "UniProt protein identifier",
+      "required": true
+    },
+    {
+      "name": "embedding_dim_1",
+      "type": "float",
+      "description": "First embedding dimension"
+    }
+  ]
+}</code></pre>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Python</label><label for="__tabbed_1_2">curl</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<pre class="highlight"><code class="language-python">schema = {
+    "@id": "ark:59853/apms-embeddings-schema-2024",
+    "@type": "Schema",
+    "name": "AP-MS Embeddings Schema",
+    "description": "Schema for the AP-MS protein embedding CSV",
+    "author": "Krogan Lab",
+    "version": "1.0",
+    "datePublished": "2024-01-15",
+    "keywords": ["proteomics"],
+    "properties": [
+        {"name": "protein_id", "type": "string", "description": "UniProt ID", "required": True},
+        {"name": "embedding_dim_1", "type": "float", "description": "Embedding dim 1"}
+    ]
+}
+
+response = requests.post(
+    f"{BASE_URL}/schema",
+    json=schema,
+    headers={"Authorization": f"Bearer {token}"}
+)
+print(response.json())</code></pre>
+</div>
+<div class="tabbed-block">
+<pre class="highlight"><code class="language-shell">curl -X POST "https://fairscape.net/api/schema" \
+     -H "Authorization: Bearer &lt;token&gt;" \
+     -H "Content-Type: application/json" \
+     -d @schema.json</code></pre>
+</div>
+</div>
+</div>
+<hr />
+<h2 id="get-schemaarknaanpostfix"><code>GET /schema/ark:{NAAN}/{postfix}</code><a class="headerlink" href="#get-schemaarknaanpostfix" title="Permanent link">&para;</a></h2>
+<p>Retrieve schema metadata. Public endpoint.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">Python</label><label for="__tabbed_2_2">curl</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<pre class="highlight"><code class="language-python">response = requests.get(
+    f"{BASE_URL}/schema/ark:59853/apms-embeddings-schema-2024"
+)
+print(response.json())</code></pre>
+</div>
+<div class="tabbed-block">
+<pre class="highlight"><code class="language-shell">curl "https://fairscape.net/api/schema/ark:59853/apms-embeddings-schema-2024"</code></pre>
+</div>
+</div>
+</div>
+<hr />
+<h2 id="delete-schemaarknaanpostfix"><code>DELETE /schema/ark:{NAAN}/{postfix}</code><a class="headerlink" href="#delete-schemaarknaanpostfix" title="Permanent link">&para;</a></h2>
+<p>Delete a schema record.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="3:1"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">curl</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<pre class="highlight"><code class="language-shell">curl -X DELETE "https://fairscape.net/api/schema/ark:59853/apms-embeddings-schema-2024" \
+     -H "Authorization: Bearer &lt;token&gt;"</code></pre>
+</div>
+</div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Use <a href="https://github.com/fairscape/fairscape-cli">fairscape-cli</a> to infer schemas directly from CSV or HDF5 files with <code>fairscape-cli schema infer</code>.</p>
+</div>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../software-computation/" class="btn btn-neutral float-left" title="Software & Computation"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../evidence-graph/" class="btn btn-neutral float-right" title="Evidence Graph">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Copyright &copy; 2024 THE RECTOR AND VISITORS OF THE UNIVERSITY OF VIRGINIA</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/fairscape/fairscape_server" class="fa fa-code-fork" style="color: #fcfcfc"> fairscape/fairscape_server</a>
+        </span>
+    
+    
+      <span><a href="../software-computation/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../evidence-graph/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

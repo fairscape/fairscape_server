@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><link rel="canonical" href="https://fairscape.github.io/fairscape_server/server-api/identifier-resolution/" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>Identifier Resolution - FAIRSCAPE Server</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Identifier Resolution";
+        var mkdocs_page_input_path = "server-api/identifier-resolution.md";
+        var mkdocs_page_url = "/fairscape_server/server-api/identifier-resolution/";
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../.." class="icon icon-home"> FAIRSCAPE Server
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../workflow-upload-fetch/">Upload & Fetch Workflow</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../rocrate/">ROCrate Endpoints</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Identifier Resolution</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#endpoint-summary">Endpoint Summary</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#get-arknaanpostfix">GET /ark:{NAAN}/{postfix}</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#put-arknaanpostfix">PUT /ark:{NAAN}/{postfix}</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#delete-arknaanpostfix">DELETE /ark:{NAAN}/{postfix}</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../dataset/">Dataset Endpoints</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../software-computation/">Software & Computation</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../schema/">Schema Endpoints</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../evidence-graph/">Evidence Graph</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../search/">Search</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../publish/">Publish & Content</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../..">FAIRSCAPE Server</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../.." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Identifier Resolution</li>
+    <li class="wy-breadcrumbs-aside">
+          <a href="https://github.com/fairscape/fairscape_server/edit/master/docs/server-api/identifier-resolution.md">Edit on fairscape/fairscape_server</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="identifier-resolution">Identifier Resolution<a class="headerlink" href="#identifier-resolution" title="Permanent link">&para;</a></h1>
+<p>The ARK resolver is the universal entry point for fetching <strong>any</strong> FAIRSCAPE object by its identifier—RO-Crates, datasets, software, computations, and more. You do not need to know the object type in advance.</p>
+<p>All URLs are relative to <code>https://fairscape.net/api</code>.</p>
+<hr />
+<h2 id="endpoint-summary">Endpoint Summary<a class="headerlink" href="#endpoint-summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th style="text-align: center;">Auth Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET</code></td>
+<td><code>/ark:{NAAN}/{postfix}</code></td>
+<td style="text-align: center;">–</td>
+<td>Resolve and retrieve metadata for any identifier</td>
+</tr>
+<tr>
+<td><code>PUT</code></td>
+<td><code>/ark:{NAAN}/{postfix}</code></td>
+<td style="text-align: center;">✓</td>
+<td>Update metadata for an identifier you own</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/ark:{NAAN}/{postfix}</code></td>
+<td style="text-align: center;">✓</td>
+<td>Delete an identifier (and optionally its contents)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="get-arknaanpostfix"><code>GET /ark:{NAAN}/{postfix}</code><a class="headerlink" href="#get-arknaanpostfix" title="Permanent link">&para;</a></h2>
+<p>Retrieve metadata for any registered object. This is a <strong>public endpoint</strong> — no authentication required.</p>
+<p><strong>Path Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NAAN</code></td>
+<td>Name Assigning Authority Number (e.g., <code>59853</code>)</td>
+</tr>
+<tr>
+<td><code>postfix</code></td>
+<td>Unique identifier postfix (e.g., <code>my-dataset-2024</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Content Negotiation</strong> — set the <code>Accept</code> header to control output format:</p>
+<table>
+<thead>
+<tr>
+<th>Accept Header</th>
+<th>Format</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>application/json</code> (default)</td>
+<td>JSON-LD metadata</td>
+</tr>
+<tr>
+<td><code>text/turtle</code></td>
+<td>Turtle RDF</td>
+</tr>
+<tr>
+<td><code>application/rdf+xml</code></td>
+<td>RDF/XML</td>
+</tr>
+</tbody>
+</table>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Python</label><label for="__tabbed_1_2">curl</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<pre class="highlight"><code class="language-python">BASE_URL = "https://fairscape.net/api"
+
+# JSON (default)
+response = requests.get(f"{BASE_URL}/ark:59853/my-dataset-2024")
+metadata = response.json()
+print(metadata["metadata"]["name"])
+
+# Turtle RDF
+turtle_response = requests.get(
+    f"{BASE_URL}/ark:59853/my-dataset-2024",
+    headers={"Accept": "text/turtle"}
+)
+print(turtle_response.text)</code></pre>
+</div>
+<div class="tabbed-block">
+<pre class="highlight"><code class="language-shell"># JSON
+curl "https://fairscape.net/api/ark:59853/my-dataset-2024"
+
+# Turtle RDF
+curl "https://fairscape.net/api/ark:59853/my-dataset-2024" \
+     -H "Accept: text/turtle"
+
+# RDF/XML
+curl "https://fairscape.net/api/ark:59853/my-dataset-2024" \
+     -H "Accept: application/rdf+xml"</code></pre>
+</div>
+</div>
+</div>
+<p><strong>Response (200 — JSON):</strong>
+<pre class="highlight"><code class="language-json">{
+  "@id": "ark:59853/my-dataset-2024",
+  "@type": "Dataset",
+  "metadata": {
+    "@context": {
+      "@vocab": "https://schema.org/",
+      "EVI": "https://w3id.org/EVI#"
+    },
+    "@id": "ark:59853/my-dataset-2024",
+    "name": "AP-MS Embeddings",
+    "description": "Protein interaction embeddings from AP-MS data",
+    "keywords": ["proteomics", "b2ai"],
+    "datePublished": "2024-01-15"
+  }
+}</code></pre></p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The returned JSON includes both a top-level <code>@id</code>/<code>@type</code> summary and a <code>metadata</code> object containing the full JSON-LD document.</p>
+</div>
+<hr />
+<h2 id="put-arknaanpostfix"><code>PUT /ark:{NAAN}/{postfix}</code><a class="headerlink" href="#put-arknaanpostfix" title="Permanent link">&para;</a></h2>
+<p>Update the metadata of an existing identifier. You must own the object (authenticated).</p>
+<p><strong>Request body:</strong> Updated metadata object (same shape as the <code>metadata</code> field returned by GET)</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">Python</label><label for="__tabbed_2_2">curl</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<pre class="highlight"><code class="language-python">updated_metadata = {
+    "@id": "ark:59853/my-dataset-2024",
+    "name": "AP-MS Embeddings (Updated)",
+    "description": "Updated description with additional details.",
+    "keywords": ["proteomics", "b2ai", "cm4ai"]
+}
+
+response = requests.put(
+    f"{BASE_URL}/ark:59853/my-dataset-2024",
+    json=updated_metadata,
+    headers={"Authorization": f"Bearer {token}"}
+)
+print(response.status_code)</code></pre>
+</div>
+<div class="tabbed-block">
+<pre class="highlight"><code class="language-shell">curl -X PUT "https://fairscape.net/api/ark:59853/my-dataset-2024" \
+     -H "Authorization: Bearer &lt;token&gt;" \
+     -H "Content-Type: application/json" \
+     -d '{"name": "Updated Name", "description": "..."}'</code></pre>
+</div>
+</div>
+</div>
+<hr />
+<h2 id="delete-arknaanpostfix"><code>DELETE /ark:{NAAN}/{postfix}</code><a class="headerlink" href="#delete-arknaanpostfix" title="Permanent link">&para;</a></h2>
+<p>Delete a registered identifier. By default, deletion is blocked if other objects depend on this one. Use <code>?force=true</code> to override.</p>
+<p><strong>Query Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>force</code></td>
+<td>Set to <code>true</code> to delete even if other objects reference this identifier</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Deleting an identifier is irreversible. If the identifier has associated file content (e.g., a Dataset or ROCrate), the files are also removed from storage.</p>
+</div>
+<div class="tabbed-set tabbed-alternate" data-tabs="3:2"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">Python</label><label for="__tabbed_3_2">curl</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<pre class="highlight"><code class="language-python"># Safe delete (fails if other objects depend on this)
+response = requests.delete(
+    f"{BASE_URL}/ark:59853/my-dataset-2024",
+    headers={"Authorization": f"Bearer {token}"}
+)
+
+# Force delete
+response = requests.delete(
+    f"{BASE_URL}/ark:59853/my-dataset-2024",
+    params={"force": "true"},
+    headers={"Authorization": f"Bearer {token}"}
+)
+print(response.status_code)</code></pre>
+</div>
+<div class="tabbed-block">
+<pre class="highlight"><code class="language-shell"># Safe delete
+curl -X DELETE "https://fairscape.net/api/ark:59853/my-dataset-2024" \
+     -H "Authorization: Bearer &lt;token&gt;"
+
+# Force delete
+curl -X DELETE "https://fairscape.net/api/ark:59853/my-dataset-2024?force=true" \
+     -H "Authorization: Bearer &lt;token&gt;"</code></pre>
+</div>
+</div>
+</div>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../rocrate/" class="btn btn-neutral float-left" title="ROCrate Endpoints"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../dataset/" class="btn btn-neutral float-right" title="Dataset Endpoints">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+      <p>Copyright &copy; 2024 THE RECTOR AND VISITORS OF THE UNIVERSITY OF VIRGINIA</p>
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="https://github.com/fairscape/fairscape_server" class="fa fa-code-fork" style="color: #fcfcfc"> fairscape/fairscape_server</a>
+        </span>
+    
+    
+      <span><a href="../rocrate/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../dataset/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
