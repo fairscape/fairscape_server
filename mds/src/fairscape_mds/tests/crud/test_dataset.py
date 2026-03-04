@@ -1,73 +1,54 @@
-from fairscape_mds.crud.fairscape_request import FairscapeRequest
-from fairscape_mds.crud.fairscape_response import FairscapeResponse
-from fairscape_mds.core.config import appConfig
-from fairscape_mds.tests.crud.utils import load_test_data
 import pytest
-from fairscape_mds.models.user import UserWriteModel
-from fairscape_mds.crud.dataset import FairscapeDatasetRequest
-from fairscape_models.dataset import Dataset
+import pathlib
 import fastapi
+from fairscape_mds.crud.dataset import FairscapeDatasetRequest
+from fairscape_mds.core.config import appConfig
+from fairscape_models.dataset import Dataset
+from fairscape_mds.tests.crud.utils import load_test_data
 
+DATA_DIR = pathlib.Path(__file__).parent / "data"
 
-@pytest.fixture(scope="module")
-def current_user():
-	return UserWriteModel.model_validate({
-			"email": "test@example.org",
-			"firstName": "John",
-			"lastName": "Doe",
-			"password": "test"
-			})
 
 @pytest.fixture(scope="module")
 def dataset_request():
-	return FairscapeDatasetRequest(appConfig)
+    return FairscapeDatasetRequest(appConfig)
 
 
 def test_0_create_dataset_metadata_only(dataset_request, current_user):
+    single_dataset = load_test_data("single_dataset.json")
+    assert single_dataset
 
-	singleDataset = load_test_data("single_dataset.json")
-	assert singleDataset
+    validated = Dataset.model_validate(single_dataset)
+    response = dataset_request.createDataset(current_user, validated)
 
-	validatedDataset = Dataset.model_validate(singleDataset)
-
-	datasetCreateResponse = dataset_request.createDataset(
-		current_user,
-		validatedDataset
-	)
-
-	assert datasetCreateResponse.success
-	assert datasetCreateResponse.statusCode == 201
-	assert datasetCreateResponse.model
+    assert response.success
+    assert response.statusCode == 201
+    assert response.model
 
 
 def test_1_create_dataset_with_file(dataset_request, current_user):
-	datasetMetadata = load_test_data("single_content.json")
-	datasetFile = "data/example.csv"
+    dataset_metadata = load_test_data("single_content.json")
 
-	with open(datasetFile, "rb") as datafile:
+    with open(DATA_DIR / "example.csv", "rb") as datafile:
+        input_file = fastapi.UploadFile(file=datafile)
+        response = dataset_request.createDataset(
+            userInstance=current_user,
+            inputDataset=dataset_metadata,
+            datasetContent=input_file,
+        )
 
-		inputFile = fastapi.UploadFile(
-			file=datafile
-		)
-
-		createResponse = dataset_request.createDataset(
-			userInstance=current_user,
-			inputDataset=datasetMetadata,
-			datasetContent=inputFile
-		)
-
-	assert createResponse.success
-	assert createResponse.statusCode == 201
-	assert createResponse.model
+    assert response.success
+    assert response.statusCode == 201
+    assert response.model
 
 
 def test_2_resolve_dataset(dataset_request, current_user):
-	pass
+    pass
 
 
 def test_3_download_content(dataset_request, current_user):
-	pass
+    pass
+
 
 def test_4_change_publication_status(dataset_request, current_user):
-	pass
-
+    pass
