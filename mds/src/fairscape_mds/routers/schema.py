@@ -33,6 +33,7 @@ def createSchema(
 		)
 
 
+@schemaRouter.get("/schema/ark:/{NAAN}/{postfix}")
 @schemaRouter.get("/schema/ark:{NAAN}/{postfix}")
 def getSchema(
 	NAAN: str,
@@ -51,6 +52,7 @@ def getSchema(
 		)
 
 
+@schemaRouter.delete("/schema/ark:/{NAAN}/{postfix}")
 @schemaRouter.delete("/schema/ark:{NAAN}/{postfix}")
 def deleteSchema(
 	NAAN: str,

@@ -79,6 +79,7 @@ def resolveARKWithSlash(
     return resolveARK(NAAN, postfix, accept)
 
 
+@resolverRouter.put("/ark:/{NAAN}/{postfix}")
 @resolverRouter.put("/ark:{NAAN}/{postfix}")
 def updateARK(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
@@ -107,6 +108,7 @@ def updateARK(
         )
 
 
+@resolverRouter.delete("/ark:/{NAAN}/{postfix}")
 @resolverRouter.delete("/ark:{NAAN}/{postfix}")
 def deleteARK(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],

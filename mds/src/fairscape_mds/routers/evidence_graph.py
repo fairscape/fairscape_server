@@ -33,6 +33,7 @@ def create_evidence_graph_route(
     else:
         raise HTTPException(status_code=response.statusCode, detail=response.error)
 
+@router.get("/ark:/{NAAN}/{postfix}", response_model=StoredIdentifier, summary="Get an EvidenceGraph by its ARK ID")
 @router.get("/ark:{NAAN}/{postfix}", response_model=StoredIdentifier, summary="Get an EvidenceGraph by its ARK ID")
 def get_evidence_graph_route(
     NAAN: Annotated[str, Path(description="Name Assigning Authority Number of the ARK ID")],
@@ -46,6 +47,7 @@ def get_evidence_graph_route(
         raise HTTPException(status_code=response.statusCode, detail=response.error)
 
 
+@router.get("/query/ark:/{NAAN}/{postfix}", response_model=StoredIdentifier, summary="Get an EvidenceGraph by its ARK ID")
 @router.get("/query/ark:{NAAN}/{postfix}", response_model=StoredIdentifier, summary="Get an EvidenceGraph by its ARK ID")
 def get_evidence_graph_query_route(
     NAAN: Annotated[str, Path(description="Name Assigning Authority Number of the ARK ID")],
@@ -60,6 +62,7 @@ def get_evidence_graph_query_route(
         raise HTTPException(status_code=response.statusCode, detail=response.error)
 
 
+@router.delete("/ark:/{NAAN}/{postfix}", summary="Delete an EvidenceGraph by its ARK ID")
 @router.delete("/ark:{NAAN}/{postfix}", summary="Delete an EvidenceGraph by its ARK ID")
 def delete_evidence_graph_route(
     NAAN: Annotated[str, Path(description="Name Assigning Authority Number of the ARK ID")],
@@ -84,6 +87,12 @@ def list_evidence_graphs_route():
     else:
         raise HTTPException(status_code=response.statusCode, detail=response.error)
 
+@router.post(
+    "/build/ark:/{NAAN}/{postfix}",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=Dict,
+    summary="Initiate building or rebuilding the EvidenceGraph for a given node ARK ID"
+)
 @router.post(
     "/build/ark:{NAAN}/{postfix}",
     status_code=status.HTTP_202_ACCEPTED,

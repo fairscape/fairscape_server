@@ -19,6 +19,11 @@ router = APIRouter(
 publish_request_handler = FairscapePublishRequest(appConfig)
 
 @router.post(
+    "/create/ark:/{NAAN}/{postfix}",
+    summary="Create a dataset on a publishing platform for an ROCrate",
+    response_description="Details of the created dataset and ROCrate update status"
+)
+@router.post(
     "/create/ark:{NAAN}/{postfix}",
     summary="Create a dataset on a publishing platform for an ROCrate",
     response_description="Details of the created dataset and ROCrate update status"
@@ -57,6 +62,11 @@ async def create_dataset_endpoint(
 
     return JSONResponse(status_code=response.statusCode, content=response.model)
 
+@router.post(
+    "/upload/ark:/{NAAN}/{postfix}",
+    summary="Upload ROCrate archive to an existing platform dataset",
+    response_description="Details of the file upload transaction."
+)
 @router.post(
     "/upload/ark:{NAAN}/{postfix}",
     summary="Upload ROCrate archive to an existing platform dataset",

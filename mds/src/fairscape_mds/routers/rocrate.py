@@ -153,6 +153,7 @@ def getUploadStatus(
 		)
 
 
+@rocrateRouter.get("/rocrate/download/ark:/{NAAN}/{postfix}")
 @rocrateRouter.get("/rocrate/download/ark:{NAAN}/{postfix}")
 def getROCrateArchive(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
@@ -189,6 +190,11 @@ def getROCrateArchive(
 		)
 
 
+@rocrateRouter.get(
+	"/rocrate/summary/ark:/{NAAN}/{postfix}",
+	summary="Get a summary of RO-Crate contents",
+	response_description="Paginated list of datasets, software, computations, etc. with counts"
+)
 @rocrateRouter.get(
 	"/rocrate/summary/ark:{NAAN}/{postfix}",
 	summary="Get a summary of RO-Crate contents",
@@ -237,6 +243,7 @@ def getROCrateContentSummary(
 		)
 
 
+@rocrateRouter.get("/rocrate/ark:/{NAAN}/{postfix}")
 @rocrateRouter.get("/rocrate/ark:{NAAN}/{postfix}")
 def getROCrateMetadata(
 	request: Request,
@@ -281,6 +288,11 @@ def getROCrateMetadata(
 		content=response.model
 	)
 
+@rocrateRouter.get(
+	"/rocrate/ai-ready-score/ark:/{NAAN}/{postfix}",
+	summary="Get or initiate AI-Ready Score for an RO-Crate (Public)",
+	response_description="AI-Ready Score or task status"
+)
 @rocrateRouter.get(
 	"/rocrate/ai-ready-score/ark:{NAAN}/{postfix}",
 	summary="Get or initiate AI-Ready Score for an RO-Crate (Public)",
@@ -404,6 +416,11 @@ def get_ai_ready_score_status(
 		content=task_doc
 	)
 	
+@rocrateRouter.post(
+	"/rocrate/ai-ready-score/ark:/{NAAN}/{postfix}/rescore",
+	summary="Rescore an existing AI-Ready Score (Public)",
+	status_code=202
+)
 @rocrateRouter.post(
 	"/rocrate/ai-ready-score/ark:{NAAN}/{postfix}/rescore",
 	summary="Rescore an existing AI-Ready Score (Public)",
