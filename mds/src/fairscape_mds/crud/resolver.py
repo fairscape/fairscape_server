@@ -1,4 +1,5 @@
 import logging
+import re
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
 from fairscape_mds.models.identifier import StoredIdentifier
@@ -8,11 +9,35 @@ logger = logging.getLogger(__name__)
 
 class FairscapeResolverRequest(FairscapeRequest):
 
-	def resolveIdentifier(self, guid: str):	
+	def resolveIdentifier(self, guid: str):
+		# Step 1: Exact match (fast path)
 		foundMetadata = self.config.identifierCollection.find_one(
 			{"@id": guid},
 			projection={"_id": False}
-		)	
+		)
+
+		# Step 2: Normalize ark:/ to ark: and retry
+		if not foundMetadata:
+			normalized_guid = re.sub(r'^ark:/', 'ark:', guid)
+			if normalized_guid != guid:
+				foundMetadata = self.config.identifierCollection.find_one(
+					{"@id": normalized_guid},
+					projection={"_id": False}
+				)
+
+		# Step 3: Dash-insensitive regex search
+		if not foundMetadata:
+			ark_match = re.match(r'^ark:/?([\d]+)/(.*)', guid)
+			if ark_match:
+				naan = ark_match.group(1)
+				postfix = ark_match.group(2)
+				stripped = postfix.replace('-', '')
+				fuzzy_postfix = '-?'.join(re.escape(c) for c in stripped)
+				pattern = f'^ark:{naan}/{fuzzy_postfix}$'
+				foundMetadata = self.config.identifierCollection.find_one(
+					{"@id": {"$regex": pattern}},
+					projection={"_id": False}
+				)
 
 		if not foundMetadata:
 			return FairscapeResponse(
