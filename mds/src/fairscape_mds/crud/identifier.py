@@ -38,12 +38,9 @@ class IdentifierRequest(FairscapeRequest):
 	def getIdentifier(self, guid):
 		""" Find Identifier metadata and marshal into a StoredIdentifier class
 		"""
-		
+
 		# get the metadata for a stored identifier
-		datasetMetadata = self.config.identifierCollection.find_one(
-			{"@id": guid},
-			projection={"_id": False}
-		)
+		datasetMetadata = self.flexibleFind(guid)
 
 		if not datasetMetadata:
 			raise IdentifierNotFound(
@@ -170,10 +167,7 @@ class IdentifierRequest(FairscapeRequest):
 		"""
 
 		# get the metadata
-		metadata = self.config.identifierCollection.find_one(
-			{"@id": guid},
-			projection={"_id": False}
-		)
+		metadata = self.flexibleFind(guid)
 
 		if not metadata:
 			return FairscapeResponse(
@@ -234,10 +228,7 @@ class IdentifierRequest(FairscapeRequest):
 		newStatus = publicationChange.publicationStatus
 
 		# get the identifier metadata
-		metadata = self.config.identifierCollection.find_one(
-			{"@id": guid}, 
-			projection={"_id": False}
-		)
+		metadata = self.flexibleFind(guid)
 
 		if not metadata:
 			return FairscapeResponse(
@@ -246,7 +237,7 @@ class IdentifierRequest(FairscapeRequest):
 				error={"error": "identifier not found"}
 			)
 
-		# serialize metadata into model 
+		# serialize metadata into model
 		try:
 			foundIdentifier = StoredIdentifier.model_validate(metadata)
 		except ValidationError as e:
@@ -357,10 +348,7 @@ class IdentifierRequest(FairscapeRequest):
 		"""
 
 		# check if identifier exists
-		foundMetadata = self.config.identifierCollection.find_one(
-			{"@id": guid},
-			projection={"_id": False}
-		)
+		foundMetadata = self.flexibleFind(guid)
 
 		if not foundMetadata:
 			return FairscapeResponse(

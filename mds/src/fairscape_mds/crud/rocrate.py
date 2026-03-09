@@ -1037,10 +1037,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		}
 
 	def getROCrateMetadata(self, rocrateGUID: str):
-		root_doc = self.config.identifierCollection.find_one(
-			{"@id": rocrateGUID},
-			projection={"_id": False}
-		)
+		root_doc = self.flexibleFind(rocrateGUID)
 		
 		if not root_doc:
 			return FairscapeResponse(
@@ -1084,12 +1081,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 
 	def getROCrateMetadataElem(self, rocrateGUID: str):
-		rocrateMetadata = self.config.identifierCollection.find_one(
-			{
-				"@id": rocrateGUID
-			},
-			projection={"_id": False}
-		)
+		rocrateMetadata = self.flexibleFind(rocrateGUID)
 		
 		# if no metadata is found return 404
 		if not rocrateMetadata:
@@ -1126,8 +1118,8 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		"""
 
 		# Only fetch the contentSummary field
-		rocrate_doc = self.config.identifierCollection.find_one(
-			{"@id": rocrateGUID},
+		rocrate_doc = self.flexibleFind(
+			rocrateGUID,
 			projection={
 				"_id": False,
 				"contentSummary": 1,
@@ -1222,10 +1214,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		rocrateGUID: str
 	):
 
-		rocrateIdentifier = self.config.identifierCollection.find_one(
-			{"@id": rocrateGUID},
-			projection={"_id": False}
-		)	
+		rocrateIdentifier = self.flexibleFind(rocrateGUID)
 
 		# if no metadata is found return 404
 		if not rocrateIdentifier:
