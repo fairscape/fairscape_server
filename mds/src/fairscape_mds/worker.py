@@ -17,6 +17,7 @@ from fairscape_mds.crud.evidence_graph import FairscapeEvidenceGraphRequest
 from fairscape_mds.crud.AIReady import FairscapeAIReadyScoreRequest
 from fairscape_mds.crud.llm_assist import FairscapeLLMAssistRequest
 from fairscape_mds.crud.condensation import FairscapeCondensationRequest
+from fairscape_mds.crud.interpretation import FairscapeInterpretationRequest
 
 from fairscape_models.conversion.models.AIReady import AIReadyScore
 from fairscape_models.conversion.mapping.AIReady import (
@@ -30,6 +31,7 @@ evidenceGraphRequests = FairscapeEvidenceGraphRequest(appConfig)
 llmAssistRequests = FairscapeLLMAssistRequest(appConfig)
 identifierRequestFactory = IdentifierRequest(appConfig)
 condensationRequests = FairscapeCondensationRequest(appConfig)
+interpretationRequests = FairscapeInterpretationRequest(appConfig)
 
 # add support for logfire worker token
 @worker_init.connect()
@@ -351,6 +353,34 @@ def process_llm_assist_task(self, task_guid: str):
         )
         return {"status": "FAILURE", "error": error_msg}
     
+@celeryApp.task(name='fairscape_mds.worker.interpret_rocrate_task', bind=True)
+def interpret_rocrate_task(self, task_guid: str, rocrate_id: str, llm_model: str = "google-gla:gemini-2.5-flash", temperature: float = 0.2):
+    print(f"Starting Interpretation Task: {task_guid} for {rocrate_id}")
+
+    try:
+        aeg_id = interpretationRequests.interpret_rocrate(task_guid)
+
+        print(f"Successfully interpreted ROCrate for Task GUID {task_guid}: {aeg_id}")
+        return {"status": "SUCCESS", "annotated_evidence_graph_id": aeg_id}
+
+    except Exception as e:
+        import traceback
+        error_msg = f"Unexpected error in interpret_rocrate_task: {str(e)}"
+        print(error_msg)
+        traceback.print_exc()
+
+        # The CRUD class already updates the task to FAILURE, but ensure it's set
+        appConfig.asyncCollection.update_one(
+            {"guid": task_guid},
+            {"$set": {
+                "status": "FAILURE",
+                "error": {"message": "An unexpected error occurred", "details": str(e)},
+                "time_finished": datetime.datetime.utcnow()
+            }}
+        )
+        return {"status": "FAILURE", "error": {"message": "An unexpected server error occurred"}}
+
+
 if __name__ == '__main__':
     args = ['worker', '--loglevel=INFO']
     celeryApp.worker_main(argv=args)
