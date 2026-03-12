@@ -35,6 +35,7 @@ def createComputation(
 		)
 
 
+@computationRouter.get("/computation/ark:/{NAAN}/{postfix}")
 @computationRouter.get("/computation/ark:{NAAN}/{postfix}")
 def getComputationMetadata(
 	NAAN: str,
@@ -57,6 +58,7 @@ def getComputationMetadata(
 		)
 
 
+@computationRouter.delete("/computation/ark:/{NAAN}/{postfix}")
 @computationRouter.delete("/computation/ark:{NAAN}/{postfix}")
 def deleteComputation(
 	NAAN: str,

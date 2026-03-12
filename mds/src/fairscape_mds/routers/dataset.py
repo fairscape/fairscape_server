@@ -104,6 +104,7 @@ def getDatasetContent(
 		)
 
 
+@datasetRouter.delete("/dataset/ark:/{NAAN}/{postfix}")
 @datasetRouter.delete("/dataset/ark:{NAAN}/{postfix}")
 def deleteDataset(
 	NAAN: str,

@@ -40,6 +40,7 @@ def updatePublicationStatus(
 		)
 
 
+@publishRouter.get(path="/view/ark:/{NAAN}/{postfix}")
 @publishRouter.get(path="/view/ark:{NAAN}/{postfix}")
 def viewContent(
 	NAAN: str,
@@ -77,6 +78,7 @@ def viewContent(
 		)
 
 
+@publishRouter.get(path="/download/ark:/{NAAN}/{postfix}")
 @publishRouter.get(path="/download/ark:{NAAN}/{postfix}")
 def downloadContent(
 	NAAN: str,

@@ -8,11 +8,8 @@ logger = logging.getLogger(__name__)
 
 class FairscapeResolverRequest(FairscapeRequest):
 
-	def resolveIdentifier(self, guid: str):	
-		foundMetadata = self.config.identifierCollection.find_one(
-			{"@id": guid},
-			projection={"_id": False}
-		)	
+	def resolveIdentifier(self, guid: str):
+		foundMetadata = self.flexibleFind(guid)
 
 		if not foundMetadata:
 			return FairscapeResponse(

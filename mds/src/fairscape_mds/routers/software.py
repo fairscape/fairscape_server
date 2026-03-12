@@ -32,6 +32,7 @@ def createSoftware(
 		)
 
 
+@softwareRouter.get("/software/ark:/{NAAN}/{postfix}")
 @softwareRouter.get("/software/ark:{NAAN}/{postfix}")
 def getSoftware(
 	NAAN: str,
@@ -50,6 +51,7 @@ def getSoftware(
 		)
 
 
+@softwareRouter.delete("/software/ark:/{NAAN}/{postfix}")
 @softwareRouter.delete("/software/ark:{NAAN}/{postfix}")
 def deleteSoftware(
 	NAAN: str,

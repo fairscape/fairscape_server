@@ -17,6 +17,7 @@ import uuid
 import datetime
 
 from fairscape_mds.crud.rocrate import FairscapeROCrateRequest
+from fairscape_mds.crud.fairscape_request import flexible_ark_query
 
 from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.models.identifier import StoredIdentifier
@@ -33,6 +34,18 @@ import pathlib
 rocrateRequest = FairscapeROCrateRequest(appConfig)
 
 rocrateRouter = APIRouter(prefix="", tags=['evi', 'rocrate'])
+
+
+def _flexible_find(guid: str, projection=None):
+	"""Exact match then dash/slash-tolerant fallback lookup."""
+	if projection is None:
+		projection = {"_id": 0}
+	result = appConfig.identifierCollection.find_one({"@id": guid}, projection)
+	if not result:
+		query = flexible_ark_query(guid)
+		if query:
+			result = appConfig.identifierCollection.find_one(query, projection)
+	return result
 
 
 @rocrateRouter.post("/rocrate/upload-async")
@@ -140,6 +153,7 @@ def getUploadStatus(
 		)
 
 
+@rocrateRouter.get("/rocrate/download/ark:/{NAAN}/{postfix}")
 @rocrateRouter.get("/rocrate/download/ark:{NAAN}/{postfix}")
 def getROCrateArchive(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
@@ -176,6 +190,11 @@ def getROCrateArchive(
 		)
 
 
+@rocrateRouter.get(
+	"/rocrate/summary/ark:/{NAAN}/{postfix}",
+	summary="Get a summary of RO-Crate contents",
+	response_description="Paginated list of datasets, software, computations, etc. with counts"
+)
 @rocrateRouter.get(
 	"/rocrate/summary/ark:{NAAN}/{postfix}",
 	summary="Get a summary of RO-Crate contents",
@@ -224,6 +243,7 @@ def getROCrateContentSummary(
 		)
 
 
+@rocrateRouter.get("/rocrate/ark:/{NAAN}/{postfix}")
 @rocrateRouter.get("/rocrate/ark:{NAAN}/{postfix}")
 def getROCrateMetadata(
 	request: Request,
@@ -269,6 +289,11 @@ def getROCrateMetadata(
 	)
 
 @rocrateRouter.get(
+	"/rocrate/ai-ready-score/ark:/{NAAN}/{postfix}",
+	summary="Get or initiate AI-Ready Score for an RO-Crate (Public)",
+	response_description="AI-Ready Score or task status"
+)
+@rocrateRouter.get(
 	"/rocrate/ai-ready-score/ark:{NAAN}/{postfix}",
 	summary="Get or initiate AI-Ready Score for an RO-Crate (Public)",
 	response_description="AI-Ready Score or task status"
@@ -279,7 +304,7 @@ def get_or_create_ai_ready_score(
 ):
 	ark_id = f"ark:{NAAN}/{postfix}"
 	
-	entity = appConfig.identifierCollection.find_one({"@id": ark_id}, {"_id": 0})
+	entity = _flexible_find(ark_id)
 	if not entity:
 		return JSONResponse(
 			status_code=404,
@@ -311,10 +336,10 @@ def get_or_create_ai_ready_score(
 			status_code=400,
 			content={"error": "Entity is not an RO-Crate or AI-Ready Score"}
 		)
-	
+
 	if entity.get("metadata", {}).get("hasAIReadyScore"):
 		score_id = entity["metadata"]["hasAIReadyScore"].get("@id")
-		score_entity = appConfig.identifierCollection.find_one({"@id": score_id}, {"_id": 0})
+		score_entity = _flexible_find(score_id)
 		if score_entity:
 			try:
 				stored_identifier = StoredIdentifier.model_validate(score_entity)
@@ -392,6 +417,11 @@ def get_ai_ready_score_status(
 	)
 	
 @rocrateRouter.post(
+	"/rocrate/ai-ready-score/ark:/{NAAN}/{postfix}/rescore",
+	summary="Rescore an existing AI-Ready Score (Public)",
+	status_code=202
+)
+@rocrateRouter.post(
 	"/rocrate/ai-ready-score/ark:{NAAN}/{postfix}/rescore",
 	summary="Rescore an existing AI-Ready Score (Public)",
 	status_code=202
@@ -402,26 +432,26 @@ def rescore_ai_ready_score(
 ):
 	ark_id = f"ark:{NAAN}/{postfix}"
 	
-	entity = appConfig.identifierCollection.find_one({"@id": ark_id}, {"_id": 0})
+	entity = _flexible_find(ark_id)
 	if not entity:
 		return JSONResponse(
 			status_code=404,
 			content={"error": f"Entity {ark_id} not found"}
 		)
-	
+
 	entity_type = entity.get("@type", [])
 	if isinstance(entity_type, str):
 		entity_type = [entity_type]
-	
+
 	is_rocrate = any("ROCrate" in t for t in entity_type)
 	if not is_rocrate:
 		return JSONResponse(
 			status_code=400,
 			content={"error": "Entity is not an RO-Crate"}
 		)
-	
+
 	score_id = f"{ark_id}-ai-ready-score"
-	existing_score = appConfig.identifierCollection.find_one({"@id": score_id})
+	existing_score = _flexible_find(score_id)
 	if not existing_score:
 		return JSONResponse(
 			status_code=404,
