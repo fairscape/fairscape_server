@@ -42,7 +42,7 @@ dependencies = [
 	"pandas>=2.3.3",
 	"pandasql>=0.7.3",
 	"logfire[celery,fastapi]>=4.15.1",
-	"PyYaml==6.0.1",
+	"PyYaml>=6.0.2",
 	"PyGithub",
 	"pydantic-ai[google]>=0.1.0",
 ]

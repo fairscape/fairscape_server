@@ -17,8 +17,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 from pydantic_ai import Agent
 
-from fairscape_models.annotated_computation import AnnotatedComputation, CodeAnalysis, DatasetSummary
-from fairscape_models.annotated_evidence_graph import AnnotatedEvidenceGraph
+from fairscape_mds.models.annotated_computation import AnnotatedComputation, CodeAnalysis, DatasetSummary
+from fairscape_mds.models.annotated_evidence_graph import AnnotatedEvidenceGraph
 
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse

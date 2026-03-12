@@ -17,8 +17,8 @@ from fairscape_mds.crud.interpretation import (
     prefetch_software_code,
     GraphSynthesisResult,
 )
-from fairscape_models.annotated_computation import AnnotatedComputation
-from fairscape_models.annotated_evidence_graph import AnnotatedEvidenceGraph
+from fairscape_mds.models.annotated_computation import AnnotatedComputation
+from fairscape_mds.models.annotated_evidence_graph import AnnotatedEvidenceGraph
 
 
 # ---------------------------------------------------------------------------
