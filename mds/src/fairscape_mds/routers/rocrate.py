@@ -24,7 +24,7 @@ from fairscape_mds.models.identifier import StoredIdentifier
 from fairscape_mds.core.config import appConfig
 from fairscape_models.rocrate import ROCrateV1_2, ROCrateMetadataElem
 from fairscape_mds.deps import getCurrentUser
-from fairscape_mds.worker import celeryUploadROCrate, score_ai_ready_task
+from fairscape_mds.worker import celeryUploadROCrate, score_ai_ready_task, condense_rocrate_task
 
 from fairscape_models.conversion.converter import ROCToTargetConverter
 from fairscape_models.conversion.mapping.croissant import MAPPING_CONFIGURATION as CROISSANT_MAPPING
@@ -508,5 +508,240 @@ def rescore_ai_ready_score(
 			"message": "AI-Ready rescoring initiated",
 			"task_id": task_guid,
 			"status_endpoint": f"/rocrate/ai-ready-score/status/{task_guid}"
+		}
+	)
+
+
+# ---------------------------------------------------------------------------
+# Condensation endpoints
+# ---------------------------------------------------------------------------
+
+@rocrateRouter.post(
+	"/rocrate/condense/ark:/{NAAN}/{postfix}",
+	summary="Trigger condensation of an RO-Crate",
+	status_code=202,
+)
+@rocrateRouter.post(
+	"/rocrate/condense/ark:{NAAN}/{postfix}",
+	summary="Trigger condensation of an RO-Crate",
+	status_code=202,
+)
+def trigger_condense_rocrate(
+	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
+	NAAN: str,
+	postfix: str,
+	threshold: int = Query(default=5, ge=2, description="Min group size to trigger condensation"),
+	max_member_ids: int = Query(default=0, ge=0, description="Max member IDs per group (0=unlimited)"),
+	force: bool = Query(default=False, description="Force re-condensation if one already exists"),
+):
+	"""Trigger async condensation of an RO-Crate. Resolves cross-crate
+	references from MongoDB and collapses repetitive provenance into
+	DatasetGroup summary nodes."""
+	ark_id = f"ark:{NAAN}/{postfix}"
+
+	entity = _flexible_find(ark_id)
+	if not entity:
+		return JSONResponse(
+			status_code=404,
+			content={"error": f"Entity {ark_id} not found"}
+		)
+
+	entity_type = entity.get("@type", [])
+	if isinstance(entity_type, str):
+		entity_type = [entity_type]
+	is_rocrate = any("ROCrate" in str(t) for t in entity_type)
+	if not is_rocrate:
+		return JSONResponse(
+			status_code=400,
+			content={"error": "Entity is not an RO-Crate"}
+		)
+
+	# Handle existing condensed ROCrate
+	if entity.get("metadata", {}).get("hasCondensedROCrate") and not force:
+		condensed_ref = entity["metadata"]["hasCondensedROCrate"]
+		return JSONResponse(
+			status_code=200,
+			content={
+				"message": "Condensed ROCrate already exists. Use force=true to re-condense.",
+				"condensed_id": condensed_ref.get("@id"),
+			}
+		)
+
+	# If force, delete existing condensed ROCrate first
+	if force and entity.get("metadata", {}).get("hasCondensedROCrate"):
+		from fairscape_mds.crud.condensation import FairscapeCondensationRequest
+		condensation_req = FairscapeCondensationRequest(appConfig)
+		condensation_req.delete_condensed_rocrate(ark_id)
+
+	# Check for in-progress task
+	task_doc = appConfig.asyncCollection.find_one({
+		"task_type": "CondensedROCrateBuild",
+		"rocrate_id": ark_id,
+		"status": {"$in": ["PENDING", "PROCESSING"]}
+	}, {"_id": 0})
+
+	if task_doc:
+		return JSONResponse(
+			status_code=202,
+			content={
+				"message": "Condensation already in progress",
+				"task_id": task_doc["guid"],
+				"status": task_doc["status"],
+				"status_endpoint": f"/rocrate/condense/status/{task_doc['guid']}"
+			}
+		)
+
+	# Create async task
+	task_guid = str(uuid.uuid4())
+	task_data = {
+		"guid": task_guid,
+		"task_type": "CondensedROCrateBuild",
+		"rocrate_id": ark_id,
+		"owner_email": currentUser.email,
+		"threshold": threshold,
+		"max_member_ids": max_member_ids,
+		"status": "PENDING",
+		"time_created": datetime.datetime.utcnow(),
+	}
+
+	appConfig.asyncCollection.insert_one(task_data)
+
+	condense_rocrate_task.delay(
+		task_guid=task_guid,
+		rocrate_id=ark_id,
+		threshold=threshold,
+		max_member_ids=max_member_ids,
+		user_email=currentUser.email,
+	)
+
+	return JSONResponse(
+		status_code=202,
+		content={
+			"message": "Condensation initiated",
+			"task_id": task_guid,
+			"status_endpoint": f"/rocrate/condense/status/{task_guid}"
+		}
+	)
+
+
+@rocrateRouter.get(
+	"/rocrate/condense/status/{task_id}",
+	summary="Get status of condensation task",
+)
+def get_condense_status(task_id: str):
+	"""Check the status of an async condensation task."""
+	task_doc = appConfig.asyncCollection.find_one(
+		{"guid": task_id}, {"_id": 0}
+	)
+
+	if not task_doc:
+		return JSONResponse(
+			status_code=404,
+			content={"error": "Task not found"}
+		)
+
+	return JSONResponse(status_code=200, content=task_doc)
+
+
+@rocrateRouter.get(
+	"/rocrate/condensed/ark:/{NAAN}/{postfix}",
+	summary="Get condensed ROCrate (auto-triggers if none exists)",
+)
+@rocrateRouter.get(
+	"/rocrate/condensed/ark:{NAAN}/{postfix}",
+	summary="Get condensed ROCrate (auto-triggers if none exists)",
+)
+def get_condensed_rocrate(
+	NAAN: str,
+	postfix: str,
+	threshold: int = Query(default=5, ge=2, description="Threshold if auto-triggering"),
+):
+	"""Return the condensed ROCrate if it exists. If not, auto-trigger
+	condensation and return 202 with the task ID."""
+	ark_id = f"ark:{NAAN}/{postfix}"
+
+	entity = _flexible_find(ark_id)
+	if not entity:
+		return JSONResponse(
+			status_code=404,
+			content={"error": f"Entity {ark_id} not found"}
+		)
+
+	entity_type = entity.get("@type", [])
+	if isinstance(entity_type, str):
+		entity_type = [entity_type]
+	is_rocrate = any("ROCrate" in str(t) for t in entity_type)
+	if not is_rocrate:
+		return JSONResponse(
+			status_code=400,
+			content={"error": "Entity is not an RO-Crate"}
+		)
+
+	# If condensed version exists, return it
+	condensed_ref = entity.get("metadata", {}).get("hasCondensedROCrate")
+	if condensed_ref:
+		condensed_id = condensed_ref.get("@id")
+		condensed_doc = _flexible_find(condensed_id)
+		if condensed_doc:
+			# Return the condensed @graph from metadata
+			metadata = condensed_doc.get("metadata", {})
+			condensed_graph = metadata.get("@graph", [])
+			return JSONResponse(
+				status_code=200,
+				content={
+					"@context": {"@vocab": "https://schema.org/"},
+					"@graph": condensed_graph,
+					"evi:condensationStats": metadata.get("evi:condensationStats"),
+					"evi:sourceROCrate": metadata.get("evi:sourceROCrate"),
+				}
+			)
+
+	# Check for in-progress task
+	task_doc = appConfig.asyncCollection.find_one({
+		"task_type": "CondensedROCrateBuild",
+		"rocrate_id": ark_id,
+		"status": {"$in": ["PENDING", "PROCESSING"]}
+	}, {"_id": 0})
+
+	if task_doc:
+		return JSONResponse(
+			status_code=202,
+			content={
+				"message": "Condensation in progress",
+				"task_id": task_doc["guid"],
+				"status": task_doc["status"],
+				"status_endpoint": f"/rocrate/condense/status/{task_doc['guid']}"
+			}
+		)
+
+	# Auto-trigger condensation
+	task_guid = str(uuid.uuid4())
+	task_data = {
+		"guid": task_guid,
+		"task_type": "CondensedROCrateBuild",
+		"rocrate_id": ark_id,
+		"owner_email": "system@fairscape.org",
+		"threshold": threshold,
+		"max_member_ids": 0,
+		"status": "PENDING",
+		"time_created": datetime.datetime.utcnow(),
+	}
+
+	appConfig.asyncCollection.insert_one(task_data)
+
+	condense_rocrate_task.delay(
+		task_guid=task_guid,
+		rocrate_id=ark_id,
+		threshold=threshold,
+		max_member_ids=0,
+		user_email="system@fairscape.org",
+	)
+
+	return JSONResponse(
+		status_code=202,
+		content={
+			"message": "Condensation auto-triggered",
+			"task_id": task_guid,
+			"status_endpoint": f"/rocrate/condense/status/{task_guid}"
 		}
 	)
