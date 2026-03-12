@@ -683,17 +683,12 @@ def get_condensed_rocrate(
 		condensed_id = condensed_ref.get("@id")
 		condensed_doc = _flexible_find(condensed_id)
 		if condensed_doc:
-			# Return the condensed @graph from metadata
+			# Return the full RO-Crate structure stored in metadata
+			# (has @context and @graph with proper file descriptor + root + entities)
 			metadata = condensed_doc.get("metadata", {})
-			condensed_graph = metadata.get("@graph", [])
 			return JSONResponse(
 				status_code=200,
-				content={
-					"@context": {"@vocab": "https://schema.org/"},
-					"@graph": condensed_graph,
-					"evi:condensationStats": metadata.get("evi:condensationStats"),
-					"evi:sourceROCrate": metadata.get("evi:sourceROCrate"),
-				}
+				content=metadata
 			)
 
 	# Check for in-progress task

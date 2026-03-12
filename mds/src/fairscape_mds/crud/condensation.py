@@ -779,28 +779,56 @@ class FairscapeCondensationRequest(FairscapeRequest):
 			else:
 				rocrate_name = rocrate_doc.get("name", rocrate_id)
 
-		# Build the condensed ROCrate document as metadata
-		# Store the condensed @graph and stats as the metadata payload
+		# Build the condensed ROCrate as a proper RO-Crate structure:
+		# @graph[0] = ROCrateMetadataFileElem ("about" this crate)
+		# @graph[1] = ROCrateMetadataElem (the root crate node — already in condensed_graph)
+		# @graph[2..] = rest of condensed entities
+
+		# The condensed_graph already contains the root ROCrateMetadataElem
+		# (with evi:condensed=True set by condense_graph). We need to:
+		# 1. Find it and update its @id to the condensed_id
+		# 2. Prepend the ROCrateMetadataFileElem
+
+		# Find the root crate element in the condensed graph
+		root_idx = None
+		for idx, node in enumerate(condensed_graph):
+			if is_rocrate_root(node):
+				root_idx = idx
+				break
+
+		if root_idx is not None:
+			# Update the root element with condensed-specific metadata
+			root_node = dict(condensed_graph[root_idx])
+			root_node["evi:sourceROCrate"] = {"@id": rocrate_id}
+			root_node["evi:condensationStats"] = stats
+			# Keep original @id so provenance refs stay valid,
+			# but add the condensed_id as an alternate
+			condensed_graph[root_idx] = root_node
+
+		# Build the ro-crate-metadata.json file descriptor element
+		file_elem = {
+			"@id": "ro-crate-metadata.json",
+			"@type": "CreativeWork",
+			"conformsTo": {"@id": "https://w3id.org/ro/crate/1.2-DRAFT"},
+			"about": {"@id": rocrate_id},
+		}
+
+		# Assemble the @graph: file descriptor first, then rest
+		# Remove the root from its current position and place it second
+		ordered_graph = [file_elem]
+		if root_idx is not None:
+			ordered_graph.append(condensed_graph[root_idx])
+		for idx, node in enumerate(condensed_graph):
+			if idx == root_idx:
+				continue
+			# Skip any existing file descriptor from the source graph
+			if node.get("@id") == "ro-crate-metadata.json":
+				continue
+			ordered_graph.append(node)
+
 		condensed_metadata = {
-			"@type": ["https://w3id.org/EVI#Dataset", "https://w3id.org/EVI#ROCrate"],
-			"@id": condensed_id,
-			"name": f"Condensed: {rocrate_name}",
-			"description": (
-				f"Condensed version of {rocrate_name}. "
-				f"{stats['datasetGroupCount']} dataset group(s), "
-				f"reduced from {stats['originalEntityCount']} to "
-				f"{stats['condensedEntityCount']} entities."
-			),
-			"evi:condensed": True,
-			"evi:sourceROCrate": {"@id": rocrate_id},
-			"evi:condensationThreshold": threshold,
-			"evi:condensationDate": str(datetime.date.today()),
-			"evi:condensationStats": stats,
-			"keywords": ["condensed", "provenance-summary"],
-			"version": "1.0",
-			"author": "fairscape-server",
-			"hasPart": [],
-			"@graph": condensed_graph,
+			"@context": {"@vocab": "https://schema.org/"},
+			"@graph": ordered_graph,
 		}
 
 		now = datetime.datetime.utcnow()
