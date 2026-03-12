@@ -632,15 +632,23 @@ _BATCH_SIZE = 500
 
 
 def _flatten_metadata(doc: dict) -> dict:
-	"""Flatten a StoredIdentifier document's metadata sub-dict to top level.
+	"""Flatten a StoredIdentifier document's metadata sub-dict to top level,
+	stripping server-internal StoredIdentifier wrapper fields.
 
-	MongoDB stores entities as {"@id": ..., "@type": ..., "metadata": {...}, ...}.
-	The condensation algorithm expects flat RO-Crate nodes like
+	MongoDB stores entities as {"@id": ..., "@type": ..., "metadata": {...},
+	"permissions": ..., "distribution": ..., ...}.
+	The condensation algorithm expects clean RO-Crate nodes like
 	{"@id": ..., "@type": ..., "name": ..., "generatedBy": [...]}.
 	"""
-	flattened = {k: v for k, v in doc.items() if k != "metadata"}
+	flattened = {}
+	# Start with the metadata sub-dict (the actual RO-Crate fields)
 	if "metadata" in doc and isinstance(doc["metadata"], dict):
 		flattened.update(doc["metadata"])
+	# Ensure @id and @type are present (from top-level StoredIdentifier)
+	if "@id" in doc:
+		flattened["@id"] = doc["@id"]
+	if "@type" in doc and "@type" not in flattened:
+		flattened["@type"] = doc["@type"]
 	return flattened
 
 
