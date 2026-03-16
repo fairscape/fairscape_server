@@ -37,6 +37,36 @@ class DatasetSummary(BaseModel):
     description: Optional[str] = Field(default=None)
 
 
+# ---------------------------------------------------------------------------
+# Lightweight LLM output models (no infrastructure fields the LLM can't know)
+# ---------------------------------------------------------------------------
+
+class LLMCodeAnalysis(BaseModel):
+    """What the LLM returns for a software entity analysis."""
+    software_id: str = Field(description="The @id of the software entity being analyzed")
+    name: Optional[str] = Field(default=None)
+    summary: str
+    keyFunctions: Optional[List[str]] = Field(default=None)
+    concerns: Optional[List[str]] = Field(default=None)
+
+
+class LLMDatasetSummary(BaseModel):
+    """What the LLM returns for a dataset summary."""
+    dataset_id: str = Field(description="The @id of the dataset")
+    name: Optional[str] = Field(default=None)
+    role: Optional[str] = Field(default=None)
+    description: Optional[str] = Field(default=None)
+
+
+class LLMComputationAnnotation(BaseModel):
+    """Lightweight model for LLM output — only the fields the LLM should fill."""
+    stepSummary: str
+    codeAnalysis: Optional[List[LLMCodeAnalysis]] = Field(default=[])
+    inputSummaries: Optional[List[LLMDatasetSummary]] = Field(default=[])
+    outputSummaries: Optional[List[LLMDatasetSummary]] = Field(default=[])
+    concerns: Optional[List[str]] = Field(default=[])
+
+
 class AnnotatedComputation(DigitalObject):
     """LLM-generated annotation of a single evi:Computation step.
 

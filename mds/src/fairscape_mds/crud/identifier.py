@@ -15,7 +15,8 @@ from fairscape_mds.models.statistics import (
 	CategoricalStatistics
 )
 from fairscape_mds.crud.statistics import (
-	generateSummaryStatistics
+	generateSummaryStatistics,
+	generateSplitStatistics
 )
 from fairscape_models import IdentifierValue
 from fairscape_models.model_card import ModelCard
@@ -151,11 +152,24 @@ class IdentifierRequest(FairscapeRequest):
 
 		summaryStatistics = generateSummaryStatistics(dataframe)
 
+		# check for splits on the dataset metadata
+		identifier = self.getIdentifier(guid)
+		splits = getattr(identifier.metadata, 'splits', None)
+
+		splitStats = None
+		if splits:
+			splitDicts = [s.model_dump() if hasattr(s, 'model_dump') else s for s in splits]
+			splitStats = generateSplitStatistics(dataframe, splitDicts)
+
 		# update identifier
+		updateFields = {"descriptiveStatistics": summaryStatistics}
+		if splitStats:
+			updateFields["splitStatistics"] = splitStats
+
 		updateOperation = self.config.identifierCollection.update_one(
 			{"@id": guid},
 			{
-				"$set" : {"descriptiveStatistics": summaryStatistics} 
+				"$set" : updateFields
 			}
 		)
 

@@ -7,17 +7,20 @@ pre-fetches software source code from GitHub, prompts an LLM per computation
 and stores the resulting AnnotatedEvidenceGraph.
 """
 
+import asyncio
 import datetime
 import re
 import uuid
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 from pydantic_ai import Agent
 
-from fairscape_mds.models.annotated_computation import AnnotatedComputation, CodeAnalysis, DatasetSummary
+from fairscape_mds.models.annotated_computation import (
+    AnnotatedComputation, CodeAnalysis, DatasetSummary,
+    LLMComputationAnnotation, LLMCodeAnalysis, LLMDatasetSummary,
+)
 from fairscape_mds.models.annotated_evidence_graph import AnnotatedEvidenceGraph
 
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
@@ -31,6 +34,25 @@ from fairscape_mds.models.identifier import (
 from fairscape_mds.models.user import Permissions
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Global Event Loop for Worker
+# ---------------------------------------------------------------------------
+
+_worker_loop = None
+
+
+def run_async(coro):
+    """Run an async coroutine using a single, persistent event loop per worker process.
+
+    This prevents 'RuntimeError: bound to a different event loop' caused by
+    PydanticAI's globally cached HTTP client.
+    """
+    global _worker_loop
+    if _worker_loop is None or _worker_loop.is_closed():
+        _worker_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(_worker_loop)
+    return _worker_loop.run_until_complete(coro)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -274,6 +296,17 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             {"$set": updates}
         )
 
+    def _save_llm_result(self, task_guid: str, label: str, raw_output: dict):
+        """Append a raw LLM result to the task document for debugging."""
+        self.config.asyncCollection.update_one(
+            {"guid": task_guid},
+            {"$push": {"llm_results": {
+                "label": label,
+                "timestamp": datetime.datetime.utcnow().isoformat(),
+                "output": raw_output,
+            }}}
+        )
+
     # ------------------------------------------------------------------
     # Step 1: Ensure condensed
     # ------------------------------------------------------------------
@@ -381,7 +414,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
     # Step 3: Pre-fetch software
     # ------------------------------------------------------------------
 
-    def prefetch_all_software(self, task_guid: str, computations: list, index: dict) -> Dict[str, str]:
+    def prefetch_all_software(self, task_guid: str, computations: list, index: dict, user_token: str = "") -> Dict[str, str]:
         """Pre-fetch source code for all software referenced by computations.
         Returns {software_id: source_code_text}.
         """
@@ -398,6 +431,30 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                     continue
                 sw_node = index.get(sw_id, {})
                 content_url = sw_node.get("contentUrl", "")
+
+                # Fairscape-hosted software: call download endpoint with user auth
+                if "/software/download/" in content_url and user_token:
+                    try:
+                        # Rewrite external URLs to internal service URL if configured
+                        internal_url = content_url
+                        if self.config.internalUrl and self.config.baseUrl:
+                            internal_url = content_url.replace(self.config.baseUrl, self.config.internalUrl)
+                        resp = httpx.get(
+                            internal_url,
+                            headers={"Authorization": f"Bearer {user_token}"},
+                            timeout=30.0
+                        )
+                        resp.raise_for_status()
+                        code = resp.text
+                        if len(code.encode("utf-8")) > MAX_SOFTWARE_BYTES:
+                            code = code[:MAX_SOFTWARE_BYTES] + "\n[...truncated...]"
+                        software_cache[sw_id] = code
+                        logger.info(f"Pre-fetched software {sw_id} from download endpoint: {len(code)} chars")
+                        continue
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch software {sw_id} from download endpoint: {e}")
+
+                # Fall back to GitHub/external URL fetching
                 code = prefetch_software_code(content_url)
                 software_cache[sw_id] = code
                 logger.info(f"Pre-fetched software {sw_id}: {len(code)} chars")
@@ -465,46 +522,159 @@ class FairscapeInterpretationRequest(FairscapeRequest):
 
         return "\n".join(parts)
 
-    def _annotate_single_computation(
+    def _llm_to_annotated(
         self,
+        llm_result: LLMComputationAnnotation,
+        comp_id: str,
+        llm_model: str,
+        temperature: float,
+    ) -> AnnotatedComputation:
+        """Convert lightweight LLM output into a full AnnotatedComputation."""
+        annotation_id = f"{comp_id}-annotation"
+        now = datetime.datetime.utcnow().isoformat()
+
+        # Convert LLM code analyses -> CodeAnalysis with IdentifierValue
+        code_analyses = [
+            CodeAnalysis(
+                software={"@id": ca.software_id},
+                name=ca.name,
+                summary=ca.summary,
+                keyFunctions=ca.keyFunctions,
+                concerns=ca.concerns,
+            )
+            for ca in (llm_result.codeAnalysis or [])
+        ]
+
+        # Convert LLM dataset summaries -> DatasetSummary with IdentifierValue
+        input_summaries = [
+            DatasetSummary(
+                dataset={"@id": ds.dataset_id},
+                name=ds.name,
+                role=ds.role,
+                description=ds.description,
+            )
+            for ds in (llm_result.inputSummaries or [])
+        ]
+        output_summaries = [
+            DatasetSummary(
+                dataset={"@id": ds.dataset_id},
+                name=ds.name,
+                role=ds.role,
+                description=ds.description,
+            )
+            for ds in (llm_result.outputSummaries or [])
+        ]
+
+        return AnnotatedComputation.model_validate({
+            "@id": annotation_id,
+            "name": f"Annotation of {comp_id}",
+            "author": llm_model,
+            "description": llm_result.stepSummary[:200] if len(llm_result.stepSummary) >= 10 else llm_result.stepSummary + " " * (10 - len(llm_result.stepSummary)),
+            "evi:annotates": {"@id": comp_id},
+            "evi:stepSummary": llm_result.stepSummary,
+            "evi:codeAnalysis": [ca.model_dump(by_alias=True) for ca in code_analyses],
+            "evi:inputSummaries": [ds.model_dump(by_alias=True) for ds in input_summaries],
+            "evi:outputSummaries": [ds.model_dump(by_alias=True) for ds in output_summaries],
+            "evi:concerns": llm_result.concerns or [],
+            "evi:llmModel": llm_model,
+            "evi:llmTemperature": temperature,
+            "dateCreated": now,
+        })
+
+    async def _annotate_single_computation(
+        self,
+        task_guid: str,
         computation: dict,
         software_cache: dict,
         index: dict,
         llm_model: str,
         temperature: float,
     ) -> AnnotatedComputation:
-        """Annotate a single computation using PydanticAI. Runs synchronously."""
+        """Annotate a single computation using PydanticAI."""
         prompt = self._build_computation_prompt(computation, software_cache, index)
+        comp_id = computation.get("@id", f"ark:59853/computation-{uuid.uuid4()}")
 
         agent = Agent(
             llm_model,
-            result_type=AnnotatedComputation,
+            output_type=LLMComputationAnnotation,
             system_prompt=DATASCI_SYSTEM_PROMPT,
-            retries=2,
+            retries=3,
         )
 
-        # Build the required fields that PydanticAI can't infer
-        comp_id = computation.get("@id", f"ark:59853/computation-{uuid.uuid4()}")
-        annotation_id = f"ark:59853/annotated-computation-{uuid.uuid4()}"
+        result = await agent.run(prompt)
+        llm_output: LLMComputationAnnotation = result.output
 
-        # Run the agent synchronously
-        result = agent.run_sync(prompt)
-        annotated: AnnotatedComputation = result.data
+        # Persist raw LLM output for debugging
+        self._save_llm_result(
+            task_guid,
+            f"computation:{comp_id}",
+            llm_output.model_dump(mode="json"),
+        )
 
-        # Ensure required fields are set correctly
-        if not annotated.guid:
-            annotated.guid = annotation_id
-        if not annotated.annotates:
-            annotated.annotates = {"@id": comp_id}
-        annotated.llmModel = llm_model
-        annotated.llmTemperature = temperature
-        annotated.dateCreated = datetime.datetime.utcnow().isoformat()
-
-        return annotated
+        # Convert lightweight LLM output -> full AnnotatedComputation
+        return self._llm_to_annotated(llm_output, comp_id, llm_model, temperature)
 
     # ------------------------------------------------------------------
     # Step 4b: Parallel computation processing
     # ------------------------------------------------------------------
+
+    async def _annotate_computations_async(
+        self,
+        task_guid: str,
+        computations: list,
+        software_cache: dict,
+        index: dict,
+        llm_model: str,
+        temperature: float,
+        max_workers: int = 4,
+    ) -> List[AnnotatedComputation]:
+        """Annotate all computations concurrently via asyncio.gather."""
+        self._update_task(task_guid, {
+            "current_step": "PROMPTING",
+            "status": "PROMPTING",
+        })
+
+        sem = asyncio.Semaphore(max_workers)
+
+        async def _annotate_one(comp):
+            comp_id = comp.get("@id", "unknown")
+            async with sem:
+                try:
+                    annotated = await self._annotate_single_computation(
+                        task_guid, comp, software_cache, index, llm_model, temperature,
+                    )
+                    self.config.asyncCollection.update_one(
+                        {"guid": task_guid, "computation_details.computation_id": comp_id},
+                        {"$set": {"computation_details.$.status": "done"}}
+                    )
+                    return ("ok", comp_id, annotated)
+                except Exception as e:
+                    logger.error(f"Failed to annotate computation {comp_id}: {e}")
+                    self.config.asyncCollection.update_one(
+                        {"guid": task_guid, "computation_details.computation_id": comp_id},
+                        {"$set": {
+                            "computation_details.$.status": "error",
+                            "computation_details.$.error": str(e),
+                        }}
+                    )
+                    return ("error", comp_id, str(e))
+                finally:
+                    self.config.asyncCollection.update_one(
+                        {"guid": task_guid},
+                        {"$inc": {"completed_computations": 1}}
+                    )
+
+        outcomes = await asyncio.gather(*[_annotate_one(c) for c in computations])
+
+        results = [o[2] for o in outcomes if o[0] == "ok"]
+        errors = [{"computation_id": o[1], "error": o[2]} for o in outcomes if o[0] == "error"]
+
+        if errors and not results:
+            raise RuntimeError(f"All {len(errors)} computation annotations failed. First error: {errors[0]['error']}")
+        if errors:
+            logger.warning(f"{len(errors)} of {len(computations)} computation annotations failed")
+
+        return results
 
     def annotate_computations_parallel(
         self,
@@ -516,62 +686,10 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         temperature: float,
         max_workers: int = 4,
     ) -> List[AnnotatedComputation]:
-        """Annotate all computations in parallel using ThreadPoolExecutor."""
-        self._update_task(task_guid, {
-            "current_step": "PROMPTING",
-            "status": "PROMPTING",
-        })
-
-        results: List[AnnotatedComputation] = []
-        errors: List[dict] = []
-
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(
-                    self._annotate_single_computation,
-                    comp, software_cache, index, llm_model, temperature,
-                ): comp
-                for comp in computations
-            }
-
-            for future in as_completed(futures):
-                comp = futures[future]
-                comp_id = comp.get("@id", "unknown")
-
-                try:
-                    annotated = future.result()
-                    results.append(annotated)
-
-                    # Update per-computation status
-                    self.config.asyncCollection.update_one(
-                        {"guid": task_guid, "computation_details.computation_id": comp_id},
-                        {"$set": {"computation_details.$.status": "done"}}
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to annotate computation {comp_id}: {e}")
-                    errors.append({"computation_id": comp_id, "error": str(e)})
-
-                    self.config.asyncCollection.update_one(
-                        {"guid": task_guid, "computation_details.computation_id": comp_id},
-                        {"$set": {
-                            "computation_details.$.status": "error",
-                            "computation_details.$.error": str(e),
-                        }}
-                    )
-
-                # Increment completed count
-                self.config.asyncCollection.update_one(
-                    {"guid": task_guid},
-                    {"$inc": {"completed_computations": 1}}
-                )
-
-        if errors and not results:
-            raise RuntimeError(f"All {len(errors)} computation annotations failed. First error: {errors[0]['error']}")
-
-        if errors:
-            logger.warning(f"{len(errors)} of {len(computations)} computation annotations failed")
-
-        return results
+        """Annotate computations concurrently using async I/O."""
+        return run_async(self._annotate_computations_async(
+            task_guid, computations, software_cache, index, llm_model, temperature, max_workers,
+        ))
 
     # ------------------------------------------------------------------
     # Step 5: Graph-level synthesis
@@ -613,15 +731,26 @@ class FairscapeInterpretationRequest(FairscapeRequest):
 
         prompt = "\n".join(parts)
 
-        agent = Agent(
-            llm_model,
-            result_type=GraphSynthesisResult,
-            system_prompt=SYNTHESIS_SYSTEM_PROMPT,
-            retries=2,
+        async def _run_synthesis():
+            agent = Agent(
+                llm_model,
+                output_type=GraphSynthesisResult,
+                system_prompt=SYNTHESIS_SYSTEM_PROMPT,
+                retries=2,
+            )
+            result = await agent.run(prompt)
+            return result.output
+
+        synthesis = run_async(_run_synthesis())
+
+        # Persist raw LLM output for debugging
+        self._save_llm_result(
+            task_guid,
+            "synthesis",
+            synthesis.model_dump(mode="json"),
         )
 
-        result = agent.run_sync(prompt)
-        return result.data
+        return synthesis
 
     # ------------------------------------------------------------------
     # Step 6: Build and store AnnotatedEvidenceGraph
@@ -651,10 +780,21 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             if node_id:
                 graph_dict[node_id] = node
 
-        # Add annotated computations to graph
+        # Add annotated computations to graph and back-link computations
         for ann in step_annotations:
             ann_dict = ann.model_dump(by_alias=True, exclude_none=True, mode="json")
             graph_dict[ann.guid] = ann_dict
+
+            # Add evi:annotatedBy reverse link on the computation node
+            comp_id = ann.annotates.guid if hasattr(ann.annotates, 'guid') else str(ann.annotates)
+            if comp_id and comp_id in graph_dict:
+                existing = graph_dict[comp_id].get("evi:annotatedBy", [])
+                if isinstance(existing, dict):
+                    existing = [existing]
+                elif not isinstance(existing, list):
+                    existing = []
+                existing.append({"@id": ann.guid})
+                graph_dict[comp_id]["evi:annotatedBy"] = existing
 
         # Build step annotation refs
         step_ann_refs = [{"@id": ann.guid} for ann in step_annotations]
@@ -694,7 +834,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         permissions = Permissions(owner="system@fairscape.org", group="", acl=[])
         stored = StoredIdentifier.model_validate({
             "@id": aeg_id,
-            "@type": "AnnotatedEvidenceGraph",
+            "@type": ["prov:Entity", "https://w3id.org/EVI#EvidenceGraph", "https://w3id.org/EVI#AnnotatedEvidenceGraph"],
             "metadata": aeg.model_dump(by_alias=True, mode="json"),
             "permissions": permissions.model_dump(),
             "publicationStatus": PublicationStatusEnum.DRAFT,
@@ -721,7 +861,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
     # Main orchestrator
     # ------------------------------------------------------------------
 
-    def interpret_rocrate(self, task_guid: str) -> str:
+    def interpret_rocrate(self, task_guid: str, user_token: str = "") -> str:
         """Main pipeline orchestrator. Returns the AnnotatedEvidenceGraph @id."""
         # Load task config
         task_doc = self.config.asyncCollection.find_one({"guid": task_guid})
@@ -729,7 +869,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             raise ValueError(f"Task {task_guid} not found")
 
         rocrate_id = task_doc["rocrate_id"]
-        llm_model = task_doc.get("llm_model", "google-gla:gemini-2.5-flash")
+        llm_model = task_doc.get("llm_model", "google-gla:gemini-2.5-flash-lite")
         temperature = task_doc.get("llm_temperature", 0.2)
 
         self._update_task(task_guid, {
@@ -748,7 +888,9 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                 raise ValueError(f"No Computation nodes found in RO-Crate {rocrate_id}")
 
             # Step 3: Pre-fetch software
-            software_cache = self.prefetch_all_software(task_guid, computations, index)
+            # Use token from argument, or fall back to task doc
+            effective_token = user_token or task_doc.get("user_token", "")
+            software_cache = self.prefetch_all_software(task_guid, computations, index, user_token=effective_token)
 
             # Step 4: Annotate computations in parallel
             step_annotations = self.annotate_computations_parallel(

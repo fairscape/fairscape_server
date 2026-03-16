@@ -33,7 +33,6 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
         }
 
         try:
-            print(evidence_graph_data)
             evidence_graph = EvidenceGraph.model_validate(evidence_graph_data)
 
             default_permissions = Permissions(

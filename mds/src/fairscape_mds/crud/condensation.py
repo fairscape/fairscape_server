@@ -620,11 +620,8 @@ _ARK_REF_FIELDS = (
 	"generatedBy", "prov:wasGeneratedBy",
 	"usedDataset", "usedSoftware", "usedMLModel",
 	"derivedFrom", "prov:wasDerivedFrom",
-	"evi:Schema",
 	"usedSample", "usedInstrument", "usedTreatment", "usedStain",
 	"generated", "prov:used",
-	"usedByComputation",
-	"isPartOf",
 )
 
 # Batch size for MongoDB $in queries
@@ -767,13 +764,6 @@ class FairscapeCondensationRequest(FairscapeRequest):
 
 		# Run condensation
 		condensed_graph, stats = condense_graph(graph, threshold, max_member_ids)
-
-		if not stats.get("condensed"):
-			return FairscapeResponse(
-				success=True,
-				statusCode=200,
-				model={"message": "Nothing to condense", "stats": stats}
-			)
 
 		# Find context from the original ROCrate root doc
 		rocrate_doc = self.config.identifierCollection.find_one(

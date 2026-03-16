@@ -354,11 +354,11 @@ def process_llm_assist_task(self, task_guid: str):
         return {"status": "FAILURE", "error": error_msg}
     
 @celeryApp.task(name='fairscape_mds.worker.interpret_rocrate_task', bind=True)
-def interpret_rocrate_task(self, task_guid: str, rocrate_id: str, llm_model: str = "google-gla:gemini-2.5-flash", temperature: float = 0.2):
+def interpret_rocrate_task(self, task_guid: str, rocrate_id: str, llm_model: str = "google-gla:gemini-2.5-flash", temperature: float = 0.2, user_token: str = ""):
     print(f"Starting Interpretation Task: {task_guid} for {rocrate_id}")
 
     try:
-        aeg_id = interpretationRequests.interpret_rocrate(task_guid)
+        aeg_id = interpretationRequests.interpret_rocrate(task_guid, user_token=user_token)
 
         print(f"Successfully interpreted ROCrate for Task GUID {task_guid}: {aeg_id}")
         return {"status": "SUCCESS", "annotated_evidence_graph_id": aeg_id}

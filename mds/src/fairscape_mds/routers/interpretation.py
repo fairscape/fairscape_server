@@ -9,7 +9,7 @@ import datetime
 
 from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.core.config import appConfig
-from fairscape_mds.deps import getCurrentUser
+from fairscape_mds.deps import getCurrentUser, OAuthScheme
 from fairscape_mds.crud.fairscape_request import flexible_ark_query
 
 router = APIRouter(
@@ -45,12 +45,13 @@ def _flexible_find(ark_id: str):
 )
 def trigger_interpretation(
     currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
+    token: Annotated[str, Depends(OAuthScheme)],
     NAAN: str,
     postfix: str,
-    llm_model: str = Query(default="google-gla:gemini-2.5-flash", description="PydanticAI model string"),
+    llm_model: str = Query(default="google-gla:gemini-2.5-flash-lite", description="PydanticAI model string"),
     temperature: float = Query(default=0.2, ge=0.0, le=2.0, description="LLM temperature"),
     persona: str = Query(default="datasci", description="Interpretation persona"),
-    force: bool = Query(default=False, description="Force re-interpretation if one already exists"),
+    force: bool = Query(default=True, description="Force re-interpretation if one already exists"),
 ):
     """Trigger async AI-mediated interpretation of an RO-Crate.
     Ensures condensation, annotates each computation, synthesizes a graph-level
@@ -109,6 +110,7 @@ def trigger_interpretation(
         "task_type": "InterpretROCrate",
         "rocrate_id": ark_id,
         "owner_email": currentUser.email,
+        "user_token": token,
         "status": "PENDING",
         "current_step": "PENDING",
         "total_computations": 0,
@@ -130,6 +132,7 @@ def trigger_interpretation(
         rocrate_id=ark_id,
         llm_model=llm_model,
         temperature=temperature,
+        user_token=token,
     )
 
     return JSONResponse(

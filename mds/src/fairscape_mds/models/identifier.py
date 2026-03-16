@@ -22,6 +22,7 @@ from fairscape_models.annotation import Annotation
 from fairscape_models.conversion.models.AIReady import AIReadyScore
 from fairscape_models.model_card import ModelCard
 from fairscape_models.fairscape_base import IdentifierValue
+from fairscape_mds.models.annotated_evidence_graph import AnnotatedEvidenceGraph
 
 import datetime
 
@@ -53,6 +54,8 @@ class MetadataTypeEnum(Enum):
 	ML_MODEL = ["prov:Entity","https://w3id.org/EVI#MLModel"]
 	ANNOTATION = "https://w3id.org/EVI#Annotation"
 	EVIDENCE_GRAPH = "evi:EvidenceGraph"
+	ANNOTATED_EVIDENCE_GRAPH = ["prov:Entity", "https://w3id.org/EVI#EvidenceGraph", "https://w3id.org/EVI#AnnotatedEvidenceGraph"]
+	ANNOTATED_COMPUTATION = ["prov:Entity", "https://w3id.org/EVI#Annotation", "https://w3id.org/EVI#AnnotatedComputation"]
 	AI_READY_SCORE = "evi:AIReadyScore"
 
 
@@ -60,6 +63,7 @@ MetadataUnion = Union[
 	Dataset,
 	Software,
 	Computation,
+	AnnotatedEvidenceGraph,
 	ROCrateV1_2,
 	ROCrateMetadataElem,
 	Schema,
@@ -85,6 +89,7 @@ class StoredIdentifier(BaseModel):
 	permissions: Permissions
 	distribution: Optional[DatasetDistribution]
 	descriptiveStatistics: Optional[Dict[str, DescriptiveStatistics]] = Field(default = {})
+	splitStatistics: Optional[Dict[str, Dict]] = Field(default=None)
 	contentSummary: Optional[Dict] = Field(default=None)
 	dateCreated: datetime.datetime
 	dateModified: datetime.datetime
@@ -104,11 +109,13 @@ class StoredIdentifier(BaseModel):
 					MetadataTypeEnum.EVIDENCE_GRAPH: EvidenceGraph,
 					'evi:AIReadyScore': AIReadyScore,
 					MetadataTypeEnum.AI_READY_SCORE: AIReadyScore,
+					MetadataTypeEnum.ANNOTATED_EVIDENCE_GRAPH: AnnotatedEvidenceGraph,
+					tuple(MetadataTypeEnum.ANNOTATED_EVIDENCE_GRAPH.value): AnnotatedEvidenceGraph,
 				}
 
 				lookup_key = tuple(metadata_type) if isinstance(metadata_type, list) else metadata_type
 				if lookup_key in type_map:
-					model_class = type_map[metadata_type]
+					model_class = type_map[lookup_key]
 					data['metadata'] = model_class.model_validate(metadata_dict)
 
 		return data

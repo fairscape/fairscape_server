@@ -431,18 +431,15 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						})
 			]
 
-			#
 			if "file:///" in modelElem.contentUrl:
-				modelDistribution = DatasetDistribution.model_validate({})
-
-				contentUrlKey = modelElem.contentUrl.lstrip("file:///")
+				contentUrlKey = modelElem.contentUrl.removeprefix("file:///")
 
 				# TODO format for mlmodels
 				# Keras -> HDF5
 				# PyTorch -> .pt/.pth/.zip/.tar
 				# Pickle -> .pkl
 				# Numpy Arrays -> .npy
-				modelMimetype, _ =  mimetypes.guess_type(contentUrlKey)
+				modelMimetype, _ = mimetypes.guess_type(contentUrlKey)
 				modelElem.format = modelMimetype
 
 				# if file in rocrate zip, inspect the object
@@ -453,28 +450,22 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 				try:
 					response = self.config.minioClient.head_object(
-						Bucket= self.config.minioBucket,
+						Bucket=self.config.minioBucket,
 						Key=objectKey
 					)
-					
-				except botocore.exceptions.ClientError as e:	
+
+				except botocore.exceptions.ClientError as e:
 					raise Exception(f"message: Object Key Not Found\tkey: {objectKey}\tbucket: {self.config.minioBucket}")
 
 				objectSize = response.get("ContentLength")
 				modelElem.size = objectSize
 
 				modelElem.contentUrl = f"{self.config.baseUrl}/download/{modelElem.guid}"
-				distribution = DatasetDistribution.model_validate({
+				modelDistribution = DatasetDistribution.model_validate({
 					"distributionType": "minio",
-					"location": {"Path": objectKey}
+					"location": {"path": objectKey}
 				})
 
-			elif "https://" in modelElem.contentUrl or "http://" in modelElem.contentUrl:
-				modelDistribution = DatasetDistribution.model_validate({
-					"distributionType": "url",
-					"location": {"uri": modelElem.contentUrl}
-				})
-			
 			elif "https://" in modelElem.contentUrl or "http://" in modelElem.contentUrl:
 				modelDistribution = DatasetDistribution.model_validate({
 					"distributionType": "url",
@@ -508,6 +499,128 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 		pass
 
+
+	def processTaskWriteSoftware(
+		self,
+		userInstance: UserWriteModel,
+		rocrateInstance: ROCrateV1_2,
+		uploadPath: str,
+		includeStem: bool,
+		stem: Optional[str] = None
+	):
+		""" Write ROCrate metadata for all software elements with proper distributions.
+
+		Args:
+				userInstance (UserWriteModel): User Record for the user inserting the metadata
+				rocrateInstance (fairscape_models.rocrate.ROCratev1_2): ROCrate Metadata as a pydantic model
+				uploadPath (str): Minio path where the zip was uploaded
+				includeStem (bool): look for object keys at the stemmed path
+				stem (str): the stem of the folder path
+
+		Returns:
+				List[str]: List of all Software ARKs minted
+		"""
+		baseUrl = self.config.baseUrl
+		permissionsSet = userInstance.getPermissions()
+		now = datetime.datetime.now()
+
+		rocrateElem = rocrateInstance.getCrateMetadata()
+		rocrateGUID = rocrateElem.guid
+		rocrateName = rocrateElem.name
+
+		softwareList = []
+		for elem in rocrateInstance.metadataGraph:
+			if isinstance(elem, Software):
+				softwareList.append(elem)
+			elif isinstance(elem, GenericMetadataElem) and 'Software' in elem.metadataType:
+				softwareList.append(elem)
+
+		guidList = []
+
+		for softwareElem in softwareList:
+			# set isPartOf on the software element
+			softwareElem.isPartOf = [
+				IdentifierValue.model_validate({
+					"@id": rocrateGUID,
+					"@type": MetadataTypeEnum.ROCRATE,
+					"name": rocrateName
+				})
+			]
+
+			distribution = None
+
+			if not softwareElem.contentUrl or softwareElem.contentUrl == 'Embargoed':
+				distribution = None
+
+			elif 'ftp://' in softwareElem.contentUrl:
+				distribution = DatasetDistribution.model_validate({
+					"distributionType": 'ftp',
+					"location": {"uri": softwareElem.contentUrl}
+				})
+
+			elif 'http://' in softwareElem.contentUrl or 'https://' in softwareElem.contentUrl:
+				distribution = DatasetDistribution.model_validate({
+					"distributionType": 'url',
+					"location": {"uri": softwareElem.contentUrl}
+				})
+
+			elif 'file:///' in softwareElem.contentUrl:
+				contentUrlKey = softwareElem.contentUrl.removeprefix("file:///")
+
+				# detect MIME type
+				softwareMimetype, _ = mimetypes.guess_type(contentUrlKey)
+				softwareElem.format = softwareMimetype
+
+				# build Minio object key
+				if includeStem:
+					objectKey = f"{uploadPath}/{stem}/{contentUrlKey}"
+				else:
+					objectKey = f"{uploadPath}/{contentUrlKey}"
+
+				try:
+					response = self.config.minioClient.head_object(
+						Bucket=self.config.minioBucket,
+						Key=objectKey
+					)
+				except botocore.exceptions.ClientError as e:
+					raise Exception(f"message: Object Key Not Found\tkey: {objectKey}\tbucket: {self.config.minioBucket}")
+
+				objectSize = response.get("ContentLength")
+				softwareElem.size = objectSize
+
+				# update contentUrl to download endpoint
+				softwareElem.contentUrl = f"{baseUrl}/software/download/{softwareElem.guid}"
+
+				distribution = DatasetDistribution.model_validate({
+					"distributionType": 'minio',
+					"location": {"path": objectKey}
+				})
+
+			storedSoftware = StoredIdentifier.model_validate({
+				"@id": softwareElem.guid,
+				"@type": MetadataTypeEnum.SOFTWARE,
+				"metadata": softwareElem,
+				"permissions": permissionsSet,
+				"distribution": distribution,
+				"publicationStatus": PublicationStatusEnum.DRAFT,
+				"dateCreated": now,
+				"dateModified": now,
+			})
+
+			insertResult = self.config.identifierCollection.insert_one(
+				storedSoftware.model_dump(by_alias=True, mode='json')
+			)
+
+			if not insertResult.inserted_id:
+				raise Exception(
+					f"Writing Identifier To Mongo Failed id: {storedSoftware.guid}"
+				)
+
+			guidList.append(softwareElem.guid)
+
+		return guidList
+
+
 	def processTaskWriteMetadataElements(
 		self,
 		userInstance,
@@ -538,7 +651,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		# mint all metadata elements
 		for metadataModel in rocrateInstance.metadataGraph:
 			metadataTypeList = metadataModel.metadataType if isinstance(metadataModel.metadataType, list) else [metadataModel.metadataType]
-			if any('ROCrate' in t or 'Dataset' in t for t in metadataTypeList) or metadataModel.guid == 'ro-crate-metadata.json':
+			if any('ROCrate' in t or 'Dataset' in t or 'Software' in t or 'MLModel' in t for t in metadataTypeList) or metadataModel.guid == 'ro-crate-metadata.json':
 				continue
 
 			else:
@@ -875,13 +988,22 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		)
 
 		self.processTaskWriteMLModels(
-			foundUser, 
-			roCrateModel, 
+			foundUser,
+			roCrateModel,
 			uploadInstance.uploadPath,
 			includeStem,
 			stem
 		)
-		
+
+		# write software records with distributions
+		self.processTaskWriteSoftware(
+			foundUser,
+			roCrateModel,
+			uploadInstance.uploadPath,
+			includeStem,
+			stem
+		)
+
 		# write metadata elements
 		nonDatasetGUIDS = self.processTaskWriteMetadataElements(
 				foundUser,
