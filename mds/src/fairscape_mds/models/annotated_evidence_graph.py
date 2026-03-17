@@ -6,13 +6,21 @@ with imports adjusted to use fairscape_models base classes that ARE
 present in the published package.
 """
 
-from pydantic import Field, model_validator
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List, Union, Dict, Any
 
 from fairscape_models.fairscape_base import IdentifierValue
 from fairscape_models.digital_object import DigitalObject
+from fairscape_mds.models.annotated_computation import ConcernLevel
 
 ANNOTATED_EVIDENCE_GRAPH_TYPE = "AnnotatedEvidenceGraph"
+
+
+class GraphConcern(BaseModel):
+    """A graph-level concern linked to its source annotation."""
+    level: ConcernLevel
+    description: str
+    sourceAnnotation: IdentifierValue
 
 
 class AnnotatedEvidenceGraph(DigitalObject):
@@ -43,7 +51,7 @@ class AnnotatedEvidenceGraph(DigitalObject):
     executiveSummary: str = Field(..., alias="evi:executiveSummary")
     narrativeSummary: str = Field(..., alias="evi:narrativeSummary")
     keyFindings: Optional[List[str]] = Field(default=[], alias="evi:keyFindings")
-    concerns: Optional[List[str]] = Field(default=[], alias="evi:concerns")
+    concerns: Optional[List[GraphConcern]] = Field(default=[], alias="evi:concerns")
 
     # Quick index of all AnnotatedComputation @ids in the graph
     stepAnnotations: Optional[List[IdentifierValue]] = Field(default=[], alias="evi:stepAnnotations")

@@ -20,8 +20,11 @@ from pydantic_ai import Agent
 from fairscape_mds.models.annotated_computation import (
     AnnotatedComputation, CodeAnalysis, DatasetSummary,
     LLMComputationAnnotation, LLMCodeAnalysis, LLMDatasetSummary,
+    Concern, LLMConcern, ConcernLevel, normalize_concern,
 )
-from fairscape_mds.models.annotated_evidence_graph import AnnotatedEvidenceGraph
+from fairscape_mds.models.annotated_evidence_graph import (
+    AnnotatedEvidenceGraph, GraphConcern,
+)
 
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
@@ -93,16 +96,23 @@ Your task is to produce a structured annotation of this computation step.
 - Selection bias: Consider whether filtering steps introduce bias
 - Reproducibility: Random seeds, version pinning, parameter documentation
 
+### Concern Severity Levels
+Every concern MUST be assigned exactly one of these three severity levels:
+- CRITICAL: Fundamental flaws that invalidate results or conclusions (e.g., data leakage, evaluating on training data, target variable in features)
+- MODERATE: Significant issues that weaken reliability but do not fully invalidate results (e.g., missing stratification, poor metric choice for imbalanced data, no cross-validation)
+- MINOR: Best-practice improvements, style, or documentation gaps (e.g., missing docstrings, hardcoded magic numbers, no version pinning)
+
+Use ONLY these three levels. Do not invent additional levels like WARNING, INFO, or GOOD.
+
 ### Output Requirements
 Return a structured annotation with:
 - stepSummary: A clear description of what this computation step does and why
-- codeAnalysis: For each software entity, provide a summary, key functions, and concerns
+- codeAnalysis: For each software entity, provide a summary, key functions, and concerns (each concern as {level, description})
 - inputSummaries: For each input dataset, describe its role
 - outputSummaries: For each output dataset, describe what it contains
-- concerns: List any methodological, statistical, or reproducibility concerns
+- concerns: List any methodological, statistical, or reproducibility concerns (each as {level, description})
 
 Be precise and evidence-based. Reference specific function names and parameter values.
-Distinguish critical issues from minor improvements.
 Acknowledge when methods are well-chosen."""
 
 
@@ -117,7 +127,16 @@ Your task is to produce:
 1. executiveSummary: 3-5 sentences covering what the pipeline does, its analytical approach, and the most important observation
 2. narrativeSummary: A forward-chronological story of the entire pipeline, starting from origin data and ending at final outputs
 3. keyFindings: Bulleted list of important observations, prioritized by severity
-4. concerns: Bulleted list of methodological, statistical, or reproducibility concerns across the whole pipeline
+4. concerns: List of methodological, statistical, or reproducibility concerns across the whole pipeline. Each concern must be a structured object with:
+   - level: One of CRITICAL, MODERATE, or MINOR (no other levels allowed)
+   - description: The concern text
+
+Concern severity levels:
+- CRITICAL: Fundamental flaws that invalidate results or conclusions
+- MODERATE: Significant issues that weaken reliability but do not fully invalidate results
+- MINOR: Best-practice improvements, style, or documentation gaps
+
+Use ONLY these three levels. Do not invent additional levels.
 
 Write as if explaining to a colleague. Be precise and evidence-based."""
 
@@ -134,7 +153,7 @@ class GraphSynthesisResult(BaseModel):
     executiveSummary: str
     narrativeSummary: str
     keyFindings: List[str] = []
-    concerns: List[str] = []
+    concerns: List[LLMConcern] = []
 
 
 # ---------------------------------------------------------------------------
@@ -540,7 +559,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                 name=ca.name,
                 summary=ca.summary,
                 keyFunctions=ca.keyFunctions,
-                concerns=ca.concerns,
+                concerns=[normalize_concern(c) for c in (ca.concerns or [])],
             )
             for ca in (llm_result.codeAnalysis or [])
         ]
@@ -575,7 +594,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             "evi:codeAnalysis": [ca.model_dump(by_alias=True) for ca in code_analyses],
             "evi:inputSummaries": [ds.model_dump(by_alias=True) for ds in input_summaries],
             "evi:outputSummaries": [ds.model_dump(by_alias=True) for ds in output_summaries],
-            "evi:concerns": llm_result.concerns or [],
+            "evi:concerns": [normalize_concern(c).model_dump() for c in (llm_result.concerns or [])],
             "evi:llmModel": llm_model,
             "evi:llmTemperature": temperature,
             "dateCreated": now,
@@ -723,7 +742,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             parts.append(f"### Step {i}: {ann.annotates}")
             parts.append(f"**Summary:** {ann.stepSummary}")
             if ann.concerns:
-                parts.append(f"**Concerns:** {'; '.join(ann.concerns)}")
+                parts.append(f"**Concerns:** {'; '.join(f'[{c.level.value}] {c.description}' for c in ann.concerns)}")
             if ann.codeAnalysis:
                 for ca in ann.codeAnalysis:
                     parts.append(f"**Code ({ca.name or ca.software}):** {ca.summary}")
@@ -813,6 +832,24 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         # Build step annotation refs
         step_ann_refs = [{"@id": ann.guid} for ann in step_annotations]
 
+        # Compile graph-level concerns from step annotations with source links
+        compiled_concerns = []
+        for ann in step_annotations:
+            for concern in (ann.concerns or []):
+                compiled_concerns.append(GraphConcern(
+                    level=concern.level,
+                    description=concern.description,
+                    sourceAnnotation={"@id": ann.guid},
+                ))
+        # Add synthesis-level concerns (not tied to a single step)
+        for llm_concern in (synthesis.concerns or []):
+            normalized = normalize_concern(llm_concern)
+            compiled_concerns.append(GraphConcern(
+                level=normalized.level,
+                description=normalized.description,
+                sourceAnnotation={"@id": rocrate_id},
+            ))
+
         # Extract NAAN from rocrate_id for the new identifier
         ark_match = re.match(r"ark:(\d+)/(.*)", rocrate_id)
         if ark_match:
@@ -835,7 +872,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             "evi:executiveSummary": synthesis.executiveSummary,
             "evi:narrativeSummary": synthesis.narrativeSummary,
             "evi:keyFindings": synthesis.keyFindings,
-            "evi:concerns": synthesis.concerns,
+            "evi:concerns": [c.model_dump(by_alias=True, mode="json") for c in compiled_concerns],
             "evi:stepAnnotations": step_ann_refs,
             "evi:llmModel": llm_model,
             "evi:llmTemperature": temperature,
