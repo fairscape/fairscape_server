@@ -48,7 +48,7 @@ def trigger_interpretation(
     token: Annotated[str, Depends(OAuthScheme)],
     NAAN: str,
     postfix: str,
-    llm_model: str = Query(default="google-gla:gemini-2.5-flash-lite", description="PydanticAI model string"),
+    llm_model: str = Query(default="anthropic:claude-haiku-4-5-20251001", description="PydanticAI model string"),
     temperature: float = Query(default=0.2, ge=0.0, le=2.0, description="LLM temperature"),
     persona: str = Query(default="datasci", description="Interpretation persona"),
     force: bool = Query(default=True, description="Force re-interpretation if one already exists"),

@@ -14,6 +14,7 @@ services:
     env_file: "./deploy/docker_compose.env"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
     command:
       - "uv"
@@ -31,17 +32,17 @@ services:
     depends_on:
       - mongo
       - minio
-  fairscape-frontend:
-    image: ghcr.io/fairscape/fairscapefrontendlocal:RELEASE.2026-02-24
-    ports:
-      - "5173:80"
-    environment:
-      VITE_FAIRSCAPE_API_URL: "http://localhost:8080/api"
-      SEMANTIC_SEARCH_ENABLED: "false"
-    depends_on:
-      - fairscape-api
-      - mongo
-      - minio
+  # fairscape-frontend:
+  #   image: ghcr.io/fairscape/fairscapefrontendlocal:RELEASE.2026-02-24
+  #   ports:
+  #     - "5173:80"
+  #   environment:
+  #     VITE_FAIRSCAPE_API_URL: "http://localhost:8080/api"
+  #     SEMANTIC_SEARCH_ENABLED: "false"
+  #   depends_on:
+  #     - fairscape-api
+  #     - mongo
+  #     - minio
 
   redis:
     image: redis:7.2.4

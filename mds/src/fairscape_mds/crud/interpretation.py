@@ -59,7 +59,7 @@ def run_async(coro):
 # ---------------------------------------------------------------------------
 
 MAX_SOFTWARE_BYTES = 50_000  # 50KB per software entity
-CODE_EXTENSIONS = {".py", ".r", ".R", ".sh", ".pl", ".java", ".scala", ".jl", ".m", ".cpp", ".go", ".rs", ".ipynb"}
+CODE_EXTENSIONS = {".py", ".r", ".R", ".sh", ".pl", ".java", ".scala", ".jl", ".m", ".cpp", ".go", ".rs", ".ipynb", ".md"}
 GITHUB_REPO_PATTERN = re.compile(r"https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?(?:/.*)?$")
 GITHUB_FILE_PATTERN = re.compile(
     r"https?://github\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.*)"
@@ -785,8 +785,16 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             ann_dict = ann.model_dump(by_alias=True, exclude_none=True, mode="json")
             graph_dict[ann.guid] = ann_dict
 
-            # Add evi:annotatedBy reverse link on the computation node
-            comp_id = ann.annotates.guid if hasattr(ann.annotates, 'guid') else str(ann.annotates)
+            # Extract comp_id robustly: handle IdentifierValue, dict, or string
+            annotates = ann.annotates
+            if hasattr(annotates, 'guid'):
+                comp_id = annotates.guid
+            elif isinstance(annotates, dict):
+                comp_id = annotates.get("@id", "")
+            else:
+                comp_id = str(annotates)
+
+            # Add evi:annotatedBy reverse link on the computation node in the AEG graph
             if comp_id and comp_id in graph_dict:
                 existing = graph_dict[comp_id].get("evi:annotatedBy", [])
                 if isinstance(existing, dict):
@@ -795,6 +803,12 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                     existing = []
                 existing.append({"@id": ann.guid})
                 graph_dict[comp_id]["evi:annotatedBy"] = existing
+            else:
+                logger.warning(
+                    "Could not back-link annotation %s -> computation %s "
+                    "(not found in graph_dict, type=%s)",
+                    ann.guid, comp_id, type(annotates).__name__,
+                )
 
         # Build step annotation refs
         step_ann_refs = [{"@id": ann.guid} for ann in step_annotations]
@@ -853,6 +867,22 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             {"$set": {"metadata.hasAnnotatedEvidenceGraph": {"@id": aeg_id}}}
         )
 
+        # Update each computation's MongoDB document with evi:annotatedBy
+        for ann in step_annotations:
+            annotates = ann.annotates
+            if hasattr(annotates, 'guid'):
+                comp_id = annotates.guid
+            elif isinstance(annotates, dict):
+                comp_id = annotates.get("@id", "")
+            else:
+                comp_id = str(annotates)
+
+            if comp_id:
+                self.config.identifierCollection.update_one(
+                    {"@id": comp_id},
+                    {"$addToSet": {"metadata.evi:annotatedBy": {"@id": ann.guid}}}
+                )
+
         self._update_task(task_guid, {"annotated_evidence_graph_id": aeg_id})
         logger.info(f"Stored AnnotatedEvidenceGraph {aeg_id}")
         return aeg_id
@@ -863,6 +893,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
 
     def interpret_rocrate(self, task_guid: str, user_token: str = "") -> str:
         """Main pipeline orchestrator. Returns the AnnotatedEvidenceGraph @id."""
+        import os
         # Load task config
         task_doc = self.config.asyncCollection.find_one({"guid": task_guid})
         if not task_doc:
@@ -871,6 +902,11 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         rocrate_id = task_doc["rocrate_id"]
         llm_model = task_doc.get("llm_model", "google-gla:gemini-2.5-flash-lite")
         temperature = task_doc.get("llm_temperature", 0.2)
+
+        # # Diagnostic: confirm which API key and model are in use
+        # raw_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        # masked_key = f"{raw_key[:8]}...{raw_key[-4:]}" if len(raw_key) > 12 else ("(not set)" if not raw_key else "(too short)")
+        # logger.info(f"[interpret_rocrate] task={task_guid} model={llm_model!r} ANTHROPIC_API_KEY={masked_key}")
 
         self._update_task(task_guid, {
             "status": "PROCESSING",
