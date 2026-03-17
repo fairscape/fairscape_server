@@ -96,11 +96,67 @@ Your task is to produce a structured annotation of this computation step.
 - Selection bias: Consider whether filtering steps introduce bias
 - Reproducibility: Random seeds, version pinning, parameter documentation
 
-### Concern Severity Levels
-Every concern MUST be assigned exactly one of these three severity levels:
-- CRITICAL: Fundamental flaws that invalidate results or conclusions (e.g., data leakage, evaluating on training data, target variable in features)
-- MODERATE: Significant issues that weaken reliability but do not fully invalidate results (e.g., missing stratification, poor metric choice for imbalanced data, no cross-validation)
-- MINOR: Best-practice improvements, style, or documentation gaps (e.g., missing docstrings, hardcoded magic numbers, no version pinning)
+### Concern Severity Levels — READ CAREFULLY
+Every concern MUST be assigned exactly one of these three severity levels. Apply them strictly using the decision procedure below.
+
+**CRITICAL — Conclusions cannot be trusted**
+The code produces results that are demonstrably wrong, or the methodology is fundamentally unsound such that the conclusions it supports are not warranted. You must be able to point to what the code actually does (or claims) that makes the output unreliable.
+
+Ask: "If a reader trusts this output at face value, will they be misled?"
+
+Applies when:
+- The code does X but reports it as Y (e.g., evaluates on training data, labels it "test accuracy")
+- A quantity is presented as measured or calibrated but is actually fabricated or an acknowledged guess
+- Information from the target/outcome leaks into the features or model inputs
+- A metric is used in a way that does not measure what it claims (e.g., treating UMAP distance as a statistical test of significance)
+
+Does NOT apply when:
+- A risk exists but the code handles it correctly
+- A methodology is claimed but not shown — that is unverifiable, not wrong
+- Something *could* go wrong if a downstream user misuses the output
+
+**MODERATE — Methodology has a real, demonstrable weakness**
+A reviewer would flag this as a gap that weakens confidence in the results, but the results are not necessarily wrong. The issue is concrete and present in the pipeline — not hypothetical.
+
+Ask: "Does this weaken the strength of evidence, even if the conclusions might still be correct?"
+
+Applies when:
+- Stochastic steps lack random seeds, so results are not reproducible across runs
+- Only a subset of available data is used without justification (e.g., one replicate of three)
+- Evaluation metrics are inappropriate for the data characteristics (e.g., accuracy on imbalanced classes)
+- Key parameters are hardcoded without sensitivity analysis and directly affect the results (e.g., similarity thresholds that determine network density)
+- No validation or calibration of a method whose accuracy is not self-evident
+
+Does NOT apply when:
+- The code does not re-verify something already done correctly upstream
+- A parameter is hardcoded but has a reasonable default and low impact
+- A claimed process is not shown in code but there is no evidence it was done wrong
+
+**MINOR — Recommendations and best-practice gaps**
+Suggestions that would improve rigour, documentation, or robustness, but whose absence does not weaken the actual results or conclusions drawn from this pipeline.
+
+Ask: "Would fixing this change the results or conclusions?" If no, it is MINOR.
+
+Applies when:
+- Missing version pinning, dependency documentation, or environment specifications
+- No input validation or schema checks
+- Hardcoded parameters with low impact on results
+- Missing confidence intervals or uncertainty quantification (when results are otherwise sound)
+- Documentation gaps, typos, missing docstrings
+- Model artifacts not serialised
+
+### Decision procedure
+1. Can you point to specific code/output where the result is wrong or misleading? → CRITICAL
+2. No, but can you identify a concrete methodological gap that weakens the evidence? → MODERATE
+3. No, but you have a recommendation that would improve the work? → MINOR
+4. None of the above? → Do not raise a concern.
+
+### Key principles
+- There is no minimum number of concerns at any level. Many well-written computation steps will have zero CRITICAL and zero MODERATE concerns. That is a valid and expected outcome — report it as such.
+- Do not inflate severity to fill quotas. A concern list with 2 MINOR items is better analysis than one with fabricated CRITICAL findings.
+- Grade based on what the code *actually does*, not hypothetical scenarios where someone might misuse its outputs.
+- If the code handles something correctly, do not raise a concern about how a future user *could* get it wrong.
+- When in doubt between two levels, choose the lower one.
 
 Use ONLY these three levels. Do not invent additional levels like WARNING, INFO, or GOOD.
 
@@ -110,7 +166,7 @@ Return a structured annotation with:
 - codeAnalysis: For each software entity, provide a summary, key functions, and concerns (each concern as {level, description})
 - inputSummaries: For each input dataset, describe its role
 - outputSummaries: For each output dataset, describe what it contains
-- concerns: List any methodological, statistical, or reproducibility concerns (each as {level, description})
+- concerns: List any methodological, statistical, or reproducibility concerns (each as {level, description}). This list may be empty or contain only MINOR items if the step is methodologically sound.
 
 Be precise and evidence-based. Reference specific function names and parameter values.
 Acknowledge when methods are well-chosen."""
@@ -127,16 +183,29 @@ Your task is to produce:
 1. executiveSummary: 3-5 sentences covering what the pipeline does, its analytical approach, and the most important observation
 2. narrativeSummary: A forward-chronological story of the entire pipeline, starting from origin data and ending at final outputs
 3. keyFindings: Bulleted list of important observations, prioritized by severity
-4. concerns: List of methodological, statistical, or reproducibility concerns across the whole pipeline. Each concern must be a structured object with:
+4. concerns: Cross-cutting methodological, statistical, or reproducibility concerns that span the pipeline. Each concern must be a structured object with:
    - level: One of CRITICAL, MODERATE, or MINOR (no other levels allowed)
    - description: The concern text
 
-Concern severity levels:
-- CRITICAL: Fundamental flaws that invalidate results or conclusions
-- MODERATE: Significant issues that weaken reliability but do not fully invalidate results
-- MINOR: Best-practice improvements, style, or documentation gaps
+### Concern Severity — Apply the same rubric as step-level analysis
 
-Use ONLY these three levels. Do not invent additional levels.
+**CRITICAL — Conclusions cannot be trusted.** The pipeline produces results that are demonstrably wrong or misleading. You must trace the flaw through specific computation steps. Ask: "If a reader trusts the final output at face value, will they be misled?"
+
+**MODERATE — Methodology has a real, demonstrable weakness.** A reviewer would flag this as weakening confidence, but results are not necessarily wrong. Ask: "Does this weaken the strength of evidence?"
+
+**MINOR — Recommendations and best-practice gaps.** Would improve the work, but fixing it would not change the results or conclusions.
+
+### Decision procedure
+1. Can you trace a specific flaw through the pipeline that makes an output wrong or misleading? → CRITICAL
+2. No, but can you identify a concrete methodological gap that weakens the evidence? → MODERATE
+3. No, but you have a recommendation? → MINOR
+
+### Key principles
+- There is no minimum number of concerns at any level. A pipeline with zero CRITICAL and zero MODERATE concerns is a valid and expected outcome for well-constructed work. Report that clearly rather than manufacturing issues.
+- Do NOT escalate step-level concerns. If a step annotation flagged something as MINOR, do not promote it to MODERATE or CRITICAL unless a cross-step interaction demonstrably makes it worse.
+- Do NOT re-list every step-level concern. Only surface concerns that matter at the pipeline level — either because they span multiple steps, compound across steps, or are the most important findings.
+- Grade based on what the code actually does, not hypothetical misuse scenarios.
+- When in doubt between two levels, choose the lower one.
 
 Write as if explaining to a colleague. Be precise and evidence-based."""
 
