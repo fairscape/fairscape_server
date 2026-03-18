@@ -1,3 +1,4 @@
+import re
 import pandas
 import numpy
 from typing import Dict, List, Optional
@@ -143,8 +144,12 @@ def applyQuery(dataframe: pandas.DataFrame, query: str, queryType: str) -> Optio
 	if queryType == "SQL":
 		if pandasql is None:
 			raise ImportError("pandasql is required for SQL split queries. Install it with: pip install pandasql")
-		dataset = dataframe  # noqa: F841 — referenced by SQL query
-		return pandasql.sqldf(query, locals())
+		# Expose the dataframe under whatever table name the query uses
+		table_names = re.findall(r'\bFROM\s+(\w+)', query, re.IGNORECASE)
+		env = {"dataset": dataframe}
+		for name in table_names:
+			env[name] = dataframe
+		return pandasql.sqldf(query, env)
 
 	elif queryType == "PANDAS":
 		# Extract the condition from queries like "split == 'train'"
