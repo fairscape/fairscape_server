@@ -76,6 +76,7 @@ class DatasetSummary(BaseModel):
     name: Optional[str] = Field(default=None)
     role: Optional[str] = Field(default=None)
     description: Optional[str] = Field(default=None)
+    dataQuality: Optional[str] = Field(default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +98,7 @@ class LLMDatasetSummary(BaseModel):
     name: Optional[str] = Field(default=None)
     role: Optional[str] = Field(default=None)
     description: Optional[str] = Field(default=None)
+    dataQuality: Optional[str] = Field(default=None, description="Data quality observations based on summary statistics")
 
 
 class LLMComputationAnnotation(BaseModel):

@@ -16,7 +16,8 @@ from fairscape_mds.models.statistics import (
 )
 from fairscape_mds.crud.statistics import (
 	generateSummaryStatistics,
-	generateSplitStatistics
+	generateSplitStatistics,
+	collectHistogramBins
 )
 from fairscape_models import IdentifierValue
 from fairscape_models.model_card import ModelCard
@@ -159,7 +160,8 @@ class IdentifierRequest(FairscapeRequest):
 		splitStats = None
 		if splits:
 			splitDicts = [s.model_dump() if hasattr(s, 'model_dump') else s for s in splits]
-			splitStats = generateSplitStatistics(dataframe, splitDicts)
+			totalBinEdges = collectHistogramBins(summaryStatistics)
+			splitStats = generateSplitStatistics(dataframe, splitDicts, totalBinEdges=totalBinEdges)
 
 		# update identifier
 		updateFields = {"descriptiveStatistics": summaryStatistics}

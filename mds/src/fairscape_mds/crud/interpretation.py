@@ -62,6 +62,8 @@ def run_async(coro):
 # ---------------------------------------------------------------------------
 
 MAX_SOFTWARE_BYTES = 50_000  # 50KB per software entity
+MAX_STATS_COLUMNS = 25       # max columns of stats to include per dataset in prompt
+MAX_SPLITS = 10              # max splits to include per dataset in prompt
 CODE_EXTENSIONS = {".py", ".r", ".R", ".sh", ".pl", ".java", ".scala", ".jl", ".m", ".cpp", ".go", ".rs", ".ipynb", ".md"}
 GITHUB_REPO_PATTERN = re.compile(r"https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?(?:/.*)?$")
 GITHUB_FILE_PATTERN = re.compile(
@@ -77,6 +79,8 @@ DATASCI_SYSTEM_PROMPT = """You are a senior data scientist and methodologist ana
 You will receive:
 - The computation's metadata (name, description, command)
 - Input dataset metadata (names, descriptions, formats)
+- Dataset data profiles (when available): per-column summary statistics including distributions, missing data rates, and histograms
+- Dataset split statistics (when available): per-column statistics for each data split (train/test/validation)
 - Software source code used by the computation
 - Output dataset metadata (names, descriptions, formats)
 
@@ -95,6 +99,14 @@ Your task is to produce a structured annotation of this computation step.
 - Data leakage: Check for test/validation information leaking into training
 - Selection bias: Consider whether filtering steps introduce bias
 - Reproducibility: Random seeds, version pinning, parameter documentation
+
+### Data Quality Assessment (when data profiles are provided)
+- Missing data: Flag columns with >10% missing. Consider if missingness is random or systematic and whether it could bias results
+- Distribution shape: Use histograms and quartiles to identify skew, multimodality, or outliers (compare mean vs median). Note if distributions look unexpected for the domain
+- Split balance: Compare row counts and distributions across train/test/validation splits. Flag significant imbalance or distribution drift that could indicate data leakage
+- Scale differences: Note features on very different scales (relevant for distance-based or gradient methods)
+- Categorical dominance: Flag categoricals where one value >90% frequency — near-constant features add noise
+- Low variance: Flag numerical columns where std is near zero relative to the mean
 
 ### Concern Severity Levels — READ CAREFULLY
 Every concern MUST be assigned exactly one of these three severity levels. Apply them strictly using the decision procedure below.
@@ -164,8 +176,8 @@ Use ONLY these three levels. Do not invent additional levels like WARNING, INFO,
 Return a structured annotation with:
 - stepSummary: A clear description of what this computation step does and why
 - codeAnalysis: For each software entity, provide a summary, key functions, and concerns (each concern as {level, description})
-- inputSummaries: For each input dataset, describe its role
-- outputSummaries: For each output dataset, describe what it contains
+- inputSummaries: For each input dataset, describe its role and include a dataQuality field with observations from the data profile (missing data, distribution issues, etc.) if statistics were provided
+- outputSummaries: For each output dataset, describe what it contains and include a dataQuality field with observations if statistics were provided
 - concerns: List any methodological, statistical, or reproducibility concerns (each as {level, description}). This list may be empty or contain only MINOR items if the step is methodologically sound.
 
 Be precise and evidence-based. Reference specific function names and parameter values.
@@ -276,6 +288,132 @@ def _build_index(graph: list) -> dict:
         if node_id:
             index[node_id] = node
     return index
+
+
+# ---------------------------------------------------------------------------
+# Dataset statistics formatting for prompts
+# ---------------------------------------------------------------------------
+
+_HIST_BARS = " ▁▂▃▄▅▆▇█"
+
+
+def _mini_histogram(counts: list) -> str:
+    """Render a list of histogram counts as a sparkline string."""
+    if not counts:
+        return ""
+    mx = max(counts) if max(counts) > 0 else 1
+    return "".join(_HIST_BARS[min(int(c / mx * 8) + (1 if c > 0 else 0), 8)] for c in counts)
+
+
+def _format_column_stats(col_name: str, col_data: dict) -> str:
+    """Format one column's stats as a markdown table row."""
+    stats = col_data.get("statistics", {})
+
+    # Determine type by presence of 'mean' (numerical) vs 'unique' (categorical)
+    if "mean" in stats and stats["mean"] is not None:
+        # Numerical
+        missing_pct = stats.get("missing_percentage", "")
+        if missing_pct != "" and missing_pct is not None:
+            missing_pct = f"{missing_pct}%"
+        hist = _mini_histogram(stats.get("histogram_counts", []))
+        return (
+            f"| {col_name} | num | {stats.get('count', '')} | {missing_pct} "
+            f"| {stats.get('mean', '')} | {stats.get('std', '')} "
+            f"| {stats.get('min', '')} | {stats.get('first_quartile', '')} "
+            f"| {stats.get('second_quartile', '')} | {stats.get('third_quartile', '')} "
+            f"| {stats.get('max', '')} | {hist} |"
+        )
+    else:
+        # Categorical
+        missing_pct = stats.get("missing_percentage", "")
+        if missing_pct != "" and missing_pct is not None:
+            missing_pct = f"{missing_pct}%"
+        return (
+            f"| {col_name} | cat | {stats.get('count', '')} | {missing_pct} "
+            f"| top: {stats.get('top', '')} | uniq: {stats.get('unique', '')} "
+            f"| | | | | | freq: {stats.get('freq', '')} |"
+        )
+
+
+def _format_dataset_stats(ds_name: str, ds_stats: dict) -> str:
+    """Format descriptiveStatistics and splitStatistics for one dataset into
+    prompt-ready markdown.  Returns empty string if no stats available."""
+    desc_stats = ds_stats.get("descriptiveStatistics", {})
+    split_stats = ds_stats.get("splitStatistics", {})
+
+    if not desc_stats and not split_stats:
+        return ""
+
+    parts = []
+
+    # --- Overall descriptive statistics ---
+    if desc_stats:
+        columns = list(desc_stats.items())
+        total_cols = len(columns)
+
+        # Estimate row count from first column's count
+        first_stats = columns[0][1].get("statistics", {}) if columns else {}
+        row_count = first_stats.get("count", "?")
+
+        # Total missing across all columns
+        total_missing = 0
+        for _, col_data in columns:
+            mc = col_data.get("statistics", {}).get("missing_count")
+            if mc is not None:
+                total_missing += mc
+
+        truncated = total_cols > MAX_STATS_COLUMNS
+        display_cols = columns[:MAX_STATS_COLUMNS]
+
+        parts.append(f"#### Data Profile: {ds_name} ({total_cols} columns, ~{row_count} rows, {total_missing} missing values)")
+        parts.append("| Column | Type | Count | Missing% | Mean/Top | Std/Unique | Min | Q1 | Median | Q3 | Max | Hist |")
+        parts.append("|--------|------|-------|----------|----------|------------|-----|----|----|----|----|------|")
+        for col_name, col_data in display_cols:
+            parts.append(_format_column_stats(col_name, col_data))
+
+        if truncated:
+            parts.append(f"| ... | | | | | | | | | | | *{total_cols - MAX_STATS_COLUMNS} more columns omitted* |")
+        parts.append("")
+
+    # --- Split statistics ---
+    if split_stats:
+        split_items = list(split_stats.items())
+        total_splits = len(split_items)
+        truncated_splits = total_splits > MAX_SPLITS
+        display_splits = split_items[:MAX_SPLITS]
+
+        for split_name, split_data in display_splits:
+            split_desc = split_data.get("description", "")
+            split_col_stats = split_data.get("statistics", {})
+            if not split_col_stats:
+                continue
+
+            # Row count from first column
+            first_split_col = list(split_col_stats.values())[0] if split_col_stats else {}
+            split_row_count = first_split_col.get("statistics", {}).get("count", "?")
+
+            label = f'#### Split: "{split_name}"'
+            if split_desc:
+                label += f" ({split_desc})"
+            label += f" -- {split_row_count} rows"
+            parts.append(label)
+
+            split_columns = list(split_col_stats.items())
+            display_split_cols = split_columns[:MAX_STATS_COLUMNS]
+
+            parts.append("| Column | Type | Count | Missing% | Mean/Top | Std/Unique | Min | Q1 | Median | Q3 | Max | Hist |")
+            parts.append("|--------|------|-------|----------|----------|------------|-----|----|----|----|----|------|")
+            for col_name, col_data in display_split_cols:
+                parts.append(_format_column_stats(col_name, col_data))
+
+            if len(split_columns) > MAX_STATS_COLUMNS:
+                parts.append(f"| ... | | | | | | | | | | | *{len(split_columns) - MAX_STATS_COLUMNS} more columns omitted* |")
+            parts.append("")
+
+        if truncated_splits:
+            parts.append(f"*... {total_splits - MAX_SPLITS} more splits omitted*\n")
+
+    return "\n".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -550,10 +688,53 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         return software_cache
 
     # ------------------------------------------------------------------
+    # Step 3b: Pre-fetch dataset statistics
+    # ------------------------------------------------------------------
+
+    def prefetch_dataset_statistics(
+        self, task_guid: str, computations: list, index: dict
+    ) -> Dict[str, dict]:
+        """Fetch descriptiveStatistics and splitStatistics from MongoDB for all
+        datasets referenced by computations. Returns {dataset_id: {...}}."""
+        # Collect all dataset IDs
+        dataset_ids = set()
+        for comp in computations:
+            for ds_id in _resolve_refs(comp.get("usedDataset")):
+                dataset_ids.add(ds_id)
+            for ds_id in _resolve_refs(comp.get("generated")):
+                dataset_ids.add(ds_id)
+
+        if not dataset_ids:
+            return {}
+
+        # Batch query MongoDB with projection
+        cursor = self.config.identifierCollection.find(
+            {"@id": {"$in": list(dataset_ids)}},
+            {"@id": 1, "descriptiveStatistics": 1, "splitStatistics": 1},
+        )
+
+        stats_cache: Dict[str, dict] = {}
+        for doc in cursor:
+            ds_id = doc.get("@id")
+            desc_stats = doc.get("descriptiveStatistics")
+            split_stats = doc.get("splitStatistics")
+            if desc_stats or split_stats:
+                stats_cache[ds_id] = {
+                    "descriptiveStatistics": desc_stats or {},
+                    "splitStatistics": split_stats or {},
+                }
+
+        logger.info(
+            f"Pre-fetched dataset statistics: {len(stats_cache)} of "
+            f"{len(dataset_ids)} datasets have stats"
+        )
+        return stats_cache
+
+    # ------------------------------------------------------------------
     # Step 4: Annotate single computation
     # ------------------------------------------------------------------
 
-    def _build_computation_prompt(self, computation: dict, software_cache: dict, index: dict) -> str:
+    def _build_computation_prompt(self, computation: dict, software_cache: dict, index: dict, stats_cache: Optional[Dict[str, dict]] = None) -> str:
         """Build the prompt for a single computation annotation."""
         parts = []
 
@@ -567,17 +748,27 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         parts.append(f"**Date Created:** {computation.get('dateCreated', 'unknown')}")
         parts.append("")
 
+        if stats_cache is None:
+            stats_cache = {}
+
         # Input datasets
         input_refs = _resolve_refs(computation.get("usedDataset"))
         if input_refs:
             parts.append("## Input Datasets")
             for ds_id in input_refs:
                 ds_node = index.get(ds_id, {})
-                parts.append(f"- **{ds_node.get('name', ds_id)}** ({ds_node.get('format', 'unknown format')})")
+                ds_name = ds_node.get('name', ds_id)
+                parts.append(f"- **{ds_name}** ({ds_node.get('format', 'unknown format')})")
                 parts.append(f"  ID: {ds_id}")
                 parts.append(f"  Description: {ds_node.get('description', 'No description')}")
                 if ds_node.get("keywords"):
                     parts.append(f"  Keywords: {', '.join(ds_node['keywords']) if isinstance(ds_node['keywords'], list) else ds_node['keywords']}")
+                # Include dataset statistics if available
+                if ds_id in stats_cache:
+                    formatted = _format_dataset_stats(ds_name, stats_cache[ds_id])
+                    if formatted:
+                        parts.append("")
+                        parts.append(formatted)
             parts.append("")
 
         # Software and source code
@@ -603,12 +794,23 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             parts.append("## Output Datasets")
             for ds_id in output_refs:
                 ds_node = index.get(ds_id, {})
-                parts.append(f"- **{ds_node.get('name', ds_id)}** ({ds_node.get('format', 'unknown format')})")
+                ds_name = ds_node.get('name', ds_id)
+                parts.append(f"- **{ds_name}** ({ds_node.get('format', 'unknown format')})")
                 parts.append(f"  ID: {ds_id}")
                 parts.append(f"  Description: {ds_node.get('description', 'No description')}")
+                # Include dataset statistics if available
+                if ds_id in stats_cache:
+                    formatted = _format_dataset_stats(ds_name, stats_cache[ds_id])
+                    if formatted:
+                        parts.append("")
+                        parts.append(formatted)
             parts.append("")
 
-        return "\n".join(parts)
+        prompt = "\n".join(parts)
+        comp_id = computation.get("@id", "unknown")
+        est_tokens = len(prompt) // 4
+        logger.info(f"Prompt for {comp_id}: ~{est_tokens} tokens estimated ({len(prompt)} chars)")
+        return prompt
 
     def _llm_to_annotated(
         self,
@@ -640,6 +842,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                 name=ds.name,
                 role=ds.role,
                 description=ds.description,
+                dataQuality=ds.dataQuality,
             )
             for ds in (llm_result.inputSummaries or [])
         ]
@@ -649,6 +852,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                 name=ds.name,
                 role=ds.role,
                 description=ds.description,
+                dataQuality=ds.dataQuality,
             )
             for ds in (llm_result.outputSummaries or [])
         ]
@@ -677,9 +881,10 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         index: dict,
         llm_model: str,
         temperature: float,
+        stats_cache: Optional[Dict[str, dict]] = None,
     ) -> AnnotatedComputation:
         """Annotate a single computation using PydanticAI."""
-        prompt = self._build_computation_prompt(computation, software_cache, index)
+        prompt = self._build_computation_prompt(computation, software_cache, index, stats_cache=stats_cache)
         comp_id = computation.get("@id", f"ark:59853/computation-{uuid.uuid4()}")
 
         agent = Agent(
@@ -715,6 +920,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         llm_model: str,
         temperature: float,
         max_workers: int = 4,
+        stats_cache: Optional[Dict[str, dict]] = None,
     ) -> List[AnnotatedComputation]:
         """Annotate all computations concurrently via asyncio.gather."""
         self._update_task(task_guid, {
@@ -730,6 +936,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                 try:
                     annotated = await self._annotate_single_computation(
                         task_guid, comp, software_cache, index, llm_model, temperature,
+                        stats_cache=stats_cache,
                     )
                     self.config.asyncCollection.update_one(
                         {"guid": task_guid, "computation_details.computation_id": comp_id},
@@ -773,10 +980,12 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         llm_model: str,
         temperature: float,
         max_workers: int = 4,
+        stats_cache: Optional[Dict[str, dict]] = None,
     ) -> List[AnnotatedComputation]:
         """Annotate computations concurrently using async I/O."""
         return run_async(self._annotate_computations_async(
             task_guid, computations, software_cache, index, llm_model, temperature, max_workers,
+            stats_cache=stats_cache,
         ))
 
     # ------------------------------------------------------------------
@@ -1034,9 +1243,13 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             effective_token = user_token or task_doc.get("user_token", "")
             software_cache = self.prefetch_all_software(task_guid, computations, index, user_token=effective_token)
 
+            # Step 3b: Pre-fetch dataset statistics
+            stats_cache = self.prefetch_dataset_statistics(task_guid, computations, index)
+
             # Step 4: Annotate computations in parallel
             step_annotations = self.annotate_computations_parallel(
                 task_guid, computations, software_cache, index, llm_model, temperature,
+                stats_cache=stats_cache,
             )
 
             # Step 5: Graph-level synthesis
