@@ -10,8 +10,10 @@ and stores the resulting AnnotatedEvidenceGraph.
 import asyncio
 import datetime
 import re
+import time
 import uuid
 import logging
+from collections import deque
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -20,10 +22,10 @@ from pydantic_ai import Agent
 from fairscape_mds.models.annotated_computation import (
     AnnotatedComputation, CodeAnalysis, DatasetSummary,
     LLMComputationAnnotation, LLMCodeAnalysis, LLMDatasetSummary,
-    Concern, LLMConcern, ConcernLevel, normalize_concern,
+    Assumption, LLMAssumption, AssumptionImpact, normalize_assumption,
 )
 from fairscape_mds.models.annotated_evidence_graph import (
-    AnnotatedEvidenceGraph, GraphConcern,
+    AnnotatedEvidenceGraph, GraphAssumption, AudiencePerspective,
 )
 
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
@@ -58,12 +60,65 @@ def run_async(coro):
     return _worker_loop.run_until_complete(coro)
 
 # ---------------------------------------------------------------------------
+# Async Rate Limiter
+# ---------------------------------------------------------------------------
+
+class AsyncRateLimiter:
+    """Sliding-window rate limiter for async contexts.
+
+    Allows at most `max_requests` within any rolling `window_seconds` period.
+    Callers await `acquire()` before making an API call.
+    """
+
+    def __init__(self, max_requests: int = 2, window_seconds: float = 10.0):
+        self._max = max_requests
+        self._window = window_seconds
+        self._lock = asyncio.Lock()
+        self._timestamps: deque = deque()
+
+    async def acquire(self):
+        async with self._lock:
+            now = time.monotonic()
+            # Evict timestamps outside the window
+            while self._timestamps and (now - self._timestamps[0]) >= self._window:
+                self._timestamps.popleft()
+            # If at capacity, sleep until the oldest timestamp exits the window
+            if len(self._timestamps) >= self._max:
+                sleep_for = self._window - (now - self._timestamps[0])
+                if sleep_for > 0:
+                    logger.info(f"Rate limiter: sleeping {sleep_for:.1f}s")
+                    await asyncio.sleep(sleep_for)
+                self._timestamps.popleft()
+            self._timestamps.append(time.monotonic())
+
+
+MAX_API_RETRIES = 5
+API_RETRY_BASE_DELAY = 10.0  # seconds; doubles each retry
+
+
+async def _run_agent_with_retry(agent, prompt, retries=MAX_API_RETRIES, base_delay=API_RETRY_BASE_DELAY):
+    """Run agent.run() with exponential backoff on overloaded/rate-limit errors."""
+    for attempt in range(retries + 1):
+        try:
+            return await agent.run(prompt)
+        except Exception as e:
+            err_str = str(e)
+            is_retryable = "529" in err_str or "overloaded" in err_str.lower() or "rate" in err_str.lower()
+            if not is_retryable or attempt == retries:
+                raise
+            delay = base_delay * (2 ** attempt)
+            logger.warning(f"API overloaded (attempt {attempt + 1}/{retries + 1}), retrying in {delay:.0f}s: {err_str[:120]}")
+            await asyncio.sleep(delay)
+
+
+# ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
 MAX_SOFTWARE_BYTES = 50_000  # 50KB per software entity
 MAX_STATS_COLUMNS = 25       # max columns of stats to include per dataset in prompt
 MAX_SPLITS = 10              # max splits to include per dataset in prompt
+MAX_PROMPT_DATASETS = 3      # max input/output datasets to include per computation prompt
 CODE_EXTENSIONS = {".py", ".r", ".R", ".sh", ".pl", ".java", ".scala", ".jl", ".m", ".cpp", ".go", ".rs", ".ipynb", ".md"}
 GITHUB_REPO_PATTERN = re.compile(r"https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?(?:/.*)?$")
 GITHUB_FILE_PATTERN = re.compile(
@@ -74,152 +129,133 @@ GITHUB_FILE_PATTERN = re.compile(
 # System Prompt -- Data Science Persona
 # ---------------------------------------------------------------------------
 
-DATASCI_SYSTEM_PROMPT = """You are a senior data scientist and methodologist analyzing a single computation step from a scientific provenance graph (RO-Crate).
+DATASCI_SYSTEM_PROMPT = """You are an analyst making explicit the assumptions that support the claims produced by a computation step in a scientific provenance graph (RO-Crate).
 
-You will receive:
-- The computation's metadata (name, description, command)
-- Input dataset metadata (names, descriptions, formats)
-- Dataset data profiles (when available): per-column summary statistics including distributions, missing data rates, and histograms
-- Dataset split statistics (when available): per-column statistics for each data split (train/test/validation)
-- Software source code used by the computation
-- Output dataset metadata (names, descriptions, formats)
+You will receive the computation's metadata, input/output datasets with data profiles (when available), and software source code.
 
-Your task is to produce a structured annotation of this computation step.
+Your task: produce a structured annotation that surfaces the assumptions this step relies on — what the analysis is built on, and what would change the interpretation if it turned out to be wrong.
 
-## Analysis Guidelines
+## What to Look For
 
-### Code Analysis (Deep)
-- Libraries and frameworks: Note specific libraries and whether they are standard choices
-- Data transformations: Trace transformations applied. Flag hidden assumptions
-- Statistical methods: Evaluate appropriateness for the data type and research question
-- Hardcoded values: Flag magic numbers and parameters that should be configurable
-- Error handling: Note whether edge cases are handled
+### Data Assumptions
+What properties of the input data does this step rely on? Consider: completeness, distribution shape, independence of observations, representativeness of the sample, encoding and formatting, absence of systematic missingness.
 
-### Methodology Assessment
-- Data leakage: Check for test/validation information leaking into training
-- Selection bias: Consider whether filtering steps introduce bias
-- Reproducibility: Random seeds, version pinning, parameter documentation
+### Methodological Assumptions
+What analytical choices were made, and what do they assume about the problem? Consider: model family appropriateness, distance/similarity metrics, evaluation strategy, splitting procedure, threshold values, handling of confounders.
 
-### Data Quality Assessment (when data profiles are provided)
-- Missing data: Flag columns with >10% missing. Consider if missingness is random or systematic and whether it could bias results
-- Distribution shape: Use histograms and quartiles to identify skew, multimodality, or outliers (compare mean vs median). Note if distributions look unexpected for the domain
-- Split balance: Compare row counts and distributions across train/test/validation splits. Flag significant imbalance or distribution drift that could indicate data leakage
-- Scale differences: Note features on very different scales (relevant for distance-based or gradient methods)
-- Categorical dominance: Flag categoricals where one value >90% frequency — near-constant features add noise
-- Low variance: Flag numerical columns where std is near zero relative to the mean
+### Software/Parameter Assumptions
+What do the code's defaults, hardcoded values, and library choices assume? Consider: parameter sensitivity, random seed presence, version-dependent behavior, implicit ordering.
 
-### Concern Severity Levels — READ CAREFULLY
-Every concern MUST be assigned exactly one of these three severity levels. Apply them strictly using the decision procedure below.
+## Impact Classification
 
-**CRITICAL — Conclusions cannot be trusted**
-The code produces results that are demonstrably wrong, or the methodology is fundamentally unsound such that the conclusions it supports are not warranted. You must be able to point to what the code actually does (or claims) that makes the output unreliable.
+Every assumption MUST be assigned exactly one impact level:
 
-Ask: "If a reader trusts this output at face value, will they be misled?"
+**CRITICAL** — The entire result rests on this. If this assumption is wrong, the main conclusions do not hold.
+Ask: "If this assumption fails, do the conclusions still stand?" If no → CRITICAL.
+Examples: training/test independence, outcome variable validity, core statistical model appropriateness.
 
-Applies when:
-- The code does X but reports it as Y (e.g., evaluates on training data, labels it "test accuracy")
-- A quantity is presented as measured or calibrated but is actually fabricated or an acknowledged guess
-- Information from the target/outcome leaks into the features or model inputs
-- A metric is used in a way that does not measure what it claims (e.g., treating UMAP distance as a statistical test of significance)
+**MAJOR** — Critical for a subset of results. If wrong, specific results break or change, but other portions of the analysis may still hold.
+Ask: "If this assumption fails, do specific results or secondary claims break?" If yes → MAJOR.
+Examples: default hyperparameters being adequate, a particular threshold choice, evaluation metric appropriateness for the data.
 
-Does NOT apply when:
-- A risk exists but the code handles it correctly
-- A methodology is claimed but not shown — that is unverifiable, not wrong
-- Something *could* go wrong if a downstream user misuses the output
+**MINOR** — Present but unlikely to change the main conclusions. Worth recording for reuse or extension.
+Ask: "Would correcting this change the results?" If no → MINOR.
+Examples: version pinning, input validation, documentation completeness.
 
-**MODERATE — Methodology has a real, demonstrable weakness**
-A reviewer would flag this as a gap that weakens confidence in the results, but the results are not necessarily wrong. The issue is concrete and present in the pipeline — not hypothetical.
+## Key Principles
+- State what the assumption IS, not just that something could go wrong. "Assumes input features are independently distributed" is better than "features might be correlated."
+- Be specific: name the parameter, the data property, the function.
+- Many well-written steps will have only MINOR assumptions. That is valid.
+- Do not manufacture assumptions to fill quotas.
+- Weave critical assumptions into the stepSummary itself — they are part of the story of what this step does.
+- If code is demonstrably wrong (produces misleading results), flag that as a CRITICAL assumption violation.
 
-Ask: "Does this weaken the strength of evidence, even if the conclusions might still be correct?"
+## Output
+- stepSummary: What this step does, why, and what critical assumptions it rests on.
+- codeAnalysis: Per software entity — summary, key functions, and assumptions (each with the structured format below).
+- inputSummaries: Per input dataset — role, description, dataQuality observations from data profile.
+- outputSummaries: Per output dataset — what it contains, dataQuality observations.
+- assumptions: Step-level assumptions. May be empty if the step makes no notable assumptions.
 
-Applies when:
-- Stochastic steps lack random seeds, so results are not reproducible across runs
-- Only a subset of available data is used without justification (e.g., one replicate of three)
-- Evaluation metrics are inappropriate for the data characteristics (e.g., accuracy on imbalanced classes)
-- Key parameters are hardcoded without sensitivity analysis and directly affect the results (e.g., similarity thresholds that determine network density)
-- No validation or calibration of a method whose accuracy is not self-evident
+Each assumption MUST be a structured object:
+{
+  impact: "CRITICAL" | "MAJOR" | "MINOR",
+  name: "Short label (3-8 words) — e.g. 'Train/test split independence'",
+  description: "Briefly describe what is being assumed",
+  downstreamImpacts: "What changes if this assumption is wrong — potential downstream effects",
+  evidence: { artifact: {"@id": "<@id of the data file or software entity>"}, location: "<line number, function name, or column name>" }
+}
 
-Does NOT apply when:
-- The code does not re-verify something already done correctly upstream
-- A parameter is hardcoded but has a reasonable default and low impact
-- A claimed process is not shown in code but there is no evidence it was done wrong
-
-**MINOR — Recommendations and best-practice gaps**
-Suggestions that would improve rigour, documentation, or robustness, but whose absence does not weaken the actual results or conclusions drawn from this pipeline.
-
-Ask: "Would fixing this change the results or conclusions?" If no, it is MINOR.
-
-Applies when:
-- Missing version pinning, dependency documentation, or environment specifications
-- No input validation or schema checks
-- Hardcoded parameters with low impact on results
-- Missing confidence intervals or uncertainty quantification (when results are otherwise sound)
-- Documentation gaps, typos, missing docstrings
-- Model artifacts not serialised
-
-### Decision procedure
-1. Can you point to specific code/output where the result is wrong or misleading? → CRITICAL
-2. No, but can you identify a concrete methodological gap that weakens the evidence? → MODERATE
-3. No, but you have a recommendation that would improve the work? → MINOR
-4. None of the above? → Do not raise a concern.
-
-### Key principles
-- There is no minimum number of concerns at any level. Many well-written computation steps will have zero CRITICAL and zero MODERATE concerns. That is a valid and expected outcome — report it as such.
-- Do not inflate severity to fill quotas. A concern list with 2 MINOR items is better analysis than one with fabricated CRITICAL findings.
-- Grade based on what the code *actually does*, not hypothetical scenarios where someone might misuse its outputs.
-- If the code handles something correctly, do not raise a concern about how a future user *could* get it wrong.
-- When in doubt between two levels, choose the lower one.
-
-Use ONLY these three levels. Do not invent additional levels like WARNING, INFO, or GOOD.
-
-### Output Requirements
-Return a structured annotation with:
-- stepSummary: A clear description of what this computation step does and why
-- codeAnalysis: For each software entity, provide a summary, key functions, and concerns (each concern as {level, description})
-- inputSummaries: For each input dataset, describe its role and include a dataQuality field with observations from the data profile (missing data, distribution issues, etc.) if statistics were provided
-- outputSummaries: For each output dataset, describe what it contains and include a dataQuality field with observations if statistics were provided
-- concerns: List any methodological, statistical, or reproducibility concerns (each as {level, description}). This list may be empty or contain only MINOR items if the step is methodologically sound.
-
-Be precise and evidence-based. Reference specific function names and parameter values.
-Acknowledge when methods are well-chosen."""
+Be precise and evidence-based. Reference specific function names and parameter values."""
 
 
-SYNTHESIS_SYSTEM_PROMPT = """You are a senior data scientist synthesizing annotations from all computation steps in a scientific provenance graph (RO-Crate) into a graph-level summary.
+DATASCI_SYNTHESIS_PROMPT = """You are a senior data scientist synthesizing step annotations from a scientific analysis pipeline (RO-Crate) into a coherent picture of what supports the pipeline's claims.
 
-You will receive:
-- The RO-Crate name and description
-- Step-by-step annotations for each computation in the pipeline
-- The pipeline's final outputs
+You will receive the RO-Crate overview and step-by-step annotations including assumptions.
 
-Your task is to produce:
-1. executiveSummary: 3-5 sentences covering what the pipeline does, its analytical approach, and the most important observation
-2. narrativeSummary: A forward-chronological story of the entire pipeline, starting from origin data and ending at final outputs
-3. keyFindings: Bulleted list of important observations, prioritized by severity
-4. concerns: Cross-cutting methodological, statistical, or reproducibility concerns that span the pipeline. Each concern must be a structured object with:
-   - level: One of CRITICAL, MODERATE, or MINOR (no other levels allowed)
-   - description: The concern text
+Produce:
+1. executiveSummary: 3-5 sentences covering what the pipeline does, its approach, and the most important critical assumptions it rests on. Weave the load-bearing assumptions into this summary.
+2. narrativeSummary: A forward-chronological story of the pipeline, explicitly noting where key assumptions enter and what claims they support. The reader should finish this knowing what the results depend on.
+3. keyFindings: Bulleted list of important observations about what the pipeline discovered.
+4. assumptions: Cross-cutting assumptions that span the pipeline, each as a structured object:
+   {impact, name, description, downstreamImpacts}
+   - impact: "CRITICAL" (if wrong, pipeline conclusions don't hold), "MAJOR" (if wrong, specific results break but others may hold), or "MINOR" (worth noting but won't change conclusions)
+   - name: Short label (3-8 words)
+   - description: What is being assumed
+   - downstreamImpacts: What changes if this assumption is wrong
 
-### Concern Severity — Apply the same rubric as step-level analysis
+Do NOT re-list every step-level assumption. Surface those that matter at the pipeline level — because they span steps, compound across steps, or are the most consequential for trusting the results. A pipeline with no CRITICAL assumptions at the graph level is valid if step-level ones don't compound."""
 
-**CRITICAL — Conclusions cannot be trusted.** The pipeline produces results that are demonstrably wrong or misleading. You must trace the flaw through specific computation steps. Ask: "If a reader trusts the final output at face value, will they be misled?"
 
-**MODERATE — Methodology has a real, demonstrable weakness.** A reviewer would flag this as weakening confidence, but results are not necessarily wrong. Ask: "Does this weaken the strength of evidence?"
+BIOSTAT_SYNTHESIS_PROMPT = """You are a biostatistician reviewing a scientific analysis pipeline (RO-Crate). Synthesize the step annotations into a perspective focused on statistical rigor and the assumptions that underpin the quantitative claims.
 
-**MINOR — Recommendations and best-practice gaps.** Would improve the work, but fixing it would not change the results or conclusions.
+You will receive the RO-Crate overview and step-by-step annotations including assumptions.
 
-### Decision procedure
-1. Can you trace a specific flaw through the pipeline that makes an output wrong or misleading? → CRITICAL
-2. No, but can you identify a concrete methodological gap that weakens the evidence? → MODERATE
-3. No, but you have a recommendation? → MINOR
+Produce:
+1. executiveSummary: 3-5 sentences on the pipeline's statistical approach and the critical statistical assumptions it rests on.
+2. narrativeSummary: Forward-chronological story emphasizing where statistical assumptions enter — distributional assumptions, independence assumptions, sample size considerations, multiple testing implications, model specification choices. The reader should understand the statistical scaffolding supporting the claims.
+3. keyFindings: Bulleted observations focused on statistical methodology — what was done well and what gaps exist.
+4. assumptions: Cross-cutting statistical assumptions, each as a structured object:
+   {impact, name, description, downstreamImpacts}
+   - impact: "CRITICAL" (core statistical assumptions, e.g. distributional assumptions, independence of observations), "MAJOR" (statistical choices that shape specific results, e.g. correction methods, model selection), or "MINOR" (minor statistical notes for reproducibility)
+   - name: Short label (3-8 words)
+   - description: What is being assumed
+   - downstreamImpacts: What changes if this assumption is wrong
 
-### Key principles
-- There is no minimum number of concerns at any level. A pipeline with zero CRITICAL and zero MODERATE concerns is a valid and expected outcome for well-constructed work. Report that clearly rather than manufacturing issues.
-- Do NOT escalate step-level concerns. If a step annotation flagged something as MINOR, do not promote it to MODERATE or CRITICAL unless a cross-step interaction demonstrably makes it worse.
-- Do NOT re-list every step-level concern. Only surface concerns that matter at the pipeline level — either because they span multiple steps, compound across steps, or are the most important findings.
-- Grade based on what the code actually does, not hypothetical misuse scenarios.
-- When in doubt between two levels, choose the lower one.
+Focus on what a statistician reviewing this work would want to verify. Do NOT re-list every step-level assumption."""
 
-Write as if explaining to a colleague. Be precise and evidence-based."""
+
+CLINICIAN_SYNTHESIS_PROMPT = """You are a clinician reviewing a scientific analysis pipeline (RO-Crate). Synthesize the step annotations into a perspective focused on clinical applicability and what assumptions must hold for these results to inform patient care.
+
+You will receive the RO-Crate overview and step-by-step annotations including assumptions.
+
+Produce:
+1. executiveSummary: 3-5 sentences on what clinical question this pipeline addresses and what critical assumptions must hold for the results to be clinically actionable.
+2. narrativeSummary: Forward-chronological story emphasizing clinical relevance — what patient population is assumed, what outcome measures are used and whether they map to clinical endpoints, what generalizability assumptions are made. The reader should understand what would need to be true for these results to apply in practice.
+3. keyFindings: Bulleted observations focused on clinical applicability — effect sizes, clinical vs statistical significance, population representativeness.
+4. assumptions: Cross-cutting clinical assumptions, each as a structured object:
+   {impact, name, description, downstreamImpacts}
+   - impact: "CRITICAL" (assumptions about patient population, outcome validity, clinical relevance that conclusions rest on), "MAJOR" (assumptions affecting how broadly or confidently specific results can be applied), or "MINOR" (notes for clinical context unlikely to change interpretation)
+   - name: Short label (3-8 words)
+   - description: What is being assumed
+   - downstreamImpacts: What changes if this assumption is wrong
+
+Focus on what a clinician deciding whether to act on these results would want to know. Do NOT re-list every step-level assumption."""
+
+
+# Audience configuration for synthesis
+AUDIENCE_CONFIGS = [
+    {
+        "key": "biostat",
+        "label": "Biostatistician",
+        "prompt": BIOSTAT_SYNTHESIS_PROMPT,
+    },
+    {
+        "key": "clinician",
+        "label": "Clinician",
+        "prompt": CLINICIAN_SYNTHESIS_PROMPT,
+    },
+]
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +270,7 @@ class GraphSynthesisResult(BaseModel):
     executiveSummary: str
     narrativeSummary: str
     keyFindings: List[str] = []
-    concerns: List[LLMConcern] = []
+    assumptions: List[LLMAssumption] = []
 
 
 # ---------------------------------------------------------------------------
@@ -362,18 +398,20 @@ def _format_dataset_stats(ds_name: str, ds_stats: dict) -> str:
             if mc is not None:
                 total_missing += mc
 
-        truncated = total_cols > MAX_STATS_COLUMNS
-        display_cols = columns[:MAX_STATS_COLUMNS]
+        # Skip detailed stats for wide datasets (>10 columns) to keep prompts small
+        if total_cols > 10:
+            parts.append(f"#### Data Profile: {ds_name} ({total_cols} columns, ~{row_count} rows, {total_missing} missing values)")
+            parts.append("*(Column-level statistics omitted for wide dataset)*")
+            parts.append("")
+        else:
+            display_cols = columns
 
-        parts.append(f"#### Data Profile: {ds_name} ({total_cols} columns, ~{row_count} rows, {total_missing} missing values)")
-        parts.append("| Column | Type | Count | Missing% | Mean/Top | Std/Unique | Min | Q1 | Median | Q3 | Max | Hist |")
-        parts.append("|--------|------|-------|----------|----------|------------|-----|----|----|----|----|------|")
-        for col_name, col_data in display_cols:
-            parts.append(_format_column_stats(col_name, col_data))
-
-        if truncated:
-            parts.append(f"| ... | | | | | | | | | | | *{total_cols - MAX_STATS_COLUMNS} more columns omitted* |")
-        parts.append("")
+            parts.append(f"#### Data Profile: {ds_name} ({total_cols} columns, ~{row_count} rows, {total_missing} missing values)")
+            parts.append("| Column | Type | Count | Missing% | Mean/Top | Std/Unique | Min | Q1 | Median | Q3 | Max | Hist |")
+            parts.append("|--------|------|-------|----------|----------|------------|-----|----|----|----|----|------|")
+            for col_name, col_data in display_cols:
+                parts.append(_format_column_stats(col_name, col_data))
+            parts.append("")
 
     # --- Split statistics ---
     if split_stats:
@@ -399,16 +437,17 @@ def _format_dataset_stats(ds_name: str, ds_stats: dict) -> str:
             parts.append(label)
 
             split_columns = list(split_col_stats.items())
-            display_split_cols = split_columns[:MAX_STATS_COLUMNS]
 
-            parts.append("| Column | Type | Count | Missing% | Mean/Top | Std/Unique | Min | Q1 | Median | Q3 | Max | Hist |")
-            parts.append("|--------|------|-------|----------|----------|------------|-----|----|----|----|----|------|")
-            for col_name, col_data in display_split_cols:
-                parts.append(_format_column_stats(col_name, col_data))
-
-            if len(split_columns) > MAX_STATS_COLUMNS:
-                parts.append(f"| ... | | | | | | | | | | | *{len(split_columns) - MAX_STATS_COLUMNS} more columns omitted* |")
-            parts.append("")
+            # Skip detailed split stats for wide datasets
+            if len(split_columns) > 10:
+                parts.append(f"*({len(split_columns)} columns, stats omitted for wide dataset)*")
+                parts.append("")
+            else:
+                parts.append("| Column | Type | Count | Missing% | Mean/Top | Std/Unique | Min | Q1 | Median | Q3 | Max | Hist |")
+                parts.append("|--------|------|-------|----------|----------|------------|-----|----|----|----|----|------|")
+                for col_name, col_data in split_columns:
+                    parts.append(_format_column_stats(col_name, col_data))
+                parts.append("")
 
         if truncated_splits:
             parts.append(f"*... {total_splits - MAX_SPLITS} more splits omitted*\n")
@@ -754,8 +793,10 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         # Input datasets
         input_refs = _resolve_refs(computation.get("usedDataset"))
         if input_refs:
+            truncated_inputs = len(input_refs) > MAX_PROMPT_DATASETS
+            display_inputs = input_refs[:MAX_PROMPT_DATASETS]
             parts.append("## Input Datasets")
-            for ds_id in input_refs:
+            for ds_id in display_inputs:
                 ds_node = index.get(ds_id, {})
                 ds_name = ds_node.get('name', ds_id)
                 parts.append(f"- **{ds_name}** ({ds_node.get('format', 'unknown format')})")
@@ -769,6 +810,8 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                     if formatted:
                         parts.append("")
                         parts.append(formatted)
+            if truncated_inputs:
+                parts.append(f"*({len(input_refs) - MAX_PROMPT_DATASETS} more input datasets omitted)*")
             parts.append("")
 
         # Software and source code
@@ -791,8 +834,10 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         # Output datasets
         output_refs = _resolve_refs(computation.get("generated"))
         if output_refs:
+            truncated_outputs = len(output_refs) > MAX_PROMPT_DATASETS
+            display_outputs = output_refs[:MAX_PROMPT_DATASETS]
             parts.append("## Output Datasets")
-            for ds_id in output_refs:
+            for ds_id in display_outputs:
                 ds_node = index.get(ds_id, {})
                 ds_name = ds_node.get('name', ds_id)
                 parts.append(f"- **{ds_name}** ({ds_node.get('format', 'unknown format')})")
@@ -804,6 +849,8 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                     if formatted:
                         parts.append("")
                         parts.append(formatted)
+            if truncated_outputs:
+                parts.append(f"*({len(output_refs) - MAX_PROMPT_DATASETS} more output datasets omitted)*")
             parts.append("")
 
         prompt = "\n".join(parts)
@@ -830,7 +877,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                 name=ca.name,
                 summary=ca.summary,
                 keyFunctions=ca.keyFunctions,
-                concerns=[normalize_concern(c) for c in (ca.concerns or [])],
+                assumptions=[normalize_assumption(c) for c in (ca.assumptions or [])],
             )
             for ca in (llm_result.codeAnalysis or [])
         ]
@@ -867,7 +914,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             "evi:codeAnalysis": [ca.model_dump(by_alias=True) for ca in code_analyses],
             "evi:inputSummaries": [ds.model_dump(by_alias=True) for ds in input_summaries],
             "evi:outputSummaries": [ds.model_dump(by_alias=True) for ds in output_summaries],
-            "evi:concerns": [normalize_concern(c).model_dump() for c in (llm_result.concerns or [])],
+            "evi:assumptions": [normalize_assumption(a).model_dump() for a in (llm_result.assumptions or [])],
             "evi:llmModel": llm_model,
             "evi:llmTemperature": temperature,
             "dateCreated": now,
@@ -894,7 +941,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             retries=3,
         )
 
-        result = await agent.run(prompt)
+        result = await _run_agent_with_retry(agent, prompt)
         llm_output: LLMComputationAnnotation = result.output
 
         # Persist raw LLM output for debugging
@@ -919,8 +966,9 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         index: dict,
         llm_model: str,
         temperature: float,
-        max_workers: int = 4,
+        max_workers: int = 2,
         stats_cache: Optional[Dict[str, dict]] = None,
+        rate_limiter: Optional["AsyncRateLimiter"] = None,
     ) -> List[AnnotatedComputation]:
         """Annotate all computations concurrently via asyncio.gather."""
         self._update_task(task_guid, {
@@ -928,36 +976,35 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             "status": "PROMPTING",
         })
 
-        sem = asyncio.Semaphore(max_workers)
-
         async def _annotate_one(comp):
             comp_id = comp.get("@id", "unknown")
-            async with sem:
-                try:
-                    annotated = await self._annotate_single_computation(
-                        task_guid, comp, software_cache, index, llm_model, temperature,
-                        stats_cache=stats_cache,
-                    )
-                    self.config.asyncCollection.update_one(
-                        {"guid": task_guid, "computation_details.computation_id": comp_id},
-                        {"$set": {"computation_details.$.status": "done"}}
-                    )
-                    return ("ok", comp_id, annotated)
-                except Exception as e:
-                    logger.error(f"Failed to annotate computation {comp_id}: {e}")
-                    self.config.asyncCollection.update_one(
-                        {"guid": task_guid, "computation_details.computation_id": comp_id},
-                        {"$set": {
-                            "computation_details.$.status": "error",
-                            "computation_details.$.error": str(e),
-                        }}
-                    )
-                    return ("error", comp_id, str(e))
-                finally:
-                    self.config.asyncCollection.update_one(
-                        {"guid": task_guid},
-                        {"$inc": {"completed_computations": 1}}
-                    )
+            if rate_limiter:
+                await rate_limiter.acquire()
+            try:
+                annotated = await self._annotate_single_computation(
+                    task_guid, comp, software_cache, index, llm_model, temperature,
+                    stats_cache=stats_cache,
+                )
+                self.config.asyncCollection.update_one(
+                    {"guid": task_guid, "computation_details.computation_id": comp_id},
+                    {"$set": {"computation_details.$.status": "done"}}
+                )
+                return ("ok", comp_id, annotated)
+            except Exception as e:
+                logger.error(f"Failed to annotate computation {comp_id}: {e}")
+                self.config.asyncCollection.update_one(
+                    {"guid": task_guid, "computation_details.computation_id": comp_id},
+                    {"$set": {
+                        "computation_details.$.status": "error",
+                        "computation_details.$.error": str(e),
+                    }}
+                )
+                return ("error", comp_id, str(e))
+            finally:
+                self.config.asyncCollection.update_one(
+                    {"guid": task_guid},
+                    {"$inc": {"completed_computations": 1}}
+                )
 
         outcomes = await asyncio.gather(*[_annotate_one(c) for c in computations])
 
@@ -979,34 +1026,26 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         index: dict,
         llm_model: str,
         temperature: float,
-        max_workers: int = 4,
+        max_workers: int = 2,
         stats_cache: Optional[Dict[str, dict]] = None,
+        rate_limiter: Optional["AsyncRateLimiter"] = None,
     ) -> List[AnnotatedComputation]:
         """Annotate computations concurrently using async I/O."""
         return run_async(self._annotate_computations_async(
             task_guid, computations, software_cache, index, llm_model, temperature, max_workers,
-            stats_cache=stats_cache,
+            stats_cache=stats_cache, rate_limiter=rate_limiter,
         ))
 
     # ------------------------------------------------------------------
     # Step 5: Graph-level synthesis
     # ------------------------------------------------------------------
 
-    def synthesize_graph(
+    def _build_synthesis_prompt(
         self,
-        task_guid: str,
         root_node: dict,
         step_annotations: List[AnnotatedComputation],
-        llm_model: str,
-        temperature: float,
-    ) -> GraphSynthesisResult:
-        """Synthesize graph-level summary from all step annotations."""
-        self._update_task(task_guid, {
-            "current_step": "SYNTHESIZING",
-            "status": "SYNTHESIZING",
-        })
-
-        # Build synthesis prompt
+    ) -> str:
+        """Build the shared synthesis prompt from step annotations."""
         parts = []
         parts.append("## RO-Crate Overview")
         parts.append(f"**Name:** {root_node.get('name', 'Unknown')}")
@@ -1019,35 +1058,75 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         for i, ann in enumerate(step_annotations, 1):
             parts.append(f"### Step {i}: {ann.annotates}")
             parts.append(f"**Summary:** {ann.stepSummary}")
-            if ann.concerns:
-                parts.append(f"**Concerns:** {'; '.join(f'[{c.level.value}] {c.description}' for c in ann.concerns)}")
+            if ann.assumptions:
+                parts.append(f"**Assumptions:** {'; '.join(f'[{a.impact.value}] {a.description}' for a in ann.assumptions)}")
             if ann.codeAnalysis:
                 for ca in ann.codeAnalysis:
                     parts.append(f"**Code ({ca.name or ca.software}):** {ca.summary}")
             parts.append("")
 
-        prompt = "\n".join(parts)
+        return "\n".join(parts)
 
-        async def _run_synthesis():
-            agent = Agent(
-                llm_model,
-                output_type=GraphSynthesisResult,
-                system_prompt=SYNTHESIS_SYSTEM_PROMPT,
-                retries=2,
-            )
-            result = await agent.run(prompt)
-            return result.output
+    def synthesize_graph(
+        self,
+        task_guid: str,
+        root_node: dict,
+        step_annotations: List[AnnotatedComputation],
+        llm_model: str,
+        temperature: float,
+        rate_limiter: Optional["AsyncRateLimiter"] = None,
+    ) -> Tuple[GraphSynthesisResult, List[dict]]:
+        """Synthesize graph-level summary from all step annotations.
 
-        synthesis = run_async(_run_synthesis())
+        Returns (datasci_synthesis, audience_perspectives) where
+        audience_perspectives is a list of AudiencePerspective dicts.
+        """
+        self._update_task(task_guid, {
+            "current_step": "SYNTHESIZING",
+            "status": "SYNTHESIZING",
+        })
 
-        # Persist raw LLM output for debugging
-        self._save_llm_result(
-            task_guid,
-            "synthesis",
-            synthesis.model_dump(mode="json"),
-        )
+        prompt = self._build_synthesis_prompt(root_node, step_annotations)
 
-        return synthesis
+        async def _run_all_syntheses():
+            # Run data scientist + audience syntheses in parallel
+            async def _run_one(system_prompt: str, label: str) -> GraphSynthesisResult:
+                if rate_limiter:
+                    await rate_limiter.acquire()
+                agent = Agent(
+                    llm_model,
+                    output_type=GraphSynthesisResult,
+                    system_prompt=system_prompt,
+                    retries=2,
+                )
+                result = await _run_agent_with_retry(agent, prompt)
+                self._save_llm_result(task_guid, label, result.output.model_dump(mode="json"))
+                return result.output
+
+            tasks = [_run_one(DATASCI_SYNTHESIS_PROMPT, "synthesis:datasci")]
+            # for aud in AUDIENCE_CONFIGS:
+            #     tasks.append(_run_one(aud["prompt"], f"synthesis:{aud['key']}"))
+
+            return await asyncio.gather(*tasks)
+
+        results = run_async(_run_all_syntheses())
+
+        datasci_synthesis = results[0]
+        audience_perspectives = []
+        for i, aud in enumerate(AUDIENCE_CONFIGS):
+            if i + 1 >= len(results):
+                break
+            aud_result = results[i + 1]
+            audience_perspectives.append({
+                "targetAudience": aud["key"],
+                "audienceLabel": aud["label"],
+                "executiveSummary": aud_result.executiveSummary,
+                "narrativeSummary": aud_result.narrativeSummary,
+                "keyFindings": aud_result.keyFindings,
+                "assumptions_raw": aud_result.assumptions,  # LLMAssumption list, normalized later
+            })
+
+        return datasci_synthesis, audience_perspectives
 
     # ------------------------------------------------------------------
     # Step 6: Build and store AnnotatedEvidenceGraph
@@ -1061,6 +1140,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         graph: list,
         step_annotations: List[AnnotatedComputation],
         synthesis: GraphSynthesisResult,
+        audience_perspectives: List[dict],
         llm_model: str,
         temperature: float,
     ) -> str:
@@ -1110,22 +1190,51 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         # Build step annotation refs
         step_ann_refs = [{"@id": ann.guid} for ann in step_annotations]
 
-        # Compile graph-level concerns from step annotations with source links
-        compiled_concerns = []
+        # Compile graph-level assumptions from step annotations with source links
+        compiled_assumptions = []
         for ann in step_annotations:
-            for concern in (ann.concerns or []):
-                compiled_concerns.append(GraphConcern(
-                    level=concern.level,
-                    description=concern.description,
+            for assumption in (ann.assumptions or []):
+                compiled_assumptions.append(GraphAssumption(
+                    impact=assumption.impact,
+                    name=assumption.name,
+                    description=assumption.description,
+                    downstreamImpacts=assumption.downstreamImpacts,
+                    evidence=assumption.evidence,
                     sourceAnnotation={"@id": ann.guid},
                 ))
-        # Add synthesis-level concerns (not tied to a single step)
-        for llm_concern in (synthesis.concerns or []):
-            normalized = normalize_concern(llm_concern)
-            compiled_concerns.append(GraphConcern(
-                level=normalized.level,
+        # Add synthesis-level assumptions (not tied to a single step)
+        for llm_assumption in (synthesis.assumptions or []):
+            normalized = normalize_assumption(llm_assumption)
+            compiled_assumptions.append(GraphAssumption(
+                impact=normalized.impact,
+                name=normalized.name,
                 description=normalized.description,
+                downstreamImpacts=normalized.downstreamImpacts,
+                evidence=normalized.evidence,
                 sourceAnnotation={"@id": rocrate_id},
+            ))
+
+        # Build audience perspectives with normalized assumptions
+        audiences = []
+        for aud_data in audience_perspectives:
+            aud_assumptions = []
+            for llm_a in (aud_data.get("assumptions_raw") or []):
+                normalized = normalize_assumption(llm_a)
+                aud_assumptions.append(GraphAssumption(
+                    impact=normalized.impact,
+                    name=normalized.name,
+                    description=normalized.description,
+                    downstreamImpacts=normalized.downstreamImpacts,
+                    evidence=normalized.evidence,
+                    sourceAnnotation={"@id": rocrate_id},
+                ))
+            audiences.append(AudiencePerspective(
+                targetAudience=aud_data["targetAudience"],
+                audienceLabel=aud_data["audienceLabel"],
+                executiveSummary=aud_data["executiveSummary"],
+                narrativeSummary=aud_data["narrativeSummary"],
+                keyFindings=aud_data.get("keyFindings", []),
+                assumptions=aud_assumptions,
             ))
 
         # Extract NAAN from rocrate_id for the new identifier
@@ -1150,7 +1259,8 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             "evi:executiveSummary": synthesis.executiveSummary,
             "evi:narrativeSummary": synthesis.narrativeSummary,
             "evi:keyFindings": synthesis.keyFindings,
-            "evi:concerns": [c.model_dump(by_alias=True, mode="json") for c in compiled_concerns],
+            "evi:assumptions": [a.model_dump(by_alias=True, mode="json") for a in compiled_assumptions],
+            "evi:audiences": [a.model_dump(by_alias=True, mode="json") for a in audiences],
             "evi:stepAnnotations": step_ann_refs,
             "evi:llmModel": llm_model,
             "evi:llmTemperature": temperature,
@@ -1217,6 +1327,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         rocrate_id = task_doc["rocrate_id"]
         llm_model = task_doc.get("llm_model", "google-gla:gemini-2.5-flash-lite")
         temperature = task_doc.get("llm_temperature", 0.2)
+        rate_limiter = AsyncRateLimiter(max_requests=2, window_seconds=10.0)
 
         # # Diagnostic: confirm which API key and model are in use
         # raw_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -1246,21 +1357,23 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             # Step 3b: Pre-fetch dataset statistics
             stats_cache = self.prefetch_dataset_statistics(task_guid, computations, index)
 
-            # Step 4: Annotate computations in parallel
+            # Step 4: Annotate computations (paced by rate limiter)
             step_annotations = self.annotate_computations_parallel(
                 task_guid, computations, software_cache, index, llm_model, temperature,
-                stats_cache=stats_cache,
+                stats_cache=stats_cache, rate_limiter=rate_limiter,
             )
 
-            # Step 5: Graph-level synthesis
-            synthesis = self.synthesize_graph(
+            # Step 5: Graph-level synthesis (paced by rate limiter)
+            synthesis, audience_perspectives = self.synthesize_graph(
                 task_guid, root_node, step_annotations, llm_model, temperature,
+                rate_limiter=rate_limiter,
             )
 
             # Step 6: Build and store
             aeg_id = self.build_and_store(
                 task_guid, rocrate_id, condensed_id, graph,
-                step_annotations, synthesis, llm_model, temperature,
+                step_annotations, synthesis, audience_perspectives,
+                llm_model, temperature,
             )
 
             # Success

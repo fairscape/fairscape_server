@@ -19,42 +19,94 @@ ANNOTATED_COMPUTATION_TYPE = "AnnotatedComputation"
 
 
 # ---------------------------------------------------------------------------
-# Concern severity levels
+# Assumption impact levels
 # ---------------------------------------------------------------------------
 
-class ConcernLevel(str, Enum):
-    """Exactly three severity levels for annotation concerns."""
+class AssumptionImpact(str, Enum):
+    """How much this assumption matters for trusting/reusing results."""
     CRITICAL = "CRITICAL"
-    MODERATE = "MODERATE"
+    MAJOR = "MAJOR"
     MINOR = "MINOR"
 
 
-class Concern(BaseModel):
-    """A structured concern with a severity level."""
-    level: ConcernLevel
+class EvidencePointer(BaseModel):
+    """Points to the specific artifact and location supporting an assumption."""
+    model_config = ConfigDict(extra="allow")
+
+    artifact: IdentifierValue = Field(description='{"@id": "ark:..."} pointing to data file or software')
+    location: Optional[str] = Field(default=None, description="Specific location, e.g. line number, function name, column name")
+
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_artifact(cls, values):
+        """Accept various LLM artifact formats and normalize to IdentifierValue."""
+        if not isinstance(values, dict):
+            return values
+        artifact = values.get("artifact")
+        if artifact is None:
+            return values
+        if isinstance(artifact, str):
+            values["artifact"] = {"@id": artifact}
+        elif isinstance(artifact, dict) and "@id" not in artifact:
+            # LLM may return {guid: "ark:..."} or {id: "ark:..."} etc
+            ark_id = (
+                artifact.get("guid")
+                or artifact.get("id")
+                or artifact.get("@id")
+                or next(iter(artifact.values()), None)
+            )
+            if ark_id:
+                values["artifact"] = {"@id": str(ark_id)}
+        return values
+
+
+class Assumption(BaseModel):
+    """A structured assumption with an impact level."""
+    impact: AssumptionImpact
+    name: str = Field(default="", description="Short label for the assumption (3-8 words)")
     description: str
+    downstreamImpacts: Optional[str] = Field(default=None, description="What changes if this assumption is wrong")
+    evidence: Optional[EvidencePointer] = Field(default=None, description="Pointer to supporting artifact")
 
 
-class LLMConcern(BaseModel):
-    """What the LLM returns for a concern (level as str for flexibility)."""
-    level: str = Field(description="One of: CRITICAL, MODERATE, MINOR")
+class LLMAssumption(BaseModel):
+    """What the LLM returns for an assumption (impact as str for flexibility)."""
+    impact: str = Field(description="One of: CRITICAL, MAJOR, MINOR")
+    name: str = Field(default="", description="Short label for this assumption (3-8 words)")
     description: str
+    downstreamImpacts: Optional[str] = Field(default=None, description="What changes downstream if this assumption is wrong")
+    evidence: Optional[dict] = Field(default=None, description='Pointer: {artifact: {"@id": "ark:..."}, location: "..."}')
 
 
-def normalize_concern(llm_concern: LLMConcern) -> Concern:
-    """Convert an LLMConcern to a validated Concern, normalizing the level."""
-    raw = llm_concern.level.strip().upper()
+def normalize_assumption(llm_assumption: LLMAssumption) -> Assumption:
+    """Convert an LLMAssumption to a validated Assumption, normalizing the impact."""
+    raw = llm_assumption.impact.strip().upper()
     try:
-        level = ConcernLevel(raw)
+        impact = AssumptionImpact(raw)
     except ValueError:
-        # Fallback: map common alternatives
-        if "CRIT" in raw:
-            level = ConcernLevel.CRITICAL
-        elif "MOD" in raw or "WARN" in raw:
-            level = ConcernLevel.MODERATE
+        # Fallback: map common alternatives, old concern levels, and legacy names
+        if "CRIT" in raw or "FOUND" in raw:
+            impact = AssumptionImpact.CRITICAL
+        elif "MAJ" in raw or "CONSEQ" in raw or "SIG" in raw or "MOD" in raw or "WARN" in raw:
+            impact = AssumptionImpact.MAJOR
         else:
-            level = ConcernLevel.MINOR
-    return Concern(level=level, description=llm_concern.description)
+            impact = AssumptionImpact.MINOR
+
+    evidence = None
+    if llm_assumption.evidence and isinstance(llm_assumption.evidence, dict):
+        try:
+            evidence = EvidencePointer.model_validate(llm_assumption.evidence)
+        except Exception:
+            # If evidence can't be parsed, skip it rather than failing
+            pass
+
+    return Assumption(
+        impact=impact,
+        name=getattr(llm_assumption, "name", "") or "",
+        description=llm_assumption.description,
+        downstreamImpacts=getattr(llm_assumption, "downstreamImpacts", None),
+        evidence=evidence,
+    )
 
 
 class CodeAnalysis(BaseModel):
@@ -65,7 +117,7 @@ class CodeAnalysis(BaseModel):
     name: Optional[str] = Field(default=None)
     summary: str
     keyFunctions: Optional[List[str]] = Field(default=None)
-    concerns: Optional[List[Concern]] = Field(default=None)
+    assumptions: Optional[List[Assumption]] = Field(default=None)
 
 
 class DatasetSummary(BaseModel):
@@ -89,7 +141,7 @@ class LLMCodeAnalysis(BaseModel):
     name: Optional[str] = Field(default=None)
     summary: str
     keyFunctions: Optional[List[str]] = Field(default=None)
-    concerns: Optional[List[LLMConcern]] = Field(default=None)
+    assumptions: Optional[List[LLMAssumption]] = Field(default=None)
 
 
 class LLMDatasetSummary(BaseModel):
@@ -107,7 +159,7 @@ class LLMComputationAnnotation(BaseModel):
     codeAnalysis: Optional[List[LLMCodeAnalysis]] = Field(default=[])
     inputSummaries: Optional[List[LLMDatasetSummary]] = Field(default=[])
     outputSummaries: Optional[List[LLMDatasetSummary]] = Field(default=[])
-    concerns: Optional[List[LLMConcern]] = Field(default=[])
+    assumptions: Optional[List[LLMAssumption]] = Field(default=[])
 
 
 class AnnotatedComputation(DigitalObject):
@@ -135,7 +187,7 @@ class AnnotatedComputation(DigitalObject):
     codeAnalysis: Optional[List[CodeAnalysis]] = Field(default=[], alias="evi:codeAnalysis")
     inputSummaries: Optional[List[DatasetSummary]] = Field(default=[], alias="evi:inputSummaries")
     outputSummaries: Optional[List[DatasetSummary]] = Field(default=[], alias="evi:outputSummaries")
-    concerns: Optional[List[Concern]] = Field(default=[], alias="evi:concerns")
+    assumptions: Optional[List[Assumption]] = Field(default=[], alias="evi:assumptions")
 
     # Provenance of the annotation itself
     llmModel: str = Field(alias="evi:llmModel")

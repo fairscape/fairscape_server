@@ -353,7 +353,7 @@ def process_llm_assist_task(self, task_guid: str):
         )
         return {"status": "FAILURE", "error": error_msg}
     
-@celeryApp.task(name='fairscape_mds.worker.interpret_rocrate_task', bind=True)
+@celeryApp.task(name='fairscape_mds.worker.interpret_rocrate_task', bind=True, rate_limit='6/m')
 def interpret_rocrate_task(self, task_guid: str, rocrate_id: str, llm_model: str = "google-gla:gemini-2.5-flash", temperature: float = 0.2, user_token: str = ""):
     print(f"Starting Interpretation Task: {task_guid} for {rocrate_id}")
 
@@ -382,5 +382,5 @@ def interpret_rocrate_task(self, task_guid: str, rocrate_id: str, llm_model: str
 
 
 if __name__ == '__main__':
-    args = ['worker', '--loglevel=INFO']
+    args = ['worker', '--loglevel=INFO', '--concurrency=1']
     celeryApp.worker_main(argv=args)

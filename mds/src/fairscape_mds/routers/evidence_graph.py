@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from fastapi.responses import JSONResponse
 from typing import Annotated, List, Dict
+import logging
 import uuid
+
+logger = logging.getLogger(__name__)
 
 from fairscape_mds.models.user import UserWriteModel
 from fairscape_mds.models.evidence_graph import EvidenceGraph, EvidenceGraphCreate, EvidenceGraphBuildRequest
@@ -118,7 +121,7 @@ def initiate_build_evidence_graph_for_node_route(
         task_request_model = EvidenceGraphBuildRequest.model_validate(task_request_data)
         appConfig.asyncCollection.insert_one(task_request_model.model_dump(by_alias=True))
     except Exception as e:
-        print(f"Failed to create task record for evidence graph build: {e}")
+        logger.error("Failed to create task record for evidence graph build: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to initiate evidence graph build task."
@@ -150,5 +153,5 @@ def get_build_evidence_graph_status_route(
         task_model = EvidenceGraphBuildRequest.model_validate(task_status_doc)
         return task_model
     except Exception as e:
-        print(f"Data validation error for task {task_id}: {e}")
+        logger.error("Data validation error for task %s: %s", task_id, e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error retrieving task status.")

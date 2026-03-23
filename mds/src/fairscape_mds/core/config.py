@@ -159,8 +159,7 @@ celeryApp.conf.result_backend = "redis://" + settings.FAIRSCAPE_REDIS_HOST + ":"
 
 
 celeryApp.conf.update(
-    task_concurrency=4,  # Use 4 threads for concurrency
-    worker_prefetch_multiplier=4  # Prefetch one task at a time
+    worker_prefetch_multiplier=1  # Process one task at a time
 )
 
 

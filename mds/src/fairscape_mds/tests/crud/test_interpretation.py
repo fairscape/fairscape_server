@@ -308,7 +308,7 @@ class TestAnnotatedComputationModel:
                     "name": "preprocess.py",
                     "summary": "Reads CSV, drops NaN, normalizes columns",
                     "keyFunctions": ["clean_data", "normalize"],
-                    "concerns": ["No logging of dropped rows"],
+                    "assumptions": ["No logging of dropped rows"],
                 }
             ],
             "evi:inputSummaries": [
@@ -326,7 +326,7 @@ class TestAnnotatedComputationModel:
                     "role": "Cleaned output",
                 }
             ],
-            "evi:concerns": ["No random seed set"],
+            "evi:assumptions": ["No random seed set"],
             "evi:llmModel": "gemini-2.5-flash",
             "evi:llmTemperature": 0.2,
             "dateCreated": "2025-01-15T12:00:00",
@@ -354,7 +354,7 @@ class TestAnnotatedEvidenceGraphModel:
             "evi:executiveSummary": "This pipeline preprocesses and analyzes experimental data.",
             "evi:narrativeSummary": "The pipeline starts with raw data and produces analysis results.",
             "evi:keyFindings": ["Data is properly normalized", "No random seeds used"],
-            "evi:concerns": ["Reproducibility could be improved"],
+            "evi:assumptions": ["Reproducibility could be improved"],
             "evi:stepAnnotations": [
                 {"@id": "ark:59853/annotated-computation-1"},
                 {"@id": "ark:59853/annotated-computation-2"},
@@ -378,7 +378,7 @@ class TestGraphSynthesisResult:
             executiveSummary="The pipeline processes data.",
             narrativeSummary="Starting from raw data, the pipeline...",
             keyFindings=["Finding 1", "Finding 2"],
-            concerns=["Concern 1"],
+            assumptions=["Assumption 1"],
         )
         assert result.executiveSummary == "The pipeline processes data."
         assert len(result.keyFindings) == 2

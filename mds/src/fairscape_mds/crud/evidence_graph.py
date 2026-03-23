@@ -54,7 +54,6 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
             )
 
             insert_data = stored_identifier.model_dump(by_alias=True, mode="json")
-            logger.warning(f"insert_data after model_dump: {insert_data}")
             result = self.config.identifierCollection.insert_one(insert_data)
             if result.inserted_id:
                 return FairscapeResponse(success=True, statusCode=201, model=stored_identifier)
@@ -126,7 +125,7 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
             )
             if existing_graph_data:
                 try:
-                    print("Returning existing graph")
+                    logger.debug("Returning existing graph for %s", existing_graph_id)
                     stored_identifier = StoredIdentifier.model_validate(existing_graph_data)
                     return FairscapeResponse(
                         success=True,

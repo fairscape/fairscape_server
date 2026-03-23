@@ -11,16 +11,29 @@ from typing import Optional, List, Union, Dict, Any
 
 from fairscape_models.fairscape_base import IdentifierValue
 from fairscape_models.digital_object import DigitalObject
-from fairscape_mds.models.annotated_computation import ConcernLevel
+from fairscape_mds.models.annotated_computation import AssumptionImpact, EvidencePointer
 
 ANNOTATED_EVIDENCE_GRAPH_TYPE = "AnnotatedEvidenceGraph"
 
 
-class GraphConcern(BaseModel):
-    """A graph-level concern linked to its source annotation."""
-    level: ConcernLevel
+class GraphAssumption(BaseModel):
+    """A graph-level assumption linked to its source annotation."""
+    impact: AssumptionImpact
+    name: str = Field(default="", description="Short label for the assumption")
     description: str
+    downstreamImpacts: Optional[str] = Field(default=None, description="What changes if this assumption is wrong")
+    evidence: Optional[EvidencePointer] = Field(default=None, description="Pointer to supporting artifact")
     sourceAnnotation: IdentifierValue
+
+
+class AudiencePerspective(BaseModel):
+    """Audience-specific synthesis of the annotated evidence graph."""
+    targetAudience: str
+    audienceLabel: str
+    executiveSummary: str
+    narrativeSummary: str
+    keyFindings: Optional[List[str]] = Field(default=[])
+    assumptions: Optional[List[GraphAssumption]] = Field(default=[])
 
 
 class AnnotatedEvidenceGraph(DigitalObject):
@@ -47,11 +60,14 @@ class AnnotatedEvidenceGraph(DigitalObject):
     # Flat entity lookup -- all entities keyed by ARK @id
     graph: Dict[str, Any] = Field(..., alias="@graph")
 
-    # Graph-level LLM outputs
+    # Graph-level LLM outputs (data scientist perspective — the default)
     executiveSummary: str = Field(..., alias="evi:executiveSummary")
     narrativeSummary: str = Field(..., alias="evi:narrativeSummary")
     keyFindings: Optional[List[str]] = Field(default=[], alias="evi:keyFindings")
-    concerns: Optional[List[GraphConcern]] = Field(default=[], alias="evi:concerns")
+    assumptions: Optional[List[GraphAssumption]] = Field(default=[], alias="evi:assumptions")
+
+    # Audience-specific perspectives (biostatistician, clinician, etc.)
+    audiences: Optional[List[AudiencePerspective]] = Field(default=[], alias="evi:audiences")
 
     # Quick index of all AnnotatedComputation @ids in the graph
     stepAnnotations: Optional[List[IdentifierValue]] = Field(default=[], alias="evi:stepAnnotations")
