@@ -25,7 +25,7 @@ from fairscape_mds.models.annotated_computation import (
     Assumption, LLMAssumption, AssumptionImpact, normalize_assumption,
 )
 from fairscape_mds.models.annotated_evidence_graph import (
-    AnnotatedEvidenceGraph, GraphAssumption, AudiencePerspective,
+    AnnotatedEvidenceGraph, GraphAssumption, AudiencePerspective, DataOverview,
 )
 
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
@@ -1248,6 +1248,42 @@ class FairscapeInterpretationRequest(FairscapeRequest):
 
         now = datetime.datetime.utcnow().isoformat()
 
+        # Build the overview from RO-Crate metadata
+        root_entity = graph_dict.get(rocrate_id, {})
+        root_name = root_entity.get("name", "")
+        root_desc = root_entity.get("description", "")
+        if root_name and root_desc:
+            overview_description = f"{root_name}. {root_desc}"
+        else:
+            overview_description = root_name or root_desc or "No description available"
+
+        # Collect unique data formats from all entities with a format field
+        data_formats = sorted({
+            entity.get("format")
+            for entity in graph_dict.values()
+            if isinstance(entity, dict) and entity.get("format")
+        })
+
+        # Collect keywords from the root entity
+        root_keywords = root_entity.get("keywords", [])
+        if isinstance(root_keywords, str):
+            root_keywords = [root_keywords]
+
+        # Pick top 1-2 assumptions (CRITICAL first, then MAJOR)
+        top_assumptions = [a for a in compiled_assumptions if a.impact == "CRITICAL"][:2]
+        if len(top_assumptions) < 2:
+            major = [a for a in compiled_assumptions if a.impact == "MAJOR"]
+            top_assumptions.extend(major[:2 - len(top_assumptions)])
+
+        overview = DataOverview(
+            dataDescription=overview_description,
+            dataFormats=data_formats,
+            keywords=root_keywords,
+            license=root_entity.get("license"),
+            conditionsOfAccess=root_entity.get("conditionsOfAccess"),
+            topAssumptions=top_assumptions,
+        )
+
         # Build the AnnotatedEvidenceGraph
         aeg_data = {
             "@id": aeg_id,
@@ -1260,6 +1296,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             "evi:narrativeSummary": synthesis.narrativeSummary,
             "evi:keyFindings": synthesis.keyFindings,
             "evi:assumptions": [a.model_dump(by_alias=True, mode="json") for a in compiled_assumptions],
+            "evi:overview": overview.model_dump(by_alias=True, mode="json"),
             "evi:audiences": [a.model_dump(by_alias=True, mode="json") for a in audiences],
             "evi:stepAnnotations": step_ann_refs,
             "evi:llmModel": llm_model,

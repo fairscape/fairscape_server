@@ -26,6 +26,16 @@ class GraphAssumption(BaseModel):
     sourceAnnotation: IdentifierValue
 
 
+class DataOverview(BaseModel):
+    """Brief top-level overview for quick orientation."""
+    dataDescription: str = Field(description="1-2 sentences: what this data is")
+    dataFormats: List[str] = Field(default=[], description="File formats found in datasets")
+    keywords: List[str] = Field(default=[], description="Keywords from RO-Crate")
+    license: Optional[str] = Field(default=None, description="License URL or name")
+    conditionsOfAccess: Optional[str] = Field(default=None)
+    topAssumptions: List[GraphAssumption] = Field(default=[], description="1-2 most critical assumptions")
+
+
 class AudiencePerspective(BaseModel):
     """Audience-specific synthesis of the annotated evidence graph."""
     targetAudience: str
@@ -65,6 +75,9 @@ class AnnotatedEvidenceGraph(DigitalObject):
     narrativeSummary: str = Field(..., alias="evi:narrativeSummary")
     keyFindings: Optional[List[str]] = Field(default=[], alias="evi:keyFindings")
     assumptions: Optional[List[GraphAssumption]] = Field(default=[], alias="evi:assumptions")
+
+    # Brief top-level overview (data type, license, top assumptions)
+    overview: Optional[DataOverview] = Field(default=None, alias="evi:overview")
 
     # Audience-specific perspectives (biostatistician, clinician, etc.)
     audiences: Optional[List[AudiencePerspective]] = Field(default=[], alias="evi:audiences")
