@@ -19,6 +19,7 @@ from fairscape_models.experiment import Experiment
 from fairscape_models.instrument import Instrument
 from fairscape_models.medical_condition import MedicalCondition
 from fairscape_models.annotation import Annotation
+from fairscape_models.activity import Activity
 from fairscape_models.conversion.models.AIReady import AIReadyScore
 from fairscape_models.model_card import ModelCard
 from fairscape_models.fairscape_base import IdentifierValue
@@ -52,6 +53,7 @@ class MetadataTypeEnum(Enum):
 	MEDICAL_CONDITION = "https://schema.org/MedicalCondition"
 	CREATIVE_WORK = "https://schema.org/CreativeWork"
 	ML_MODEL = ["prov:Entity","https://w3id.org/EVI#MLModel"]
+	ACTIVITY = ["prov:Activity"]
 	ANNOTATION = "https://w3id.org/EVI#Annotation"
 	EVIDENCE_GRAPH = "evi:EvidenceGraph"
 	ANNOTATED_EVIDENCE_GRAPH = ["prov:Entity", "https://w3id.org/EVI#EvidenceGraph", "https://w3id.org/EVI#AnnotatedEvidenceGraph"]
@@ -73,6 +75,7 @@ MetadataUnion = Union[
 	Instrument,
 	MedicalCondition,
 	Annotation,
+	Activity,
 	EvidenceGraph,
 	AIReadyScore,
 	ModelCard,
@@ -160,6 +163,8 @@ def determineMetadataType(inputType)->MetadataTypeEnum:
 		return MetadataTypeEnum.ML_MODEL
 	elif 'Annotation' in inputType:
 		return MetadataTypeEnum.ANNOTATION
+	elif 'Activity' in inputType:
+		return MetadataTypeEnum.ACTIVITY
 	else:
 		raise Exception(f"Type not found for value {inputType}")
 	

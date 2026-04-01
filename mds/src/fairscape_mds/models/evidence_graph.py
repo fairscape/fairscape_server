@@ -50,7 +50,7 @@ class EvidenceGraph(BaseModel):
 
     def _get_rocrate_outputs(self, node: Dict) -> List[Dict]:
         output_fields = ["https://w3id.org/EVI#outputs", "EVI:outputs", "outputs"]
-        
+
         for field in output_fields:
             if field in node:
                 outputs = node[field]
@@ -72,6 +72,7 @@ class EvidenceGraph(BaseModel):
             elif "Software" in node_type_field: current_node_type_str = "Software"
             elif "MLModel" in node_type_field: current_node_type_str = "MLModel"
             elif "Experiment" in node_type_field: current_node_type_str = "Experiment"
+            elif "Activity" in node_type_field: current_node_type_str = "Activity"
             elif node_type_field: current_node_type_str = node_type_field[-1]
         elif isinstance(node_type_field, str):
             current_node_type_str = node_type_field
@@ -80,7 +81,7 @@ class EvidenceGraph(BaseModel):
            "Sample" in current_node_type_str or \
            "Instrument" in current_node_type_str or \
            "Software" in current_node_type_str or \
-           "MLModel" in current_node_type_str: 
+           "MLModel" in current_node_type_str:
             generated_by_info = node.get("generatedBy")
             if generated_by_info:
                 if isinstance(generated_by_info, list) and generated_by_info:
@@ -94,7 +95,8 @@ class EvidenceGraph(BaseModel):
 
         elif "Computation" in current_node_type_str or \
              "Experiment" in current_node_type_str or \
-             "Annotation" in current_node_type_str:
+             "Annotation" in current_node_type_str or \
+             "Activity" in current_node_type_str:
             for field_name in ["usedDataset", "usedSoftware", "usedSample", "usedInstrument", "usedMLModel"]:
                 field_info = node.get(field_name)
                 if field_info:
@@ -187,6 +189,7 @@ class EvidenceGraph(BaseModel):
             elif "Software" in node_type_field: current_node_type_str = "Software"
             elif "MLModel" in node_type_field: current_node_type_str = "MLModel"
             elif "Experiment" in node_type_field: current_node_type_str = "Experiment"
+            elif "Activity" in node_type_field: current_node_type_str = "Activity"
             elif node_type_field: current_node_type_str = node_type_field[-1]
         elif isinstance(node_type_field, str):
             current_node_type_str = node_type_field
@@ -213,7 +216,8 @@ class EvidenceGraph(BaseModel):
 
         elif "Computation" in current_node_type_str or \
              "Experiment" in current_node_type_str or \
-             "Annotation" in current_node_type_str:
+             "Annotation" in current_node_type_str or \
+             "Activity" in current_node_type_str:
             used_dataset_info = node.get("usedDataset")
             if used_dataset_info:
                 dataset_refs = self._process_used_dataset(used_dataset_info, node_cache)

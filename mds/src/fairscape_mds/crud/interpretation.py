@@ -23,6 +23,7 @@ from fairscape_mds.models.annotated_computation import (
     AnnotatedComputation, CodeAnalysis, DatasetSummary,
     LLMComputationAnnotation, LLMCodeAnalysis, LLMDatasetSummary,
     Assumption, LLMAssumption, AssumptionImpact, normalize_assumption,
+    normalize_error,
 )
 from fairscape_mds.models.annotated_evidence_graph import (
     AnnotatedEvidenceGraph, GraphAssumption, AudiencePerspective, DataOverview,
@@ -168,7 +169,60 @@ Examples: version pinning, input validation, documentation completeness.
 - Many well-written steps will have only MINOR assumptions. That is valid.
 - Do not manufacture assumptions to fill quotas.
 - Weave critical assumptions into the stepSummary itself — they are part of the story of what this step does.
-- If code is demonstrably wrong (produces misleading results), flag that as a CRITICAL assumption violation.
+
+## Errors — CHECK FIRST
+
+BEFORE writing assumptions, check the code and metadata for actual mistakes. Errors are things that are **demonstrably wrong** — a competent scientist reading the code would say "this is a bug" not "this is a risk."
+
+**The distinction is critical:** An assumption is something that *could* be wrong depending on context. An error is something that *is* wrong based on what the code actually does.
+
+Examples of ERRORS (put in the `errors` field, NOT in assumptions):
+- A function uses the wrong variable and produces incorrect output
+- Logic is inverted — a condition checks the opposite of what it should
+- Data leakage of any kind visible in the code — fitting on full data before splitting, label information leaking into features, test data influencing training preprocessing. Data leakage is ALWAYS an error, never an assumption.
+- Metadata contradicts what the code actually does
+- Off-by-one errors, unreachable code paths that should execute
+
+Examples of ASSUMPTIONS (put in the `assumptions` field, NOT in errors):
+- "Assumes features are independent" — might or might not be true
+- "Assumes N epochs is sufficient" — a judgment call
+- "Assumes class imbalance won't affect results" — risky but not a bug
+
+**Self-check:** If you find yourself writing an assumption whose description says the code "does X but should do Y" or "uses the wrong variable" — that is an error, not an assumption. Move it to the `errors` field.
+
+Each error MUST be a structured object:
+{
+  description: "What is wrong and why it is wrong",
+  severity: "CRITICAL" | "MAJOR",
+  evidence: { artifact: {"@id": "<@id>"}, location: "<line or function>" },
+  affectedOutputs: "Which downstream results are impacted"
+}
+
+Many computaions will have NO errors — that is expected. But when an error exists, it MUST go in the `errors` field, not be buried as an assumption.
+
+## Review Recommendation
+
+Each assumption must include a `reviewRecommended` boolean:
+
+- `reviewRecommended: false` ("Routine assumption") — Things a scientist would generally accept without checking: the RO-Crate manifest is correct, proprietary software does what its documentation says, standard libraries (numpy, pandas, scikit-learn) work correctly, file formats are as declared, the person who ran it used the right data.
+
+- `reviewRecommended: true` ("Review suggested") — Things a scientist would actually want to validate before trusting the results: custom data processing logic, parameter selections that affect results, threshold choices, model selection rationale, assumptions about data distributions, handling of edge cases in custom code.
+
+When in doubt, mark as `reviewRecommended: false`. The goal is to surface the small number of assumptions that genuinely warrant a scientist's attention, not to flag everything.
+
+## Computation Status
+
+You MUST set `computationStatus` to one of:
+
+- "clear" — No errors found, and assumptions are routine (standard library trust, manifest correctness, etc.) or well-documented. A scientist can trust this step without detailed review.
+
+- "review_recommended" — No errors, but one or more assumptions warrant a scientist's attention (e.g., custom logic, parameter choices, data processing decisions). NOTE: A computation with CRITICAL-impact assumptions can still be "clear" if those assumptions are routine (e.g., "assumes proprietary software works as documented").
+
+- "error_detected" — One or more actual errors were found. This should be rare.
+
+**Consistency rule:** If the `errors` list is non-empty, `computationStatus` MUST be "error_detected". If any assumption has `reviewRecommended: true`, `computationStatus` should be at least "review_recommended" (unless errors exist, in which case use "error_detected").
+
+Use your judgment. The status reflects whether a scientist should spend time reviewing this step, not just a count of assumption severity levels.
 
 ## Output
 - stepSummary: What this step does, why, and what critical assumptions it rests on.
@@ -176,6 +230,8 @@ Examples: version pinning, input validation, documentation completeness.
 - inputSummaries: Per input dataset — role, description, dataQuality observations from data profile.
 - outputSummaries: Per output dataset — what it contains, dataQuality observations.
 - assumptions: Step-level assumptions. May be empty if the step makes no notable assumptions.
+- errors: Obvious mistakes found. Each as a structured object (see Errors section above).
+- computationStatus: "clear" | "review_recommended" | "error_detected" (see Computation Status section above).
 
 Each assumption MUST be a structured object:
 {
@@ -183,26 +239,35 @@ Each assumption MUST be a structured object:
   name: "Short label (3-8 words) — e.g. 'Train/test split independence'",
   description: "Briefly describe what is being assumed",
   downstreamImpacts: "What changes if this assumption is wrong — potential downstream effects",
-  evidence: { artifact: {"@id": "<@id of the data file or software entity>"}, location: "<line number, function name, or column name>" }
+  evidence: { artifact: {"@id": "<@id of the data file or software entity>"}, location: "<line number, function name, or column name>" },
+  reviewRecommended: true | false,
+  recommendedValidation: "A concrete step a scientist could take to test this assumption — e.g. 'Run Shapiro-Wilk test on residuals' or 'Check feature correlation matrix for multicollinearity'. Include when reviewRecommended is true. Omit for routine assumptions."
 }
+
+## Recommended Validation
+
+For assumptions where reviewRecommended is true, include a recommendedValidation string: a specific, actionable step a scientist could perform to check whether this assumption holds. Be concrete — name the test, the plot, or the comparison. For MINOR or routine assumptions, omit this field.
 
 Be precise and evidence-based. Reference specific function names and parameter values."""
 
 
 DATASCI_SYNTHESIS_PROMPT = """You are a senior data scientist synthesizing step annotations from a scientific analysis pipeline (RO-Crate) into a coherent picture of what supports the pipeline's claims.
 
-You will receive the RO-Crate overview and step-by-step annotations including assumptions.
+You will receive the RO-Crate overview, step-by-step annotations including assumptions, and a Pipeline DAG Structure section showing the topological order of steps.
 
 Produce:
-1. executiveSummary: 3-5 sentences covering what the pipeline does, its approach, and the most important critical assumptions it rests on. Weave the load-bearing assumptions into this summary.
-2. narrativeSummary: A forward-chronological story of the pipeline, explicitly noting where key assumptions enter and what claims they support. The reader should finish this knowing what the results depend on.
-3. keyFindings: Bulleted list of important observations about what the pipeline discovered.
-4. assumptions: Cross-cutting assumptions that span the pipeline, each as a structured object:
-   {impact, name, description, downstreamImpacts}
+1. pipelineDescription: 1-2 sentences about the primary output of the pipeline. Weave in the key findings — what the pipeline discovered and its most important results. This is NOT a repeat of the RO-Crate metadata description. Focus on what the pipeline produces and what was found. Keep it brief.
+2. pipelineSteps: An ordered list of pipeline steps. Follow the DAG structure provided in the prompt. Each entry is one sentence describing what the step does. Use the numbering from the DAG structure section (1a, 1b for parallel branches at the same level, then 2, 3, etc. following DAG order). Start from raw inputs and work to the final output.
+3. executiveSummary: 3-5 sentences covering what the pipeline does, its approach, and the most important critical assumptions it rests on. Weave the load-bearing assumptions into this summary.
+4. narrativeSummary: A forward-chronological story of the pipeline, explicitly noting where key assumptions enter and what claims they support. The reader should finish this knowing what the results depend on.
+5. keyFindings: Bulleted list of important observations about what the pipeline discovered.
+6. assumptions: Cross-cutting assumptions that span the pipeline, each as a structured object:
+   {impact, name, description, downstreamImpacts, recommendedValidation}
    - impact: "CRITICAL" (if wrong, pipeline conclusions don't hold), "MAJOR" (if wrong, specific results break but others may hold), or "MINOR" (worth noting but won't change conclusions)
    - name: Short label (3-8 words)
    - description: What is being assumed
    - downstreamImpacts: What changes if this assumption is wrong
+   - recommendedValidation: A concrete step a scientist could take to test this assumption. Be specific — name the test, plot, or comparison. Omit for MINOR assumptions.
 
 Do NOT re-list every step-level assumption. Surface those that matter at the pipeline level — because they span steps, compound across steps, or are the most consequential for trusting the results. A pipeline with no CRITICAL assumptions at the graph level is valid if step-level ones don't compound."""
 
@@ -267,6 +332,8 @@ from pydantic import BaseModel, Field as PydanticField
 
 class GraphSynthesisResult(BaseModel):
     """Result model for the graph-level synthesis LLM call."""
+    pipelineDescription: Optional[str] = None
+    pipelineSteps: List[str] = []
     executiveSummary: str
     narrativeSummary: str
     keyFindings: List[str] = []
@@ -722,7 +789,10 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                 # Fall back to GitHub/external URL fetching
                 code = prefetch_software_code(content_url)
                 software_cache[sw_id] = code
-                logger.info(f"Pre-fetched software {sw_id}: {len(code)} chars")
+                if not code:
+                    logger.warning(f"Pre-fetched software {sw_id}: returned empty string for {content_url!r}")
+                else:
+                    logger.info(f"Pre-fetched software {sw_id}: {len(code)} chars")
 
         return software_cache
 
@@ -826,8 +896,16 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                 parts.append(f"**Content URL:** {sw_node.get('contentUrl', 'N/A')}")
                 code = software_cache.get(sw_id, "")
                 if code and not code.startswith("["):
+                    preview = f"{repr(code[:10])}…{repr(code[-10:])}" if len(code) > 20 else repr(code)
+                    logger.info(
+                        f"Prompt build: inserted software {sw_id} ({len(code)} chars) preview={preview}"
+                    )
                     parts.append(f"\n**Source Code:**\n```\n{code}\n```")
                 else:
+                    logger.warning(
+                        f"Prompt build: NO code for software {sw_id} "
+                        f"(cache_hit={sw_id in software_cache!r}, value={repr((code or '')[:60])})"
+                    )
                     parts.append(f"\n**Source Code:** {code}")
             parts.append("")
 
@@ -915,6 +993,8 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             "evi:inputSummaries": [ds.model_dump(by_alias=True) for ds in input_summaries],
             "evi:outputSummaries": [ds.model_dump(by_alias=True) for ds in output_summaries],
             "evi:assumptions": [normalize_assumption(a).model_dump() for a in (llm_result.assumptions or [])],
+            "evi:errors": [normalize_error(e).model_dump() for e in (llm_result.errors or [])],
+            "evi:computationStatus": llm_result.computationStatus or "clear",
             "evi:llmModel": llm_model,
             "evi:llmTemperature": temperature,
             "dateCreated": now,
@@ -1040,10 +1120,102 @@ class FairscapeInterpretationRequest(FairscapeRequest):
     # Step 5: Graph-level synthesis
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _compute_dag_order(
+        step_annotations: List[AnnotatedComputation],
+        graph_dict: dict,
+    ) -> List[tuple]:
+        """Compute topological order of step annotations based on the DAG.
+
+        Returns a list of (label, annotation) tuples where label is e.g.
+        "1", "1a", "1b", "2", etc.
+        """
+        # Map computation @id -> annotation
+        ann_by_comp: Dict[str, AnnotatedComputation] = {}
+        for ann in step_annotations:
+            annotates = ann.annotates
+            if hasattr(annotates, 'guid'):
+                comp_id = annotates.guid
+            elif isinstance(annotates, dict):
+                comp_id = annotates.get("@id", "")
+            else:
+                comp_id = str(annotates)
+            ann_by_comp[comp_id] = ann
+
+        # Build adjacency: comp_id -> set of comp_ids it depends on
+        deps: Dict[str, set] = {cid: set() for cid in ann_by_comp}
+        # Map dataset @id -> comp_id that generated it
+        generated_by: Dict[str, str] = {}
+        for node in graph_dict.values():
+            if not isinstance(node, dict):
+                continue
+            gen = node.get("generatedBy")
+            if gen:
+                gen_ids = _resolve_refs(gen)
+                node_id = node.get("@id", "")
+                for gid in gen_ids:
+                    if gid in ann_by_comp:
+                        generated_by[node_id] = gid
+
+        for comp_id in ann_by_comp:
+            comp_node = graph_dict.get(comp_id, {})
+            input_refs = _resolve_refs(comp_node.get("usedDataset"))
+            for ds_id in input_refs:
+                producer = generated_by.get(ds_id)
+                if producer and producer != comp_id and producer in ann_by_comp:
+                    deps[comp_id].add(producer)
+
+        # Kahn's algorithm for topological sort with level tracking
+        in_degree = {cid: len(d) for cid, d in deps.items()}
+        # Reverse adjacency for decrementing
+        rdeps: Dict[str, set] = {cid: set() for cid in ann_by_comp}
+        for cid, dep_set in deps.items():
+            for d in dep_set:
+                rdeps[d].add(cid)
+
+        queue = [cid for cid, deg in in_degree.items() if deg == 0]
+        levels: List[List[str]] = []
+        visited = set()
+
+        while queue:
+            levels.append(sorted(queue))  # sort for determinism
+            visited.update(queue)
+            next_queue = []
+            for cid in queue:
+                for child in rdeps.get(cid, set()):
+                    if child in visited:
+                        continue
+                    in_degree[child] -= 1
+                    if in_degree[child] == 0:
+                        next_queue.append(child)
+            queue = next_queue
+
+        # Handle any remaining nodes (cycles) — add them at the end
+        remaining = [cid for cid in ann_by_comp if cid not in visited]
+        if remaining:
+            levels.append(sorted(remaining))
+
+        # Assign labels
+        result = []
+        for level_num, level_cids in enumerate(levels, 1):
+            if len(level_cids) == 1:
+                result.append((str(level_num), ann_by_comp[level_cids[0]]))
+            else:
+                for branch_idx, cid in enumerate(level_cids):
+                    letter = chr(ord('a') + branch_idx) if branch_idx < 26 else str(branch_idx)
+                    result.append((f"{level_num}{letter}", ann_by_comp[cid]))
+
+        # Fallback: if somehow empty, return original order
+        if not result:
+            return [(str(i), ann) for i, ann in enumerate(step_annotations, 1)]
+
+        return result
+
     def _build_synthesis_prompt(
         self,
         root_node: dict,
         step_annotations: List[AnnotatedComputation],
+        graph_dict: Optional[dict] = None,
     ) -> str:
         """Build the shared synthesis prompt from step annotations."""
         parts = []
@@ -1054,10 +1226,44 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         parts.append(f"**Keywords:** {root_node.get('keywords', '')}")
         parts.append("")
 
+        # Compute DAG order if graph_dict is available
+        if graph_dict:
+            ordered = self._compute_dag_order(step_annotations, graph_dict)
+        else:
+            ordered = [(str(i), ann) for i, ann in enumerate(step_annotations, 1)]
+
+        # DAG structure section for the LLM
+        parts.append("## Pipeline DAG Structure")
+        for label, ann in ordered:
+            annotates = ann.annotates
+            if hasattr(annotates, 'guid'):
+                comp_id = annotates.guid
+            elif isinstance(annotates, dict):
+                comp_id = annotates.get("@id", "")
+            else:
+                comp_id = str(annotates)
+            comp_node = graph_dict.get(comp_id, {}) if graph_dict else {}
+            comp_name = comp_node.get("name", comp_id)
+            inputs = _resolve_refs(comp_node.get("usedDataset"))
+            outputs = _resolve_refs(comp_node.get("hasOutputs")) or _resolve_refs(comp_node.get("generated"))
+            input_names = ", ".join(
+                graph_dict.get(i, {}).get("name", i) if graph_dict else i
+                for i in inputs
+            ) or "raw inputs"
+            output_names = ", ".join(
+                graph_dict.get(o, {}).get("name", o) if graph_dict else o
+                for o in outputs
+            ) or "outputs"
+            parts.append(f"Step {label}: {comp_name} (inputs: {input_names}; outputs: {output_names})")
+        parts.append("")
+
         parts.append("## Step Annotations")
-        for i, ann in enumerate(step_annotations, 1):
-            parts.append(f"### Step {i}: {ann.annotates}")
+        for label, ann in ordered:
+            parts.append(f"### Step {label}: {ann.annotates}")
+            parts.append(f"**Status:** {getattr(ann, 'computationStatus', 'clear')}")
             parts.append(f"**Summary:** {ann.stepSummary}")
+            if ann.errors:
+                parts.append(f"**Errors:** {'; '.join(f'[{e.severity}] {e.description}' for e in ann.errors)}")
             if ann.assumptions:
                 parts.append(f"**Assumptions:** {'; '.join(f'[{a.impact.value}] {a.description}' for a in ann.assumptions)}")
             if ann.codeAnalysis:
@@ -1075,6 +1281,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
         llm_model: str,
         temperature: float,
         rate_limiter: Optional["AsyncRateLimiter"] = None,
+        index: Optional[dict] = None,
     ) -> Tuple[GraphSynthesisResult, List[dict]]:
         """Synthesize graph-level summary from all step annotations.
 
@@ -1086,7 +1293,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             "status": "SYNTHESIZING",
         })
 
-        prompt = self._build_synthesis_prompt(root_node, step_annotations)
+        prompt = self._build_synthesis_prompt(root_node, step_annotations, graph_dict=index)
 
         async def _run_all_syntheses():
             # Run data scientist + audience syntheses in parallel
@@ -1200,6 +1407,8 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                     description=assumption.description,
                     downstreamImpacts=assumption.downstreamImpacts,
                     evidence=assumption.evidence,
+                    reviewRecommended=getattr(assumption, "reviewRecommended", False),
+                    recommendedValidation=getattr(assumption, "recommendedValidation", None),
                     sourceAnnotation={"@id": ann.guid},
                 ))
         # Add synthesis-level assumptions (not tied to a single step)
@@ -1211,6 +1420,8 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                 description=normalized.description,
                 downstreamImpacts=normalized.downstreamImpacts,
                 evidence=normalized.evidence,
+                reviewRecommended=getattr(normalized, "reviewRecommended", False),
+                recommendedValidation=getattr(normalized, "recommendedValidation", None),
                 sourceAnnotation={"@id": rocrate_id},
             ))
 
@@ -1226,6 +1437,8 @@ class FairscapeInterpretationRequest(FairscapeRequest):
                     description=normalized.description,
                     downstreamImpacts=normalized.downstreamImpacts,
                     evidence=normalized.evidence,
+                    reviewRecommended=getattr(normalized, "reviewRecommended", False),
+                    recommendedValidation=getattr(normalized, "recommendedValidation", None),
                     sourceAnnotation={"@id": rocrate_id},
                 ))
             audiences.append(AudiencePerspective(
@@ -1282,6 +1495,8 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             license=root_entity.get("license"),
             conditionsOfAccess=root_entity.get("conditionsOfAccess"),
             topAssumptions=top_assumptions,
+            pipelineDescription=synthesis.pipelineDescription,
+            pipelineSteps=synthesis.pipelineSteps or None,
         )
 
         # Build the AnnotatedEvidenceGraph
@@ -1404,6 +1619,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
             synthesis, audience_perspectives = self.synthesize_graph(
                 task_guid, root_node, step_annotations, llm_model, temperature,
                 rate_limiter=rate_limiter,
+                index=index,
             )
 
             # Step 6: Build and store

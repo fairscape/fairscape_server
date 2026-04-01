@@ -23,6 +23,8 @@ class GraphAssumption(BaseModel):
     description: str
     downstreamImpacts: Optional[str] = Field(default=None, description="What changes if this assumption is wrong")
     evidence: Optional[EvidencePointer] = Field(default=None, description="Pointer to supporting artifact")
+    reviewRecommended: bool = Field(default=False, description="True if a scientist should validate this assumption")
+    recommendedValidation: Optional[str] = Field(default=None, description="Concrete step a scientist could take to test this assumption")
     sourceAnnotation: IdentifierValue
 
 
@@ -34,6 +36,8 @@ class DataOverview(BaseModel):
     license: Optional[str] = Field(default=None, description="License URL or name")
     conditionsOfAccess: Optional[str] = Field(default=None)
     topAssumptions: List[GraphAssumption] = Field(default=[], description="1-2 most critical assumptions")
+    pipelineDescription: Optional[str] = Field(default=None, description="LLM-generated 1-2 sentence description of what the pipeline produces and its key findings")
+    pipelineSteps: Optional[List[str]] = Field(default=None, description="Ordered list of pipeline steps following DAG order")
 
 
 class AudiencePerspective(BaseModel):

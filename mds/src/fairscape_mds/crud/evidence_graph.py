@@ -178,7 +178,6 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
 
         try:
             insert_data = stored_identifier.model_dump(by_alias=True, mode="json")
-            logger.warning(f"build_evidence_graph insert_data: {insert_data}")
             self.config.identifierCollection.insert_one(insert_data)
         except pymongo.errors.DuplicateKeyError:
             return FairscapeResponse(

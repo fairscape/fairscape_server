@@ -29,6 +29,13 @@ class AssumptionImpact(str, Enum):
     MINOR = "MINOR"
 
 
+class ComputationReviewStatus(str, Enum):
+    """LLM-decided status indicating whether a scientist should review this computation."""
+    CLEAR = "clear"
+    REVIEW_RECOMMENDED = "review_recommended"
+    ERROR_DETECTED = "error_detected"
+
+
 class EvidencePointer(BaseModel):
     """Points to the specific artifact and location supporting an assumption."""
     model_config = ConfigDict(extra="allow")
@@ -67,6 +74,8 @@ class Assumption(BaseModel):
     description: str
     downstreamImpacts: Optional[str] = Field(default=None, description="What changes if this assumption is wrong")
     evidence: Optional[EvidencePointer] = Field(default=None, description="Pointer to supporting artifact")
+    reviewRecommended: bool = Field(default=False, description="True if a scientist should validate this assumption; False for routine assumptions")
+    recommendedValidation: Optional[str] = Field(default=None, description="Concrete step a scientist could take to test this assumption")
 
 
 class LLMAssumption(BaseModel):
@@ -76,6 +85,8 @@ class LLMAssumption(BaseModel):
     description: str
     downstreamImpacts: Optional[str] = Field(default=None, description="What changes downstream if this assumption is wrong")
     evidence: Optional[dict] = Field(default=None, description='Pointer: {artifact: {"@id": "ark:..."}, location: "..."}')
+    reviewRecommended: bool = Field(default=False, description="True if a scientist should validate this; False for routine assumptions like trusting standard libraries")
+    recommendedValidation: Optional[str] = Field(default=None, description="Concrete step a scientist could take to test this assumption")
 
 
 def normalize_assumption(llm_assumption: LLMAssumption) -> Assumption:
@@ -106,6 +117,48 @@ def normalize_assumption(llm_assumption: LLMAssumption) -> Assumption:
         description=llm_assumption.description,
         downstreamImpacts=getattr(llm_assumption, "downstreamImpacts", None),
         evidence=evidence,
+        reviewRecommended=getattr(llm_assumption, "reviewRecommended", False),
+        recommendedValidation=getattr(llm_assumption, "recommendedValidation", None),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Error models — for flagging obvious mistakes (not risky assumptions)
+# ---------------------------------------------------------------------------
+
+class LLMError(BaseModel):
+    """What the LLM returns when it finds an obvious coding/methodology error."""
+    description: str = Field(description="What is wrong and why it is wrong")
+    severity: str = Field(default="MAJOR", description='One of: "CRITICAL", "MAJOR"')
+    evidence: Optional[dict] = Field(default=None, description='Pointer: {artifact: {"@id": "ark:..."}, location: "..."}')
+    affectedOutputs: Optional[str] = Field(default=None, description="Which downstream results are impacted")
+
+
+class ComputationError(BaseModel):
+    """Validated error found in a computation step."""
+    description: str
+    severity: str = Field(default="MAJOR")
+    evidence: Optional[EvidencePointer] = Field(default=None)
+    affectedOutputs: Optional[str] = Field(default=None)
+
+
+def normalize_error(llm_error: LLMError) -> ComputationError:
+    """Convert an LLMError to a validated ComputationError."""
+    raw_severity = llm_error.severity.strip().upper()
+    severity = "CRITICAL" if "CRIT" in raw_severity else "MAJOR"
+
+    evidence = None
+    if llm_error.evidence and isinstance(llm_error.evidence, dict):
+        try:
+            evidence = EvidencePointer.model_validate(llm_error.evidence)
+        except Exception:
+            pass
+
+    return ComputationError(
+        description=llm_error.description,
+        severity=severity,
+        evidence=evidence,
+        affectedOutputs=getattr(llm_error, "affectedOutputs", None),
     )
 
 
@@ -160,6 +213,8 @@ class LLMComputationAnnotation(BaseModel):
     inputSummaries: Optional[List[LLMDatasetSummary]] = Field(default=[])
     outputSummaries: Optional[List[LLMDatasetSummary]] = Field(default=[])
     assumptions: Optional[List[LLMAssumption]] = Field(default=[])
+    errors: Optional[List[LLMError]] = Field(default=[], description="Obvious mistakes found in code or methodology (usually empty)")
+    computationStatus: str = Field(default="clear", description='One of: "clear", "review_recommended", "error_detected"')
 
 
 class AnnotatedComputation(DigitalObject):
@@ -188,6 +243,8 @@ class AnnotatedComputation(DigitalObject):
     inputSummaries: Optional[List[DatasetSummary]] = Field(default=[], alias="evi:inputSummaries")
     outputSummaries: Optional[List[DatasetSummary]] = Field(default=[], alias="evi:outputSummaries")
     assumptions: Optional[List[Assumption]] = Field(default=[], alias="evi:assumptions")
+    errors: Optional[List[ComputationError]] = Field(default=[], alias="evi:errors")
+    computationStatus: Optional[str] = Field(default="clear", alias="evi:computationStatus")
 
     # Provenance of the annotation itself
     llmModel: str = Field(alias="evi:llmModel")
