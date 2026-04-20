@@ -1,20 +1,7 @@
-import re
 from fairscape_mds.core.config import FairscapeConfig
+from fairscape_interpret.pipeline.graph_utils import flexible_ark_query
 
-
-def flexible_ark_query(guid: str):
-	"""Build a MongoDB query that matches an ARK with or without dashes
-	and with or without a slash after 'ark:'. Returns None if guid
-	doesn't look like an ARK. Matches ARK SPEC"""
-	ark_match = re.match(r'^ark:/?([\d]+)/(.*)', guid)
-	if not ark_match:
-		return None
-	naan = ark_match.group(1)
-	postfix = ark_match.group(2)
-	stripped = postfix.replace('-', '')
-	fuzzy_postfix = '-?'.join(re.escape(c) for c in stripped)
-	pattern = f'^ark:{naan}/{fuzzy_postfix}$'
-	return {"@id": {"$regex": pattern}}
+__all__ = ["FairscapeRequest", "flexible_ark_query"]
 
 
 class FairscapeRequest():

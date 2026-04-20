@@ -42,285 +42,56 @@ from fairscape_mds.models.user import Permissions
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Global Event Loop for Worker
+# Shared helpers -- all pure functions, prompts, and runtime utilities now
+# live in the fairscape_interpret package so the CLI can reuse them.
 # ---------------------------------------------------------------------------
 
-_worker_loop = None
-
-
-def run_async(coro):
-    """Run an async coroutine using a single, persistent event loop per worker process.
-
-    This prevents 'RuntimeError: bound to a different event loop' caused by
-    PydanticAI's globally cached HTTP client.
-    """
-    global _worker_loop
-    if _worker_loop is None or _worker_loop.is_closed():
-        _worker_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(_worker_loop)
-    return _worker_loop.run_until_complete(coro)
-
-# ---------------------------------------------------------------------------
-# Async Rate Limiter
-# ---------------------------------------------------------------------------
-
-class AsyncRateLimiter:
-    """Sliding-window rate limiter for async contexts.
-
-    Allows at most `max_requests` within any rolling `window_seconds` period.
-    Callers await `acquire()` before making an API call.
-    """
-
-    def __init__(self, max_requests: int = 2, window_seconds: float = 10.0):
-        self._max = max_requests
-        self._window = window_seconds
-        self._lock = asyncio.Lock()
-        self._timestamps: deque = deque()
-
-    async def acquire(self):
-        async with self._lock:
-            now = time.monotonic()
-            # Evict timestamps outside the window
-            while self._timestamps and (now - self._timestamps[0]) >= self._window:
-                self._timestamps.popleft()
-            # If at capacity, sleep until the oldest timestamp exits the window
-            if len(self._timestamps) >= self._max:
-                sleep_for = self._window - (now - self._timestamps[0])
-                if sleep_for > 0:
-                    logger.info(f"Rate limiter: sleeping {sleep_for:.1f}s")
-                    await asyncio.sleep(sleep_for)
-                self._timestamps.popleft()
-            self._timestamps.append(time.monotonic())
-
-
-MAX_API_RETRIES = 5
-API_RETRY_BASE_DELAY = 10.0  # seconds; doubles each retry
-
-
-async def _run_agent_with_retry(agent, prompt, retries=MAX_API_RETRIES, base_delay=API_RETRY_BASE_DELAY):
-    """Run agent.run() with exponential backoff on overloaded/rate-limit errors."""
-    for attempt in range(retries + 1):
-        try:
-            return await agent.run(prompt)
-        except Exception as e:
-            err_str = str(e)
-            is_retryable = "529" in err_str or "overloaded" in err_str.lower() or "rate" in err_str.lower()
-            if not is_retryable or attempt == retries:
-                raise
-            delay = base_delay * (2 ** attempt)
-            logger.warning(f"API overloaded (attempt {attempt + 1}/{retries + 1}), retrying in {delay:.0f}s: {err_str[:120]}")
-            await asyncio.sleep(delay)
-
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-MAX_SOFTWARE_BYTES = 50_000  # 50KB per software entity
-MAX_STATS_COLUMNS = 25       # max columns of stats to include per dataset in prompt
-MAX_SPLITS = 10              # max splits to include per dataset in prompt
-MAX_PROMPT_DATASETS = 3      # max input/output datasets to include per computation prompt
-CODE_EXTENSIONS = {".py", ".r", ".R", ".sh", ".pl", ".java", ".scala", ".jl", ".m", ".cpp", ".go", ".rs", ".ipynb", ".md"}
-GITHUB_REPO_PATTERN = re.compile(r"https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?(?:/.*)?$")
-GITHUB_FILE_PATTERN = re.compile(
-    r"https?://github\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.*)"
+from fairscape_interpret.runtime import (
+    AsyncRateLimiter,
+    API_RETRY_BASE_DELAY,
+    MAX_API_RETRIES,
+    run_agent_with_retry as _run_agent_with_retry,
+    run_async,
+)
+from fairscape_interpret.pipeline.graph_utils import (
+    _build_index,
+    _compute_dag_order,
+    _is_computation,
+    _is_rocrate_root,
+    _resolve_refs,
+)
+from fairscape_interpret.pipeline.stats import (
+    MAX_SPLITS,
+    _format_column_stats,
+    _format_dataset_stats,
+    _mini_histogram,
+)
+from fairscape_interpret.pipeline.github import (
+    CODE_EXTENSIONS,
+    GITHUB_FILE_PATTERN,
+    GITHUB_REPO_PATTERN,
+    MAX_SOFTWARE_BYTES,
+    _fetch_github_file,
+    _fetch_github_repo_code,
+    prefetch_software_code,
+)
+from fairscape_interpret.prompts import (
+    AUDIENCE_CONFIGS,
+    BIOSTAT_SYNTHESIS_PROMPT,
+    CLINICIAN_SYNTHESIS_PROMPT,
+    DATASCI_SYNTHESIS_PROMPT,
+    DATASCI_SYSTEM_PROMPT,
 )
 
-# ---------------------------------------------------------------------------
-# System Prompt -- Data Science Persona
-# ---------------------------------------------------------------------------
-
-DATASCI_SYSTEM_PROMPT = """You are an analyst making explicit the assumptions that support the claims produced by a computation step in a scientific provenance graph (RO-Crate).
-
-You will receive the computation's metadata, input/output datasets with data profiles (when available), and software source code.
-
-Your task: produce a structured annotation that surfaces the assumptions this step relies on — what the analysis is built on, and what would change the interpretation if it turned out to be wrong.
-
-## What to Look For
-
-### Data Assumptions
-What properties of the input data does this step rely on? Consider: completeness, distribution shape, independence of observations, representativeness of the sample, encoding and formatting, absence of systematic missingness.
-
-### Methodological Assumptions
-What analytical choices were made, and what do they assume about the problem? Consider: model family appropriateness, distance/similarity metrics, evaluation strategy, splitting procedure, threshold values, handling of confounders.
-
-### Software/Parameter Assumptions
-What do the code's defaults, hardcoded values, and library choices assume? Consider: parameter sensitivity, random seed presence, version-dependent behavior, implicit ordering.
-
-## Impact Classification
-
-Every assumption MUST be assigned exactly one impact level:
-
-**CRITICAL** — The entire result rests on this. If this assumption is wrong, the main conclusions do not hold.
-Ask: "If this assumption fails, do the conclusions still stand?" If no → CRITICAL.
-Examples: training/test independence, outcome variable validity, core statistical model appropriateness.
-
-**MAJOR** — Critical for a subset of results. If wrong, specific results break or change, but other portions of the analysis may still hold.
-Ask: "If this assumption fails, do specific results or secondary claims break?" If yes → MAJOR.
-Examples: default hyperparameters being adequate, a particular threshold choice, evaluation metric appropriateness for the data.
-
-**MINOR** — Present but unlikely to change the main conclusions. Worth recording for reuse or extension.
-Ask: "Would correcting this change the results?" If no → MINOR.
-Examples: version pinning, input validation, documentation completeness.
-
-## Key Principles
-- State what the assumption IS, not just that something could go wrong. "Assumes input features are independently distributed" is better than "features might be correlated."
-- Be specific: name the parameter, the data property, the function.
-- Many well-written steps will have only MINOR assumptions. That is valid.
-- Do not manufacture assumptions to fill quotas.
-- Weave critical assumptions into the stepSummary itself — they are part of the story of what this step does.
-
-## Errors — CHECK FIRST
-
-BEFORE writing assumptions, check the code and metadata for actual mistakes. Errors are things that are **demonstrably wrong** — a competent scientist reading the code would say "this is a bug" not "this is a risk."
-
-**The distinction is critical:** An assumption is something that *could* be wrong depending on context. An error is something that *is* wrong based on what the code actually does.
-
-Examples of ERRORS (put in the `errors` field, NOT in assumptions):
-- A function uses the wrong variable and produces incorrect output
-- Logic is inverted — a condition checks the opposite of what it should
-- Data leakage of any kind visible in the code — fitting on full data before splitting, label information leaking into features, test data influencing training preprocessing. Data leakage is ALWAYS an error, never an assumption.
-- Metadata contradicts what the code actually does
-- Off-by-one errors, unreachable code paths that should execute
-
-Examples of ASSUMPTIONS (put in the `assumptions` field, NOT in errors):
-- "Assumes features are independent" — might or might not be true
-- "Assumes N epochs is sufficient" — a judgment call
-- "Assumes class imbalance won't affect results" — risky but not a bug
-
-**Self-check:** If you find yourself writing an assumption whose description says the code "does X but should do Y" or "uses the wrong variable" — that is an error, not an assumption. Move it to the `errors` field.
-
-Each error MUST be a structured object:
-{
-  description: "What is wrong and why it is wrong",
-  severity: "CRITICAL" | "MAJOR",
-  evidence: { artifact: {"@id": "<@id>"}, location: "<line or function>" },
-  affectedOutputs: "Which downstream results are impacted"
-}
-
-Many computaions will have NO errors — that is expected. But when an error exists, it MUST go in the `errors` field, not be buried as an assumption.
-
-## Review Recommendation
-
-Each assumption must include a `reviewRecommended` boolean:
-
-- `reviewRecommended: false` ("Routine assumption") — Things a scientist would generally accept without checking: the RO-Crate manifest is correct, proprietary software does what its documentation says, standard libraries (numpy, pandas, scikit-learn) work correctly, file formats are as declared, the person who ran it used the right data.
-
-- `reviewRecommended: true` ("Review suggested") — Things a scientist would actually want to validate before trusting the results: custom data processing logic, parameter selections that affect results, threshold choices, model selection rationale, assumptions about data distributions, handling of edge cases in custom code.
-
-When in doubt, mark as `reviewRecommended: false`. The goal is to surface the small number of assumptions that genuinely warrant a scientist's attention, not to flag everything.
-
-## Computation Status
-
-You MUST set `computationStatus` to one of:
-
-- "clear" — No errors found, and assumptions are routine (standard library trust, manifest correctness, etc.) or well-documented. A scientist can trust this step without detailed review.
-
-- "review_recommended" — No errors, but one or more assumptions warrant a scientist's attention (e.g., custom logic, parameter choices, data processing decisions). NOTE: A computation with CRITICAL-impact assumptions can still be "clear" if those assumptions are routine (e.g., "assumes proprietary software works as documented").
-
-- "error_detected" — One or more actual errors were found. This should be rare.
-
-**Consistency rule:** If the `errors` list is non-empty, `computationStatus` MUST be "error_detected". If any assumption has `reviewRecommended: true`, `computationStatus` should be at least "review_recommended" (unless errors exist, in which case use "error_detected").
-
-Use your judgment. The status reflects whether a scientist should spend time reviewing this step, not just a count of assumption severity levels.
-
-## Output
-- stepSummary: What this step does, why, and what critical assumptions it rests on.
-- codeAnalysis: Per software entity — summary, key functions, and assumptions (each with the structured format below).
-- inputSummaries: Per input dataset — role, description, dataQuality observations from data profile.
-- outputSummaries: Per output dataset — what it contains, dataQuality observations.
-- assumptions: Step-level assumptions. May be empty if the step makes no notable assumptions.
-- errors: Obvious mistakes found. Each as a structured object (see Errors section above).
-- computationStatus: "clear" | "review_recommended" | "error_detected" (see Computation Status section above).
-
-Each assumption MUST be a structured object:
-{
-  impact: "CRITICAL" | "MAJOR" | "MINOR",
-  name: "Short label (3-8 words) — e.g. 'Train/test split independence'",
-  description: "Briefly describe what is being assumed",
-  downstreamImpacts: "What changes if this assumption is wrong — potential downstream effects",
-  evidence: { artifact: {"@id": "<@id of the data file or software entity>"}, location: "<line number, function name, or column name>" },
-  reviewRecommended: true | false,
-  recommendedValidation: "A concrete step a scientist could take to test this assumption — e.g. 'Run Shapiro-Wilk test on residuals' or 'Check feature correlation matrix for multicollinearity'. Include when reviewRecommended is true. Omit for routine assumptions."
-}
-
-## Recommended Validation
-
-For assumptions where reviewRecommended is true, include a recommendedValidation string: a specific, actionable step a scientist could perform to check whether this assumption holds. Be concrete — name the test, the plot, or the comparison. For MINOR or routine assumptions, omit this field.
-
-Be precise and evidence-based. Reference specific function names and parameter values."""
+# Additional interpretation-only constants
+MAX_STATS_COLUMNS = 25       # max columns of stats to include per dataset in prompt
+MAX_PROMPT_DATASETS = 3      # max input/output datasets to include per computation prompt
 
 
-DATASCI_SYNTHESIS_PROMPT = """You are a senior data scientist synthesizing step annotations from a scientific analysis pipeline (RO-Crate) into a coherent picture of what supports the pipeline's claims.
+# Constants, prompts, and AUDIENCE_CONFIGS are now imported from
+# fairscape_interpret (see top of file).
 
-You will receive the RO-Crate overview, step-by-step annotations including assumptions, and a Pipeline DAG Structure section showing the topological order of steps.
-
-Produce:
-1. pipelineDescription: 1-2 sentences about the primary output of the pipeline. Weave in the key findings — what the pipeline discovered and its most important results. This is NOT a repeat of the RO-Crate metadata description. Focus on what the pipeline produces and what was found. Keep it brief.
-2. pipelineSteps: An ordered list of pipeline steps. Follow the DAG structure provided in the prompt. Each entry is one sentence describing what the step does. Use the numbering from the DAG structure section (1a, 1b for parallel branches at the same level, then 2, 3, etc. following DAG order). Start from raw inputs and work to the final output.
-3. executiveSummary: 3-5 sentences covering what the pipeline does, its approach, and the most important critical assumptions it rests on. Weave the load-bearing assumptions into this summary.
-4. narrativeSummary: A forward-chronological story of the pipeline, explicitly noting where key assumptions enter and what claims they support. The reader should finish this knowing what the results depend on.
-5. keyFindings: Bulleted list of important observations about what the pipeline discovered.
-6. assumptions: Cross-cutting assumptions that span the pipeline, each as a structured object:
-   {impact, name, description, downstreamImpacts, recommendedValidation}
-   - impact: "CRITICAL" (if wrong, pipeline conclusions don't hold), "MAJOR" (if wrong, specific results break but others may hold), or "MINOR" (worth noting but won't change conclusions)
-   - name: Short label (3-8 words)
-   - description: What is being assumed
-   - downstreamImpacts: What changes if this assumption is wrong
-   - recommendedValidation: A concrete step a scientist could take to test this assumption. Be specific — name the test, plot, or comparison. Omit for MINOR assumptions.
-
-Do NOT re-list every step-level assumption. Surface those that matter at the pipeline level — because they span steps, compound across steps, or are the most consequential for trusting the results. A pipeline with no CRITICAL assumptions at the graph level is valid if step-level ones don't compound."""
-
-
-BIOSTAT_SYNTHESIS_PROMPT = """You are a biostatistician reviewing a scientific analysis pipeline (RO-Crate). Synthesize the step annotations into a perspective focused on statistical rigor and the assumptions that underpin the quantitative claims.
-
-You will receive the RO-Crate overview and step-by-step annotations including assumptions.
-
-Produce:
-1. executiveSummary: 3-5 sentences on the pipeline's statistical approach and the critical statistical assumptions it rests on.
-2. narrativeSummary: Forward-chronological story emphasizing where statistical assumptions enter — distributional assumptions, independence assumptions, sample size considerations, multiple testing implications, model specification choices. The reader should understand the statistical scaffolding supporting the claims.
-3. keyFindings: Bulleted observations focused on statistical methodology — what was done well and what gaps exist.
-4. assumptions: Cross-cutting statistical assumptions, each as a structured object:
-   {impact, name, description, downstreamImpacts}
-   - impact: "CRITICAL" (core statistical assumptions, e.g. distributional assumptions, independence of observations), "MAJOR" (statistical choices that shape specific results, e.g. correction methods, model selection), or "MINOR" (minor statistical notes for reproducibility)
-   - name: Short label (3-8 words)
-   - description: What is being assumed
-   - downstreamImpacts: What changes if this assumption is wrong
-
-Focus on what a statistician reviewing this work would want to verify. Do NOT re-list every step-level assumption."""
-
-
-CLINICIAN_SYNTHESIS_PROMPT = """You are a clinician reviewing a scientific analysis pipeline (RO-Crate). Synthesize the step annotations into a perspective focused on clinical applicability and what assumptions must hold for these results to inform patient care.
-
-You will receive the RO-Crate overview and step-by-step annotations including assumptions.
-
-Produce:
-1. executiveSummary: 3-5 sentences on what clinical question this pipeline addresses and what critical assumptions must hold for the results to be clinically actionable.
-2. narrativeSummary: Forward-chronological story emphasizing clinical relevance — what patient population is assumed, what outcome measures are used and whether they map to clinical endpoints, what generalizability assumptions are made. The reader should understand what would need to be true for these results to apply in practice.
-3. keyFindings: Bulleted observations focused on clinical applicability — effect sizes, clinical vs statistical significance, population representativeness.
-4. assumptions: Cross-cutting clinical assumptions, each as a structured object:
-   {impact, name, description, downstreamImpacts}
-   - impact: "CRITICAL" (assumptions about patient population, outcome validity, clinical relevance that conclusions rest on), "MAJOR" (assumptions affecting how broadly or confidently specific results can be applied), or "MINOR" (notes for clinical context unlikely to change interpretation)
-   - name: Short label (3-8 words)
-   - description: What is being assumed
-   - downstreamImpacts: What changes if this assumption is wrong
-
-Focus on what a clinician deciding whether to act on these results would want to know. Do NOT re-list every step-level assumption."""
-
-
-# Audience configuration for synthesis
-AUDIENCE_CONFIGS = [
-    {
-        "key": "biostat",
-        "label": "Biostatistician",
-        "prompt": BIOSTAT_SYNTHESIS_PROMPT,
-    },
-    {
-        "key": "clinician",
-        "label": "Clinician",
-        "prompt": CLINICIAN_SYNTHESIS_PROMPT,
-    },
-]
+# (Prompts and AUDIENCE_CONFIGS are imported from fairscape_interpret.prompts at the top of this file.)
 
 
 # ---------------------------------------------------------------------------
@@ -340,275 +111,8 @@ class GraphSynthesisResult(BaseModel):
     assumptions: List[LLMAssumption] = []
 
 
-# ---------------------------------------------------------------------------
-# Helper functions
-# ---------------------------------------------------------------------------
-
-def _extract_short_types(node: dict) -> list:
-    """Extract short EVI type names from a node's @type field."""
-    raw = node.get("@type", [])
-    if isinstance(raw, str):
-        raw = [raw]
-    shorts = []
-    for t in raw:
-        short = t.split("#")[-1] if "#" in t else t.split(":")[-1] if ":" in t else t
-        shorts.append(short)
-    return shorts
-
-
-def _is_computation(node: dict) -> bool:
-    return "Computation" in _extract_short_types(node)
-
-
-def _is_rocrate_root(node: dict) -> bool:
-    return "ROCrate" in _extract_short_types(node)
-
-
-def _resolve_refs(field) -> list:
-    """Normalize a reference field to a list of @id strings."""
-    if field is None:
-        return []
-    if isinstance(field, str):
-        return [field]
-    if isinstance(field, dict):
-        return [field.get("@id", "")] if "@id" in field else []
-    if isinstance(field, list):
-        result = []
-        for item in field:
-            if isinstance(item, str):
-                result.append(item)
-            elif isinstance(item, dict) and "@id" in item:
-                result.append(item["@id"])
-        return result
-    return []
-
-
-def _build_index(graph: list) -> dict:
-    """Build {`@id` -> node} index from @graph array."""
-    index = {}
-    for node in graph:
-        node_id = node.get("@id")
-        if node_id:
-            index[node_id] = node
-    return index
-
-
-# ---------------------------------------------------------------------------
-# Dataset statistics formatting for prompts
-# ---------------------------------------------------------------------------
-
-_HIST_BARS = " ▁▂▃▄▅▆▇█"
-
-
-def _mini_histogram(counts: list) -> str:
-    """Render a list of histogram counts as a sparkline string."""
-    if not counts:
-        return ""
-    mx = max(counts) if max(counts) > 0 else 1
-    return "".join(_HIST_BARS[min(int(c / mx * 8) + (1 if c > 0 else 0), 8)] for c in counts)
-
-
-def _format_column_stats(col_name: str, col_data: dict) -> str:
-    """Format one column's stats as a markdown table row."""
-    stats = col_data.get("statistics", {})
-
-    # Determine type by presence of 'mean' (numerical) vs 'unique' (categorical)
-    if "mean" in stats and stats["mean"] is not None:
-        # Numerical
-        missing_pct = stats.get("missing_percentage", "")
-        if missing_pct != "" and missing_pct is not None:
-            missing_pct = f"{missing_pct}%"
-        hist = _mini_histogram(stats.get("histogram_counts", []))
-        return (
-            f"| {col_name} | num | {stats.get('count', '')} | {missing_pct} "
-            f"| {stats.get('mean', '')} | {stats.get('std', '')} "
-            f"| {stats.get('min', '')} | {stats.get('first_quartile', '')} "
-            f"| {stats.get('second_quartile', '')} | {stats.get('third_quartile', '')} "
-            f"| {stats.get('max', '')} | {hist} |"
-        )
-    else:
-        # Categorical
-        missing_pct = stats.get("missing_percentage", "")
-        if missing_pct != "" and missing_pct is not None:
-            missing_pct = f"{missing_pct}%"
-        return (
-            f"| {col_name} | cat | {stats.get('count', '')} | {missing_pct} "
-            f"| top: {stats.get('top', '')} | uniq: {stats.get('unique', '')} "
-            f"| | | | | | freq: {stats.get('freq', '')} |"
-        )
-
-
-def _format_dataset_stats(ds_name: str, ds_stats: dict) -> str:
-    """Format descriptiveStatistics and splitStatistics for one dataset into
-    prompt-ready markdown.  Returns empty string if no stats available."""
-    desc_stats = ds_stats.get("descriptiveStatistics", {})
-    split_stats = ds_stats.get("splitStatistics", {})
-
-    if not desc_stats and not split_stats:
-        return ""
-
-    parts = []
-
-    # --- Overall descriptive statistics ---
-    if desc_stats:
-        columns = list(desc_stats.items())
-        total_cols = len(columns)
-
-        # Estimate row count from first column's count
-        first_stats = columns[0][1].get("statistics", {}) if columns else {}
-        row_count = first_stats.get("count", "?")
-
-        # Total missing across all columns
-        total_missing = 0
-        for _, col_data in columns:
-            mc = col_data.get("statistics", {}).get("missing_count")
-            if mc is not None:
-                total_missing += mc
-
-        # Skip detailed stats for wide datasets (>10 columns) to keep prompts small
-        if total_cols > 10:
-            parts.append(f"#### Data Profile: {ds_name} ({total_cols} columns, ~{row_count} rows, {total_missing} missing values)")
-            parts.append("*(Column-level statistics omitted for wide dataset)*")
-            parts.append("")
-        else:
-            display_cols = columns
-
-            parts.append(f"#### Data Profile: {ds_name} ({total_cols} columns, ~{row_count} rows, {total_missing} missing values)")
-            parts.append("| Column | Type | Count | Missing% | Mean/Top | Std/Unique | Min | Q1 | Median | Q3 | Max | Hist |")
-            parts.append("|--------|------|-------|----------|----------|------------|-----|----|----|----|----|------|")
-            for col_name, col_data in display_cols:
-                parts.append(_format_column_stats(col_name, col_data))
-            parts.append("")
-
-    # --- Split statistics ---
-    if split_stats:
-        split_items = list(split_stats.items())
-        total_splits = len(split_items)
-        truncated_splits = total_splits > MAX_SPLITS
-        display_splits = split_items[:MAX_SPLITS]
-
-        for split_name, split_data in display_splits:
-            split_desc = split_data.get("description", "")
-            split_col_stats = split_data.get("statistics", {})
-            if not split_col_stats:
-                continue
-
-            # Row count from first column
-            first_split_col = list(split_col_stats.values())[0] if split_col_stats else {}
-            split_row_count = first_split_col.get("statistics", {}).get("count", "?")
-
-            label = f'#### Split: "{split_name}"'
-            if split_desc:
-                label += f" ({split_desc})"
-            label += f" -- {split_row_count} rows"
-            parts.append(label)
-
-            split_columns = list(split_col_stats.items())
-
-            # Skip detailed split stats for wide datasets
-            if len(split_columns) > 10:
-                parts.append(f"*({len(split_columns)} columns, stats omitted for wide dataset)*")
-                parts.append("")
-            else:
-                parts.append("| Column | Type | Count | Missing% | Mean/Top | Std/Unique | Min | Q1 | Median | Q3 | Max | Hist |")
-                parts.append("|--------|------|-------|----------|----------|------------|-----|----|----|----|----|------|")
-                for col_name, col_data in split_columns:
-                    parts.append(_format_column_stats(col_name, col_data))
-                parts.append("")
-
-        if truncated_splits:
-            parts.append(f"*... {total_splits - MAX_SPLITS} more splits omitted*\n")
-
-    return "\n".join(parts)
-
-
-# ---------------------------------------------------------------------------
-# GitHub source code fetching
-# ---------------------------------------------------------------------------
-
-def _fetch_github_file(owner: str, repo: str, branch: str, path: str) -> str:
-    """Fetch a single file from GitHub via raw URL."""
-    raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}"
-    try:
-        resp = httpx.get(raw_url, timeout=15, follow_redirects=True)
-        resp.raise_for_status()
-        return resp.text
-    except Exception as e:
-        logger.warning(f"Failed to fetch {raw_url}: {e}")
-        return ""
-
-
-def _fetch_github_repo_code(owner: str, repo: str, max_bytes: int = MAX_SOFTWARE_BYTES) -> str:
-    """Fetch code files from a GitHub repo up to max_bytes total."""
-    try:
-        # Get default branch
-        api_url = f"https://api.github.com/repos/{owner}/{repo}"
-        resp = httpx.get(api_url, timeout=15, follow_redirects=True)
-        resp.raise_for_status()
-        default_branch = resp.json().get("default_branch", "main")
-
-        # Get tree
-        tree_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{default_branch}?recursive=1"
-        resp = httpx.get(tree_url, timeout=15, follow_redirects=True)
-        resp.raise_for_status()
-        tree = resp.json().get("tree", [])
-
-        # Filter for code files
-        code_files = []
-        for item in tree:
-            if item.get("type") != "blob":
-                continue
-            path = item.get("path", "")
-            ext = "." + path.rsplit(".", 1)[-1] if "." in path else ""
-            if ext.lower() in {e.lower() for e in CODE_EXTENSIONS}:
-                code_files.append(path)
-
-        # Sort: prefer top-level files, then by name
-        code_files.sort(key=lambda p: (p.count("/"), p))
-
-        # Fetch files up to limit
-        collected = []
-        total_bytes = 0
-        for path in code_files:
-            if total_bytes >= max_bytes:
-                collected.append(f"\n--- [Truncated: reached {max_bytes} byte limit] ---\n")
-                break
-            content = _fetch_github_file(owner, repo, default_branch, path)
-            if content:
-                header = f"\n{'='*60}\n# FILE: {path}\n{'='*60}\n"
-                collected.append(header + content)
-                total_bytes += len(content.encode("utf-8"))
-
-        return "\n".join(collected)
-
-    except Exception as e:
-        logger.warning(f"Failed to fetch repo {owner}/{repo}: {e}")
-        return f"[Could not fetch repository code: {e}]"
-
-
-def prefetch_software_code(content_url: str) -> str:
-    """Fetch source code from a contentUrl, handling GitHub URLs."""
-    if not content_url:
-        return "[No contentUrl available]"
-
-    # Check for GitHub file URL: github.com/owner/repo/blob/branch/path
-    file_match = GITHUB_FILE_PATTERN.match(content_url)
-    if file_match:
-        owner, repo, branch, path = file_match.groups()
-        code = _fetch_github_file(owner, repo, branch, path)
-        return code if code else f"[Could not fetch file from {content_url}]"
-
-    # Check for GitHub repo URL: github.com/owner/repo
-    repo_match = GITHUB_REPO_PATTERN.match(content_url)
-    if repo_match:
-        owner, repo = repo_match.groups()
-        return _fetch_github_repo_code(owner, repo)
-
-    # Non-GitHub HTTP URL
-    if content_url.startswith("http"):
-        return f"[External URL, not fetched: {content_url}]"
-
-    return f"[Local/relative path: {content_url}]"
+# (Graph helpers, stats formatting, and GitHub fetchers are imported from
+# fairscape_interpret at the top of this file.)
 
 
 # ---------------------------------------------------------------------------
@@ -1120,96 +624,8 @@ class FairscapeInterpretationRequest(FairscapeRequest):
     # Step 5: Graph-level synthesis
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _compute_dag_order(
-        step_annotations: List[AnnotatedComputation],
-        graph_dict: dict,
-    ) -> List[tuple]:
-        """Compute topological order of step annotations based on the DAG.
-
-        Returns a list of (label, annotation) tuples where label is e.g.
-        "1", "1a", "1b", "2", etc.
-        """
-        # Map computation @id -> annotation
-        ann_by_comp: Dict[str, AnnotatedComputation] = {}
-        for ann in step_annotations:
-            annotates = ann.annotates
-            if hasattr(annotates, 'guid'):
-                comp_id = annotates.guid
-            elif isinstance(annotates, dict):
-                comp_id = annotates.get("@id", "")
-            else:
-                comp_id = str(annotates)
-            ann_by_comp[comp_id] = ann
-
-        # Build adjacency: comp_id -> set of comp_ids it depends on
-        deps: Dict[str, set] = {cid: set() for cid in ann_by_comp}
-        # Map dataset @id -> comp_id that generated it
-        generated_by: Dict[str, str] = {}
-        for node in graph_dict.values():
-            if not isinstance(node, dict):
-                continue
-            gen = node.get("generatedBy")
-            if gen:
-                gen_ids = _resolve_refs(gen)
-                node_id = node.get("@id", "")
-                for gid in gen_ids:
-                    if gid in ann_by_comp:
-                        generated_by[node_id] = gid
-
-        for comp_id in ann_by_comp:
-            comp_node = graph_dict.get(comp_id, {})
-            input_refs = _resolve_refs(comp_node.get("usedDataset"))
-            for ds_id in input_refs:
-                producer = generated_by.get(ds_id)
-                if producer and producer != comp_id and producer in ann_by_comp:
-                    deps[comp_id].add(producer)
-
-        # Kahn's algorithm for topological sort with level tracking
-        in_degree = {cid: len(d) for cid, d in deps.items()}
-        # Reverse adjacency for decrementing
-        rdeps: Dict[str, set] = {cid: set() for cid in ann_by_comp}
-        for cid, dep_set in deps.items():
-            for d in dep_set:
-                rdeps[d].add(cid)
-
-        queue = [cid for cid, deg in in_degree.items() if deg == 0]
-        levels: List[List[str]] = []
-        visited = set()
-
-        while queue:
-            levels.append(sorted(queue))  # sort for determinism
-            visited.update(queue)
-            next_queue = []
-            for cid in queue:
-                for child in rdeps.get(cid, set()):
-                    if child in visited:
-                        continue
-                    in_degree[child] -= 1
-                    if in_degree[child] == 0:
-                        next_queue.append(child)
-            queue = next_queue
-
-        # Handle any remaining nodes (cycles) — add them at the end
-        remaining = [cid for cid in ann_by_comp if cid not in visited]
-        if remaining:
-            levels.append(sorted(remaining))
-
-        # Assign labels
-        result = []
-        for level_num, level_cids in enumerate(levels, 1):
-            if len(level_cids) == 1:
-                result.append((str(level_num), ann_by_comp[level_cids[0]]))
-            else:
-                for branch_idx, cid in enumerate(level_cids):
-                    letter = chr(ord('a') + branch_idx) if branch_idx < 26 else str(branch_idx)
-                    result.append((f"{level_num}{letter}", ann_by_comp[cid]))
-
-        # Fallback: if somehow empty, return original order
-        if not result:
-            return [(str(i), ann) for i, ann in enumerate(step_annotations, 1)]
-
-        return result
+    # _compute_dag_order is imported from fairscape_interpret.pipeline.graph_utils
+    # (used as a module-level function, not a method).
 
     def _build_synthesis_prompt(
         self,
@@ -1228,7 +644,7 @@ class FairscapeInterpretationRequest(FairscapeRequest):
 
         # Compute DAG order if graph_dict is available
         if graph_dict:
-            ordered = self._compute_dag_order(step_annotations, graph_dict)
+            ordered = _compute_dag_order(step_annotations, graph_dict)
         else:
             ordered = [(str(i), ann) for i, ann in enumerate(step_annotations, 1)]
 
