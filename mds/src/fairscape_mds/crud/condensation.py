@@ -163,13 +163,25 @@ class FairscapeCondensationRequest(FairscapeRequest):
 		max_member_ids: int = 0,
 		owner_email: str = "system@fairscape.org",
 	) -> FairscapeResponse:
-		"""Build the full graph, condense it, and store the result.
+		"""Build the full graph, condense it, store the result.
 
-		Returns a FairscapeResponse with the condensed ROCrate's StoredIdentifier.
+		Thin wrapper over `fairscape_interpret.Condenser.condense`. The
+		Mongo adapters and the shared orchestrator do all the real work;
+		this method only maps their exceptions onto the HTTP-shaped
+		`FairscapeResponse` the router and Celery worker expect.
 		"""
+		# Lazy import: `interpret_adapters` imports this class, so a
+		# top-level import here would close the cycle at module load.
+		from fairscape_mds.crud.interpret_adapters import (
+			MongoGraphSource,
+			MongoResultSink,
+		)
+		from fairscape_interpret.condenser import Condenser
+
 		condensed_id = f"{rocrate_id}-condensed"
 
-		# Check if already exists
+		# Pre-check preserves the exact 409 error text (no hyphen in
+		# "ROCrate") that downstream clients may depend on.
 		existing = self.config.identifierCollection.find_one({"@id": condensed_id})
 		if existing:
 			return FairscapeResponse(
@@ -178,110 +190,32 @@ class FairscapeCondensationRequest(FairscapeRequest):
 				error={"message": f"Condensed ROCrate {condensed_id} already exists"}
 			)
 
-		# Collect the full graph from MongoDB
-		graph = self.build_full_graph_for_rocrate(rocrate_id)
-		if not graph:
+		source = MongoGraphSource(self.config)
+		sink = MongoResultSink(self.config, owner_email=owner_email)
+		condenser = Condenser(
+			source, sink, threshold=threshold, max_member_ids=max_member_ids,
+		)
+
+		try:
+			persisted_id = condenser.condense(rocrate_id)
+		except ValueError as e:
 			return FairscapeResponse(
 				success=False,
 				statusCode=404,
-				error={"message": f"No metadata found for RO-Crate {rocrate_id}"}
-			)
-
-		# Run condensation
-		condensed_graph, stats = condense_graph(graph, threshold, max_member_ids)
-
-		# Find context from the original ROCrate root doc
-		rocrate_doc = self.config.identifierCollection.find_one(
-			{"@id": rocrate_id}, {"_id": 0}
-		)
-		rocrate_name = "Unknown RO-Crate"
-		if rocrate_doc:
-			meta = rocrate_doc.get("metadata", {})
-			if isinstance(meta, dict):
-				rocrate_name = meta.get("name", rocrate_doc.get("name", rocrate_id))
-			else:
-				rocrate_name = rocrate_doc.get("name", rocrate_id)
-
-		# Build the condensed ROCrate as a proper RO-Crate structure:
-		# @graph[0] = ROCrateMetadataFileElem ("about" this crate)
-		# @graph[1] = ROCrateMetadataElem (the root crate node — already in condensed_graph)
-		# @graph[2..] = rest of condensed entities
-
-		# Find the root crate element in the condensed graph
-		root_idx = None
-		for idx, node in enumerate(condensed_graph):
-			if is_rocrate_root(node):
-				root_idx = idx
-				break
-
-		if root_idx is not None:
-			# Update the root element with condensed-specific metadata
-			root_node = dict(condensed_graph[root_idx])
-			root_node["evi:sourceROCrate"] = {"@id": rocrate_id}
-			root_node["evi:condensationStats"] = stats
-			condensed_graph[root_idx] = root_node
-
-		# Build the ro-crate-metadata.json file descriptor element
-		file_elem = {
-			"@id": "ro-crate-metadata.json",
-			"@type": "CreativeWork",
-			"conformsTo": {"@id": "https://w3id.org/ro/crate/1.2-DRAFT"},
-			"about": {"@id": rocrate_id},
-		}
-
-		# Assemble the @graph: file descriptor first, then rest
-		ordered_graph = [file_elem]
-		if root_idx is not None:
-			ordered_graph.append(condensed_graph[root_idx])
-		for idx, node in enumerate(condensed_graph):
-			if idx == root_idx:
-				continue
-			if node.get("@id") == "ro-crate-metadata.json":
-				continue
-			ordered_graph.append(node)
-
-		condensed_metadata = {
-			"@context": {"@vocab": "https://schema.org/"},
-			"@graph": ordered_graph,
-		}
-
-		now = datetime.datetime.utcnow()
-		stored_doc = {
-			"@id": condensed_id,
-			"@type": MetadataTypeEnum.ROCRATE.value,
-			"metadata": condensed_metadata,
-			"publicationStatus": PublicationStatusEnum.PUBLISHED.value,
-			"permissions": {
-				"owner": owner_email,
-				"group": None,
-			},
-			"distribution": None,
-			"descriptiveStatistics": {},
-			"contentSummary": None,
-			"dateCreated": now,
-			"dateModified": now,
-		}
-
-		try:
-			self.config.identifierCollection.insert_one(stored_doc)
-
-			# Update original ROCrate with pointer
-			self.config.identifierCollection.update_one(
-				{"@id": rocrate_id},
-				{"$set": {"metadata.hasCondensedROCrate": {"@id": condensed_id}}}
-			)
-
-			return FairscapeResponse(
-				success=True,
-				statusCode=201,
-				model={"condensed_id": condensed_id, "stats": stats}
+				error={"message": str(e)},
 			)
 		except Exception as e:
 			return FairscapeResponse(
 				success=False,
 				statusCode=500,
-				error={"message": f"Error storing condensed ROCrate: {str(e)}"}
+				error={"message": f"Error storing condensed ROCrate: {str(e)}"},
 			)
+
+		return FairscapeResponse(
+			success=True,
+			statusCode=201,
+			model={"condensed_id": persisted_id, "stats": sink.last_stats},
+		)
 
 	def delete_condensed_rocrate(self, rocrate_id: str) -> FairscapeResponse:
 		"""Delete an existing condensed ROCrate and clear the pointer."""

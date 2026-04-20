@@ -118,6 +118,7 @@ class MongoResultSink:
     ):
         self.config = config
         self.owner_email = owner_email
+        self.last_stats: dict = {}
 
     def persist_condensed(
         self,
@@ -126,6 +127,7 @@ class MongoResultSink:
         source_rocrate_id: str,
         stats: dict,
     ) -> str:
+        self.last_stats = stats or {}
         now = datetime.datetime.utcnow()
         stored_doc = {
             "@id": condensed_id,
