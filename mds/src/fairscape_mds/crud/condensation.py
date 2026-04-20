@@ -329,6 +329,125 @@ def traverse_and_condense(
 	return keep_ids, collapsed_ids, group_nodes, comp_updates
 
 
+# ---------------------------------------------------------------------------
+# Evidence-graph condensation (operates on node_cache in-place)
+# ---------------------------------------------------------------------------
+
+def condense_evidence_graph_cache(
+	node_cache: dict[str, dict],
+	threshold: int = 5,
+	max_member_ids: int = 0,
+) -> dict:
+	"""
+	Condense an evidence graph's node_cache in-place by collapsing sibling
+	datasets at each Computation that share identical provenance signatures.
+
+	Mutates node_cache: adds DatasetGroup nodes, removes collapsed nodes,
+	updates Computation usedDataset references.
+
+	Returns a stats dict.
+	"""
+	original_count = len(node_cache)
+	sig_cache: dict[str, tuple] = {}
+	all_group_nodes: list[dict] = []
+	total_collapsed: set[str] = set()
+
+	# Snapshot computation IDs (we'll mutate node_cache during iteration)
+	comp_ids = [
+		nid for nid, node in node_cache.items()
+		if is_computation(node)
+	]
+
+	for comp_id in comp_ids:
+		node = node_cache.get(comp_id)
+		if node is None:
+			continue
+
+		input_ids = get_id_list(node, "usedDataset")
+		# Only consider inputs that are actual datasets present in the cache
+		input_dataset_ids = [
+			ds_id for ds_id in input_ids
+			if ds_id in node_cache and is_dataset(node_cache[ds_id])
+		]
+
+		if len(input_dataset_ids) <= threshold:
+			continue
+
+		sig_to_ids: dict[tuple, list[str]] = defaultdict(list)
+		for ds_id in input_dataset_ids:
+			sig = compute_provenance_signature(ds_id, node_cache, sig_cache)
+			sig_to_ids[sig].append(ds_id)
+
+		for sig, member_ids in sig_to_ids.items():
+			if len(member_ids) <= threshold:
+				continue
+
+			representative_id = sorted(member_ids)[0]
+			non_rep_ids = [mid for mid in member_ids if mid != representative_id]
+
+			# Collect exclusive backward chains for non-representatives
+			collapsed_here: set[str] = set()
+			for mid in non_rep_ids:
+				_collect_exclusive_backward(mid, representative_id, node_cache, collapsed_here)
+
+			# Build group node
+			group = {
+				"consuming_comp_id": comp_id,
+				"signature": sig,
+				"member_ids": member_ids,
+				"representative_id": representative_id,
+			}
+			group_node = create_dataset_group_node(group, node_cache, max_member_ids)
+			all_group_nodes.append(group_node)
+
+			# Update computation's usedDataset: replace members with group ref
+			member_set = set(member_ids)
+			current_used = node.get("usedDataset", [])
+			if isinstance(current_used, dict):
+				current_used = [current_used]
+			kept = [ref for ref in current_used
+					if not (isinstance(ref, dict) and ref.get("@id") in member_set)]
+			kept.append(make_id_ref(group_node["@id"]))
+			node["usedDataset"] = kept
+
+			# Track all collapsed IDs
+			total_collapsed.update(collapsed_here)
+
+	# Remove collapsed nodes from cache
+	for cid in total_collapsed:
+		node_cache.pop(cid, None)
+
+	# Add group nodes to cache
+	for gn in all_group_nodes:
+		node_cache[gn["@id"]] = gn
+
+	condensed_count = len(node_cache)
+
+	if not all_group_nodes:
+		return {
+			"condensed": False,
+			"originalEntityCount": original_count,
+			"condensedEntityCount": original_count,
+			"datasetGroupCount": 0,
+		}
+
+	return {
+		"condensed": True,
+		"originalEntityCount": original_count,
+		"condensedEntityCount": condensed_count,
+		"datasetGroupCount": len(all_group_nodes),
+		"entitiesRemoved": len(total_collapsed),
+		"groups": [
+			{
+				"memberCount": gn["evi:memberCount"],
+				"format": gn.get("format", "unknown"),
+				"groupId": gn["@id"],
+			}
+			for gn in all_group_nodes
+		],
+	}
+
+
 def _collect_exclusive_backward(
 	dataset_id: str,
 	representative_id: str,

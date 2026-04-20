@@ -24,6 +24,7 @@ class EvidenceGraph(BaseModel):
     name: str = Field(default="Evidence Graph")
     outputs: Optional[List[Dict[str, str]]] = Field(default=None)
     graph: Optional[Dict[str, Dict[str, Any]]] = Field(default=None, alias="@graph")
+    condensation_stats: Optional[Dict[str, Any]] = Field(default=None)
 
     class Config:
         extra = 'allow' 
@@ -283,9 +284,31 @@ class EvidenceGraph(BaseModel):
                 if mlmodel_refs:
                     result_node["usedMLModel"] = mlmodel_refs
 
+        # Preserve DatasetGroup summary fields and recurse into the
+        # representative dataset so it actually appears in the graph.
+        # The other members are dropped by condensation by design.
+        if isinstance(node_type_field, list) and any("DatasetGroup" in str(t) for t in node_type_field):
+            for field in ("evi:memberCount", "evi:representativeDataset",
+                          "evi:commonFormat", "evi:commonSoftware", "format",
+                          "evi:memberIds"):
+                if field in node:
+                    result_node[field] = node[field]
+
+            rep_ref = node.get("evi:representativeDataset")
+            rep_id = None
+            if isinstance(rep_ref, dict):
+                rep_id = rep_ref.get("@id")
+            elif isinstance(rep_ref, str):
+                rep_id = rep_ref
+            if rep_id:
+                self._build_node_from_cache(
+                    rep_id, node_cache, graph_dict,
+                    start_rocrate_id, rocrate_outputs,
+                )
+
         graph_dict[node_id] = result_node
 
-    def build_graph(self, start_node_id: str, mongo_collection: pymongo.collection.Collection):
+    def build_graph(self, start_node_id: str, mongo_collection: pymongo.collection.Collection, condense: bool = True, condense_threshold: int = 5):
         graph_dict = {}
         output_nodes = []
         
@@ -348,7 +371,13 @@ class EvidenceGraph(BaseModel):
                             next_level.update(referenced_ids)
             
             current_level = next_level
-        
+
+        if condense:
+            from fairscape_mds.crud.condensation import condense_evidence_graph_cache
+            self.condensation_stats = condense_evidence_graph_cache(
+                node_cache, condense_threshold
+            )
+
         for output_node in output_nodes:
             output_id = output_node.get("@id")
             if output_id:
@@ -382,6 +411,8 @@ class EvidenceGraphBuildRequest(BaseModel):
     owner_email: str
     naan: str
     postfix: str
+    condense: bool = Field(default=True)
+    condense_threshold: int = Field(default=5)
     status: str = Field(default="PENDING")
     time_created: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
     time_started: Optional[datetime.datetime] = None

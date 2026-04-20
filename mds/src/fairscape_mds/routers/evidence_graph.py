@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from fastapi.responses import JSONResponse
 from typing import Annotated, List, Dict
 import logging
@@ -106,6 +106,8 @@ def initiate_build_evidence_graph_for_node_route(
     NAAN: Annotated[str, Path(description="NAAN of the node to build graph for")],
     postfix: Annotated[str, Path(description="Postfix of the node to build graph for")],
     current_user: Annotated[UserWriteModel, Depends(getCurrentUser)],
+    condense: bool = Query(default=True, description="Apply condensation to reduce large graphs"),
+    condense_threshold: int = Query(default=5, ge=2, description="Min group size to trigger condensation"),
 ):
     task_guid = str(uuid.uuid4())
 
@@ -114,9 +116,11 @@ def initiate_build_evidence_graph_for_node_route(
         "owner_email": current_user.email,
         "naan": NAAN,
         "postfix": postfix,
+        "condense": condense,
+        "condense_threshold": condense_threshold,
         "status": "PENDING",
     }
-    
+
     try:
         task_request_model = EvidenceGraphBuildRequest.model_validate(task_request_data)
         appConfig.asyncCollection.insert_one(task_request_model.model_dump(by_alias=True))
@@ -131,7 +135,9 @@ def initiate_build_evidence_graph_for_node_route(
         task_guid=task_guid,
         user_email=current_user.email,
         naan=NAAN,
-        postfix=postfix
+        postfix=postfix,
+        condense=condense,
+        condense_threshold=condense_threshold,
     )
 
     return {"message": "EvidenceGraph build process initiated.", "task_id": task_guid, "status_endpoint": f"/evidencegraph/build/status/{task_guid}"}

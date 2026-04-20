@@ -101,7 +101,9 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
         self,
         requesting_user: UserWriteModel,
         naan: str,
-        postfix: str
+        postfix: str,
+        condense: bool = True,
+        condense_threshold: int = 5,
     ) -> FairscapeResponse:
         node_id = f"ark:{naan}/{postfix}"
         evidence_graph_id = f"ark:{naan}/evidence-graph-{postfix}"
@@ -150,7 +152,7 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
 
         try:
             evidence_graph = EvidenceGraph.model_validate(evidence_graph_data_to_validate)
-            evidence_graph.build_graph(node_id, self.config.identifierCollection)
+            evidence_graph.build_graph(node_id, self.config.identifierCollection, condense=condense, condense_threshold=condense_threshold)
         except Exception as e:
             return FairscapeResponse(
                 success=False,

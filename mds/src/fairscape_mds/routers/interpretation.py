@@ -1,13 +1,15 @@
 """Router for AI-mediated interpretation of RO-Crates."""
 
 from typing import Annotated
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, UploadFile, File
 from fastapi.responses import JSONResponse
 
+import json
 import uuid
 import datetime
 
-from fairscape_mds.models.user import UserWriteModel
+from fairscape_mds.models.user import UserWriteModel, Permissions
+from fairscape_mds.models.identifier import StoredIdentifier, PublicationStatusEnum
 from fairscape_mds.core.config import appConfig
 from fairscape_mds.deps import getCurrentUser, OAuthScheme
 from fairscape_mds.crud.fairscape_request import flexible_ark_query
@@ -205,3 +207,80 @@ def get_interpretation_result(NAAN: str, postfix: str):
 
     metadata = aeg_doc.get("metadata", {})
     return JSONResponse(status_code=200, content=metadata)
+
+
+# ---------------------------------------------------------------------------
+# POST /interpretation/upload -- upload a pre-computed AnnotatedEvidenceGraph
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/upload",
+    summary="Upload a pre-computed AnnotatedEvidenceGraph StoredIdentifier",
+)
+def upload_annotated_evidence_graph(
+    currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
+    file: UploadFile = File(..., description="StoredIdentifier JSON for an AnnotatedEvidenceGraph"),
+):
+    """Register a previously generated AnnotatedEvidenceGraph without re-running interpretation.
+
+    The uploaded JSON must be a complete StoredIdentifier whose metadata includes
+    `evi:annotates` pointing at an existing RO-Crate ARK. If a StoredIdentifier
+    with the same @id already exists it is replaced."""
+
+    try:
+        raw = file.file.read()
+        doc = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return JSONResponse(status_code=400, content={"error": f"Invalid JSON: {exc}"})
+
+    try:
+        stored = StoredIdentifier.model_validate(doc)
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={"error": f"Not a valid StoredIdentifier: {exc}"})
+
+    metadata = stored.metadata.model_dump(by_alias=True, mode="json") if hasattr(stored.metadata, "model_dump") else doc.get("metadata", {})
+
+    annotates_ref = metadata.get("evi:annotates")
+    annotates_id = annotates_ref.get("@id") if isinstance(annotates_ref, dict) else annotates_ref
+    if not annotates_id:
+        return JSONResponse(status_code=400, content={"error": "metadata['evi:annotates'] missing or has no @id"})
+
+    parent = _flexible_find(annotates_id)
+    if not parent:
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"Annotated entity {annotates_id} not found"},
+        )
+
+    aeg_id = stored.guid
+    now = datetime.datetime.utcnow()
+
+    # Force system ownership + DRAFT status, regardless of what the file carried.
+    permissions = Permissions(owner=currentUser.email, group="", acl=[])
+    record = stored.model_dump(by_alias=True, mode="json")
+    record["permissions"] = permissions.model_dump()
+    record["publicationStatus"] = PublicationStatusEnum.DRAFT.value
+    record["dateModified"] = now.isoformat()
+    record.setdefault("dateCreated", now.isoformat())
+
+    replaced = appConfig.identifierCollection.find_one({"@id": aeg_id}, {"_id": False}) is not None
+    appConfig.identifierCollection.replace_one(
+        {"@id": aeg_id},
+        record,
+        upsert=True,
+    )
+
+    appConfig.identifierCollection.update_one(
+        {"@id": annotates_id},
+        {"$set": {"metadata.hasAnnotatedEvidenceGraph": {"@id": aeg_id}}},
+    )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "message": "AnnotatedEvidenceGraph replaced" if replaced else "AnnotatedEvidenceGraph stored",
+            "annotated_evidence_graph_id": aeg_id,
+            "annotates": annotates_id,
+            "replaced": replaced,
+        },
+    )
