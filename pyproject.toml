@@ -45,11 +45,11 @@ dependencies = [
 	"PyYaml>=6.0.2",
 	"PyGithub",
 	"pydantic-ai[google]>=0.1.0",
-	"fairscape_interpret",
+	"fairscape_graph_tools",
 ]
 
 [tool.uv.sources]
-fairscape_interpret = { path = "../fairscape_interpret", editable = true }
+fairscape_graph_tools = { path = "../fairscape_graph_tools", editable = true }
 requires-python = ">=3.9"                                                                                                                                                         
                                                        
 [project.urls]                              

@@ -1,6 +1,6 @@
-"""MongoDB-backed adapters for the fairscape_interpret ports.
+"""MongoDB-backed adapters for the fairscape_graph_tools ports.
 
-Four adapters bridge `fairscape_interpret`'s port protocols to the
+Four adapters bridge `fairscape_graph_tools`'s port protocols to the
 Mongo-and-FastAPI world of mds_python:
 
   - `MongoGraphSource`    -> `GraphSource`
@@ -10,7 +10,7 @@ Mongo-and-FastAPI world of mds_python:
 
 The shared package has no knowledge of MongoDB, StoredIdentifier,
 Permissions, Celery, or the `/software/download/` endpoint -- all of
-that lives here. See `fairscape_interpret/ports.py` for the port
+that lives here. See `fairscape_graph_tools/ports.py` for the port
 contracts this file satisfies.
 """
 
@@ -32,9 +32,9 @@ from fairscape_mds.models.identifier import (
 )
 from fairscape_mds.models.user import Permissions
 
-from fairscape_interpret.models.annotated_computation import AnnotatedComputation
-from fairscape_interpret.models.annotated_evidence_graph import AnnotatedEvidenceGraph
-from fairscape_interpret.pipeline.github import (
+from fairscape_graph_tools.models.annotated_computation import AnnotatedComputation
+from fairscape_graph_tools.models.annotated_evidence_graph import AnnotatedEvidenceGraph
+from fairscape_graph_tools.pipeline.github import (
     MAX_SOFTWARE_BYTES,
     prefetch_software_code,
 )

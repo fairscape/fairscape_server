@@ -1,5 +1,5 @@
 from fairscape_mds.core.config import FairscapeConfig
-from fairscape_interpret.pipeline.graph_utils import flexible_ark_query
+from fairscape_graph_tools.pipeline.graph_utils import flexible_ark_query
 
 __all__ = ["FairscapeRequest", "flexible_ark_query"]
 

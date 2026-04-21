@@ -7,7 +7,7 @@ chains into DatasetGroup summary nodes.
 
 All graph-condensation helpers (signature computation, traversal, DatasetGroup
 construction, `condense_graph`, etc.) now live in
-`fairscape_interpret.pipeline.condense` so the CLI can reuse them. This file
+`fairscape_graph_tools.pipeline.condense` so the CLI can reuse them. This file
 keeps only the MongoDB glue: StoredIdentifier-flattening, BFS across
 identifierCollection, and the FairscapeCondensationRequest class.
 """
@@ -26,7 +26,7 @@ from fairscape_mds.models.identifier import (
 from fairscape_mds.models.user import Permissions
 
 # Pure condensation helpers live in the shared package.
-from fairscape_interpret.pipeline.condense import (
+from fairscape_graph_tools.pipeline.condense import (
 	ARK_REF_FIELDS,
 	compute_provenance_signature,
 	condense_evidence_graph_cache,
@@ -34,7 +34,7 @@ from fairscape_interpret.pipeline.condense import (
 	create_dataset_group_node,
 	traverse_and_condense,
 )
-from fairscape_interpret.pipeline.graph_utils import (
+from fairscape_graph_tools.pipeline.graph_utils import (
 	EVI_TYPES,
 	get_evi_type,
 	get_generatedby_ids,
@@ -165,7 +165,7 @@ class FairscapeCondensationRequest(FairscapeRequest):
 	) -> FairscapeResponse:
 		"""Build the full graph, condense it, store the result.
 
-		Thin wrapper over `fairscape_interpret.Condenser.condense`. The
+		Thin wrapper over `fairscape_graph_tools.Condenser.condense`. The
 		Mongo adapters and the shared orchestrator do all the real work;
 		this method only maps their exceptions onto the HTTP-shaped
 		`FairscapeResponse` the router and Celery worker expect.
@@ -176,7 +176,7 @@ class FairscapeCondensationRequest(FairscapeRequest):
 			MongoGraphSource,
 			MongoResultSink,
 		)
-		from fairscape_interpret.condenser import Condenser
+		from fairscape_graph_tools.condenser import Condenser
 
 		condensed_id = f"{rocrate_id}-condensed"
 

@@ -1,24 +1,48 @@
-"""Tests for the AI-mediated interpretation pipeline.
+"""Tests for the server-side AI-mediated interpretation wiring.
 
-Uses a minimal condensed RO-Crate fixture, mongomock for DB isolation,
-and PydanticAI TestModel to avoid real LLM calls.
+After the Phase 1 #11 refactor, the pipeline proper lives in
+``fairscape_graph_tools`` and is exercised by that package's own tests.
+This file covers the mds_python glue:
+
+- pure helper re-exports (still importable from
+  ``fairscape_mds.crud.interpretation``),
+- the Mongo adapters in ``crud/interpret_adapters.py``,
+- the Condenser orchestrator against a port-shaped fake source, and
+- an end-to-end run of the thin ``condense_rocrate`` wrapper against
+  a mongomock-backed config.
+
+LLM-driven ``interpret_rocrate`` is not covered here yet — that needs
+a ``pydantic_ai.TestModel`` scaffold; noted as followup in
+MIGRATION.md.
 """
 
 import datetime
+
+import mongomock
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 from fairscape_mds.crud.interpretation import (
     FairscapeInterpretationRequest,
+    GraphSynthesisResult,
     _build_index,
     _is_computation,
     _is_rocrate_root,
     _resolve_refs,
     prefetch_software_code,
-    GraphSynthesisResult,
+)
+from fairscape_mds.crud.condensation import FairscapeCondensationRequest
+from fairscape_mds.crud.interpret_adapters import (
+    MongoGraphSource,
+    MongoResultSink,
+    MongoTaskTracker,
 )
 from fairscape_mds.models.annotated_computation import AnnotatedComputation
 from fairscape_mds.models.annotated_evidence_graph import AnnotatedEvidenceGraph
+
+from fairscape_graph_tools.condenser import Condenser
+from fairscape_graph_tools.interpreter import Interpreter, InterpretConfig
+from fairscape_graph_tools.pipeline.annotate import build_computation_prompt
 
 
 # ---------------------------------------------------------------------------
@@ -121,8 +145,47 @@ MINIMAL_CONDENSED_GRAPH = [
 ]
 
 
+def _mongomock_config() -> MagicMock:
+    """Build a minimal FairscapeConfig stand-in backed by mongomock.
+
+    Only the attributes the adapters actually touch are provided:
+    `identifierCollection`, `asyncCollection`, and the
+    baseUrl/internalUrl rewrite pair used by `ServerSoftwareFetcher`.
+    """
+    cfg = MagicMock()
+    client = mongomock.MongoClient()
+    db = client["fairscape_test"]
+    cfg.identifierCollection = db["identifier"]
+    cfg.asyncCollection = db["async"]
+    cfg.baseUrl = None
+    cfg.internalUrl = None
+    return cfg
+
+
+def _insert_as_stored_identifiers(collection, graph: list[dict]) -> None:
+    """Wrap each RO-Crate node as a StoredIdentifier doc and insert.
+
+    Mirrors how the real server stores crates; the adapters flatten
+    `metadata` back to the bare node shape on read.
+    """
+    now = datetime.datetime.utcnow()
+    for node in graph:
+        if not node.get("@id"):
+            continue
+        doc = {
+            "@id": node["@id"],
+            "@type": node.get("@type", ""),
+            "metadata": node,
+            "permissions": {"owner": "test@fairscape.org", "group": None},
+            "distribution": None,
+            "dateCreated": now,
+            "dateModified": now,
+        }
+        collection.insert_one(doc)
+
+
 # ---------------------------------------------------------------------------
-# Helper tests
+# Helper tests (re-exports from fairscape_graph_tools via interpretation.py)
 # ---------------------------------------------------------------------------
 
 
@@ -164,7 +227,6 @@ class TestFindComputations:
     """Test computation finding without DB."""
 
     def test_finds_all_computations(self):
-        index = _build_index(MINIMAL_CONDENSED_GRAPH)
         computations = [node for node in MINIMAL_CONDENSED_GRAPH if _is_computation(node)]
         assert len(computations) == 2
         comp_ids = {c["@id"] for c in computations}
@@ -172,22 +234,20 @@ class TestFindComputations:
         assert "ark:59853/computation-step2" in comp_ids
 
 
+# ---------------------------------------------------------------------------
+# Prompt construction — now a free function in fairscape_graph_tools
+# ---------------------------------------------------------------------------
+
+
 class TestPromptBuilding:
-    """Test prompt construction for computation annotation."""
-
-    def setup_method(self):
-        """Create a mock config for FairscapeInterpretationRequest."""
-        self.mock_config = MagicMock()
-        self.mock_config.identifierCollection = MagicMock()
-        self.mock_config.asyncCollection = MagicMock()
-        self.request = FairscapeInterpretationRequest(self.mock_config)
-
     def test_build_computation_prompt(self):
         index = _build_index(MINIMAL_CONDENSED_GRAPH)
         computation = index["ark:59853/computation-step1"]
-        software_cache = {"ark:59853/software-preprocess": "import pandas as pd\ndf = pd.read_csv('input.csv')"}
+        software_cache = {
+            "ark:59853/software-preprocess": "import pandas as pd\ndf = pd.read_csv('input.csv')"
+        }
 
-        prompt = self.request._build_computation_prompt(computation, software_cache, index)
+        prompt = build_computation_prompt(computation, software_cache, index)
 
         assert "Preprocessing Step" in prompt
         assert "python preprocess.py" in prompt
@@ -198,85 +258,95 @@ class TestPromptBuilding:
     def test_build_prompt_missing_software(self):
         index = _build_index(MINIMAL_CONDENSED_GRAPH)
         computation = index["ark:59853/computation-step1"]
-        software_cache = {}  # empty
-
-        prompt = self.request._build_computation_prompt(computation, software_cache, index)
-
-        # Should still work, just no source code section
+        prompt = build_computation_prompt(computation, {}, index)
         assert "Preprocessing Step" in prompt
 
 
-class TestEnsureCondensed:
-    """Test the ensure_condensed logic."""
+# ---------------------------------------------------------------------------
+# Condenser orchestrator (replaces the old FairscapeInterpretationRequest
+# .ensure_condensed Mongo-coupled tests)
+# ---------------------------------------------------------------------------
 
-    def setup_method(self):
-        self.mock_config = MagicMock()
-        self.mock_config.identifierCollection = MagicMock()
-        self.mock_config.asyncCollection = MagicMock()
-        self.request = FairscapeInterpretationRequest(self.mock_config)
 
+class _FakeSource:
+    """Port-shaped stand-in for `GraphSource`."""
+
+    def __init__(self, entities: dict[str, dict]):
+        self._entities = entities
+
+    def find_entity(self, ark_id):
+        return self._entities.get(ark_id)
+
+    def find_dataset_stats(self, ark_ids):
+        return {}
+
+    def build_full_graph(self, rocrate_id):
+        return list(self._entities.values())
+
+
+class _NoopSink:
+    """Port-shaped stand-in for `ResultSink`; returns the id it was handed."""
+
+    def persist_condensed(self, condensed_id, condensed_metadata, source_rocrate_id, stats):
+        return condensed_id
+
+    def persist_aeg(self, aeg, rocrate_id, step_annotations):
+        return getattr(aeg, "guid", "ark:test/aeg")
+
+
+class TestCondenserEnsureCondensed:
     def test_already_condensed_crate(self):
-        """When the crate itself has evi:condensed: true."""
-        self.mock_config.identifierCollection.find_one.return_value = {
+        """Root has `evi:condensed: true` → returned in place."""
+        source_rocrate = {
             "@id": "ark:59853/rocrate-test",
-            "@type": ["Dataset", "https://w3id.org/EVI#ROCrate"],
-            "metadata": {
-                "@graph": MINIMAL_CONDENSED_GRAPH,
-            }
+            "@graph": MINIMAL_CONDENSED_GRAPH,
         }
+        source = _FakeSource({"ark:59853/rocrate-test": source_rocrate})
+        condenser = Condenser(source, _NoopSink())
 
-        graph, condensed_id, root = self.request.ensure_condensed("task-123", "ark:59853/rocrate-test")
+        graph, condensed_id, root = condenser.ensure_condensed("ark:59853/rocrate-test")
 
         assert len(graph) == len(MINIMAL_CONDENSED_GRAPH)
         assert condensed_id == "ark:59853/rocrate-test"
         assert root.get("evi:condensed") is True
 
     def test_has_condensed_pointer(self):
-        """When the crate has hasCondensedROCrate pointer."""
-        # First call: get original crate
-        # Second call: get condensed crate
-        self.mock_config.identifierCollection.find_one.side_effect = [
+        """RO-Crate has `hasCondensedROCrate` → Condenser fetches that crate."""
+        source_rocrate = {
+            "@id": "ark:59853/rocrate-test",
+            "hasCondensedROCrate": {"@id": "ark:59853/rocrate-test-condensed"},
+            "@graph": [],
+        }
+        condensed = {
+            "@id": "ark:59853/rocrate-test-condensed",
+            "@graph": MINIMAL_CONDENSED_GRAPH,
+        }
+        source = _FakeSource(
             {
-                "@id": "ark:59853/rocrate-test",
-                "@type": ["Dataset", "https://w3id.org/EVI#ROCrate"],
-                "metadata": {
-                    "hasCondensedROCrate": {"@id": "ark:59853/rocrate-test-condensed"},
-                    "@graph": [],
-                }
-            },
-            {
-                "@id": "ark:59853/rocrate-test-condensed",
-                "metadata": {
-                    "@graph": MINIMAL_CONDENSED_GRAPH,
-                }
-            },
-        ]
+                "ark:59853/rocrate-test": source_rocrate,
+                "ark:59853/rocrate-test-condensed": condensed,
+            }
+        )
+        condenser = Condenser(source, _NoopSink())
 
-        graph, condensed_id, root = self.request.ensure_condensed("task-123", "ark:59853/rocrate-test")
+        graph, condensed_id, _ = condenser.ensure_condensed("ark:59853/rocrate-test")
 
         assert len(graph) == len(MINIMAL_CONDENSED_GRAPH)
+        assert condensed_id == "ark:59853/rocrate-test-condensed"
 
     def test_not_found_raises(self):
-        """When the RO-Crate doesn't exist."""
-        self.mock_config.identifierCollection.find_one.return_value = None
-
+        condenser = Condenser(_FakeSource({}), _NoopSink())
         with pytest.raises(ValueError, match="not found"):
-            self.request.ensure_condensed("task-123", "ark:59853/nonexistent")
+            condenser.ensure_condensed("ark:59853/nonexistent")
+
+
+# ---------------------------------------------------------------------------
+# Software prefetching (now in fairscape_graph_tools.pipeline.github)
+# ---------------------------------------------------------------------------
 
 
 class TestPrefetchSoftware:
     """Test software pre-fetching with mocked HTTP."""
-
-    @patch("fairscape_mds.crud.interpretation.httpx.get")
-    def test_github_file_url(self, mock_get):
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.text = "import pandas as pd\nprint('hello')"
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
-
-        code = prefetch_software_code("https://github.com/owner/repo/blob/main/script.py")
-        assert "import pandas" in code
 
     def test_no_content_url(self):
         code = prefetch_software_code("")
@@ -291,46 +361,63 @@ class TestPrefetchSoftware:
         assert "Local/relative" in code
 
 
-class TestAnnotatedComputationModel:
-    """Test that AnnotatedComputation can be constructed correctly."""
+# ---------------------------------------------------------------------------
+# Pydantic model shims (re-exports)
+# ---------------------------------------------------------------------------
 
+
+class TestAnnotatedComputationModel:
     def test_create_annotated_computation(self):
-        ac = AnnotatedComputation.model_validate({
-            "@id": "ark:59853/annotated-computation-test",
-            "name": "Test Annotation",
-            "description": "Test annotation description",
-            "author": "gemini-2.5-flash",
-            "evi:annotates": {"@id": "ark:59853/computation-step1"},
-            "evi:stepSummary": "This step preprocesses raw data by cleaning and normalizing it.",
-            "evi:codeAnalysis": [
-                {
-                    "software": {"@id": "ark:59853/software-preprocess"},
-                    "name": "preprocess.py",
-                    "summary": "Reads CSV, drops NaN, normalizes columns",
-                    "keyFunctions": ["clean_data", "normalize"],
-                    "assumptions": ["No logging of dropped rows"],
-                }
-            ],
-            "evi:inputSummaries": [
-                {
-                    "dataset": {"@id": "ark:59853/dataset-input-raw"},
-                    "name": "Raw Input Data",
-                    "role": "Primary input",
-                    "description": "Raw experimental measurements",
-                }
-            ],
-            "evi:outputSummaries": [
-                {
-                    "dataset": {"@id": "ark:59853/dataset-intermediate"},
-                    "name": "Preprocessed Data",
-                    "role": "Cleaned output",
-                }
-            ],
-            "evi:assumptions": ["No random seed set"],
-            "evi:llmModel": "gemini-2.5-flash",
-            "evi:llmTemperature": 0.2,
-            "dateCreated": "2025-01-15T12:00:00",
-        })
+        ac = AnnotatedComputation.model_validate(
+            {
+                "@id": "ark:59853/annotated-computation-test",
+                "name": "Test Annotation",
+                "description": "Test annotation description",
+                "author": "gemini-2.5-flash",
+                "evi:annotates": {"@id": "ark:59853/computation-step1"},
+                "evi:stepSummary": "This step preprocesses raw data by cleaning and normalizing it.",
+                "evi:codeAnalysis": [
+                    {
+                        "software": {"@id": "ark:59853/software-preprocess"},
+                        "name": "preprocess.py",
+                        "summary": "Reads CSV, drops NaN, normalizes columns",
+                        "keyFunctions": ["clean_data", "normalize"],
+                        "assumptions": [
+                            {
+                                "impact": "MINOR",
+                                "name": "Silent drops",
+                                "description": "No logging of dropped rows",
+                            }
+                        ],
+                    }
+                ],
+                "evi:inputSummaries": [
+                    {
+                        "dataset": {"@id": "ark:59853/dataset-input-raw"},
+                        "name": "Raw Input Data",
+                        "role": "Primary input",
+                        "description": "Raw experimental measurements",
+                    }
+                ],
+                "evi:outputSummaries": [
+                    {
+                        "dataset": {"@id": "ark:59853/dataset-intermediate"},
+                        "name": "Preprocessed Data",
+                        "role": "Cleaned output",
+                    }
+                ],
+                "evi:assumptions": [
+                    {
+                        "impact": "MINOR",
+                        "name": "No random seed",
+                        "description": "No random seed was set for the normalization step",
+                    }
+                ],
+                "evi:llmModel": "gemini-2.5-flash",
+                "evi:llmTemperature": 0.2,
+                "dateCreated": "2025-01-15T12:00:00",
+            }
+        )
 
         assert ac.stepSummary == "This step preprocesses raw data by cleaning and normalizing it."
         assert len(ac.codeAnalysis) == 1
@@ -339,30 +426,36 @@ class TestAnnotatedComputationModel:
 
 
 class TestAnnotatedEvidenceGraphModel:
-    """Test that AnnotatedEvidenceGraph can be constructed correctly."""
-
     def test_create_annotated_evidence_graph(self):
         graph_dict = {node["@id"]: node for node in MINIMAL_CONDENSED_GRAPH if "@id" in node}
 
-        aeg = AnnotatedEvidenceGraph.model_validate({
-            "@id": "ark:59853/annotated-eg-test",
-            "name": "Test Annotated Evidence Graph",
-            "description": "Test AEG",
-            "author": "gemini-2.5-flash",
-            "evi:annotates": {"@id": "ark:59853/rocrate-test-pipeline"},
-            "@graph": graph_dict,
-            "evi:executiveSummary": "This pipeline preprocesses and analyzes experimental data.",
-            "evi:narrativeSummary": "The pipeline starts with raw data and produces analysis results.",
-            "evi:keyFindings": ["Data is properly normalized", "No random seeds used"],
-            "evi:assumptions": ["Reproducibility could be improved"],
-            "evi:stepAnnotations": [
-                {"@id": "ark:59853/annotated-computation-1"},
-                {"@id": "ark:59853/annotated-computation-2"},
-            ],
-            "evi:llmModel": "gemini-2.5-flash",
-            "evi:llmTemperature": 0.2,
-            "dateCreated": "2025-01-15T12:00:00",
-        })
+        aeg = AnnotatedEvidenceGraph.model_validate(
+            {
+                "@id": "ark:59853/annotated-eg-test",
+                "name": "Test Annotated Evidence Graph",
+                "description": "Test AEG fixture",
+                "author": "gemini-2.5-flash",
+                "evi:annotates": {"@id": "ark:59853/rocrate-test-pipeline"},
+                "@graph": graph_dict,
+                "evi:executiveSummary": "This pipeline preprocesses and analyzes experimental data.",
+                "evi:narrativeSummary": "The pipeline starts with raw data and produces analysis results.",
+                "evi:keyFindings": ["Data is properly normalized", "No random seeds used"],
+                "evi:assumptions": [
+                    {
+                        "impact": "MINOR",
+                        "name": "Reproducibility",
+                        "description": "Reproducibility could be improved",
+                    }
+                ],
+                "evi:stepAnnotations": [
+                    {"@id": "ark:59853/annotated-computation-1"},
+                    {"@id": "ark:59853/annotated-computation-2"},
+                ],
+                "evi:llmModel": "gemini-2.5-flash",
+                "evi:llmTemperature": 0.2,
+                "dateCreated": "2025-01-15T12:00:00",
+            }
+        )
 
         assert aeg.executiveSummary.startswith("This pipeline")
         assert len(aeg.keyFindings) == 2
@@ -371,42 +464,159 @@ class TestAnnotatedEvidenceGraphModel:
 
 
 class TestGraphSynthesisResult:
-    """Test the synthesis result model."""
-
     def test_create_synthesis_result(self):
         result = GraphSynthesisResult(
             executiveSummary="The pipeline processes data.",
             narrativeSummary="Starting from raw data, the pipeline...",
             keyFindings=["Finding 1", "Finding 2"],
-            assumptions=["Assumption 1"],
+            assumptions=[],
         )
         assert result.executiveSummary == "The pipeline processes data."
         assert len(result.keyFindings) == 2
 
 
-class TestStatusTracking:
-    """Test that status updates are called correctly."""
+# ---------------------------------------------------------------------------
+# Mongo adapter tests (replace the old FairscapeInterpretationRequest-
+# scoped status-tracking tests)
+# ---------------------------------------------------------------------------
 
-    def setup_method(self):
-        self.mock_config = MagicMock()
-        self.mock_config.identifierCollection = MagicMock()
-        self.mock_config.asyncCollection = MagicMock()
-        self.request = FairscapeInterpretationRequest(self.mock_config)
 
-    def test_update_task(self):
-        self.request._update_task("task-123", {"status": "PROCESSING", "current_step": "CONDENSING"})
-        self.mock_config.asyncCollection.update_one.assert_called_once_with(
+class TestMongoTaskTracker:
+    def test_update_sets_status_fields(self):
+        cfg = MagicMock()
+        tracker = MongoTaskTracker(cfg, "task-123")
+        tracker.update({"status": "PROCESSING", "current_step": "CONDENSING"})
+        cfg.asyncCollection.update_one.assert_called_once_with(
             {"guid": "task-123"},
-            {"$set": {"status": "PROCESSING", "current_step": "CONDENSING"}}
+            {"$set": {"status": "PROCESSING", "current_step": "CONDENSING"}},
         )
 
-    def test_find_computations_updates_status(self):
-        self.request.find_computations("task-123", MINIMAL_CONDENSED_GRAPH)
+    def test_update_computation_status_uses_positional_filter(self):
+        cfg = MagicMock()
+        tracker = MongoTaskTracker(cfg, "task-123")
+        tracker.update_computation_status("ark:59853/comp-1", {"status": "done"})
+        cfg.asyncCollection.update_one.assert_called_once_with(
+            {"guid": "task-123", "computation_details.computation_id": "ark:59853/comp-1"},
+            {"$set": {"computation_details.$.status": "done"}},
+        )
 
-        # Should have been called to update TRAVERSING status and computation details
-        calls = self.mock_config.asyncCollection.update_one.call_args_list
-        assert len(calls) >= 2  # at least status update + computation details update
+    def test_increment_completed(self):
+        cfg = MagicMock()
+        tracker = MongoTaskTracker(cfg, "task-123")
+        tracker.increment_completed()
+        cfg.asyncCollection.update_one.assert_called_once_with(
+            {"guid": "task-123"},
+            {"$inc": {"completed_computations": 1}},
+        )
 
-        # Check that total_computations was set
-        last_call_args = calls[-1][0][1]["$set"]
-        assert last_call_args["total_computations"] == 2
+
+class TestInterpreterFindComputations:
+    """`Interpreter._find_computations` drives both the traversal and
+    the per-computation tracker state the old
+    `FairscapeInterpretationRequest.find_computations` was asserted
+    against."""
+
+    def test_finds_computations_and_pushes_to_tracker(self):
+        tracker = MagicMock()
+        interpreter = Interpreter(
+            graph=MagicMock(),
+            sink=MagicMock(),
+            tracker=tracker,
+            software=MagicMock(),
+            condenser=MagicMock(),
+            config=InterpretConfig(),
+        )
+
+        computations, index = interpreter._find_computations(MINIMAL_CONDENSED_GRAPH)
+
+        assert len(computations) == 2
+        assert "ark:59853/computation-step1" in index
+
+        calls = tracker.update.call_args_list
+        assert len(calls) >= 2  # TRAVERSING status + total_computations payload
+        last_payload = calls[-1][0][0]
+        assert last_payload["total_computations"] == 2
+        assert len(last_payload["computation_details"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# End-to-end integration: FairscapeCondensationRequest.condense_rocrate
+# via mongomock (Phase 1 structural acceptance for the condense path).
+# ---------------------------------------------------------------------------
+
+
+class TestCondenseRocrateIntegration:
+    """Exercises the full post-refactor condense path:
+    `FairscapeCondensationRequest.condense_rocrate` -> `MongoGraphSource` ->
+    `Condenser` -> `MongoResultSink` -> insert into `identifierCollection`.
+    """
+
+    def test_condense_creates_condensed_doc_and_pointer(self):
+        cfg = _mongomock_config()
+        _insert_as_stored_identifiers(cfg.identifierCollection, MINIMAL_CONDENSED_GRAPH)
+
+        rocrate_id = "ark:59853/rocrate-test-pipeline"
+        response = FairscapeCondensationRequest(cfg).condense_rocrate(
+            rocrate_id=rocrate_id,
+            threshold=5,
+            max_member_ids=0,
+            owner_email="test@fairscape.org",
+        )
+
+        assert response.success, response.error
+        assert response.statusCode == 201
+        assert response.model["condensed_id"] == f"{rocrate_id}-condensed"
+        assert "stats" in response.model
+
+        # Condensed StoredIdentifier doc was written
+        stored = cfg.identifierCollection.find_one({"@id": f"{rocrate_id}-condensed"})
+        assert stored is not None
+        metadata = stored["metadata"]
+        assert "@graph" in metadata
+        # Back-pointer on the source crate was set
+        source_doc = cfg.identifierCollection.find_one({"@id": rocrate_id})
+        assert source_doc["metadata"]["hasCondensedROCrate"] == {
+            "@id": f"{rocrate_id}-condensed"
+        }
+
+    def test_condense_409_when_already_exists(self):
+        cfg = _mongomock_config()
+        rocrate_id = "ark:59853/rocrate-test-pipeline"
+        condensed_id = f"{rocrate_id}-condensed"
+        cfg.identifierCollection.insert_one(
+            {"@id": condensed_id, "@type": "Dataset", "metadata": {}}
+        )
+
+        response = FairscapeCondensationRequest(cfg).condense_rocrate(
+            rocrate_id=rocrate_id,
+        )
+        assert response.success is False
+        assert response.statusCode == 409
+        assert "already exists" in response.error["message"]
+
+    def test_condense_404_when_source_missing(self):
+        cfg = _mongomock_config()
+        response = FairscapeCondensationRequest(cfg).condense_rocrate(
+            rocrate_id="ark:59853/missing",
+        )
+        assert response.success is False
+        assert response.statusCode == 404
+        assert "No metadata found" in response.error["message"]
+
+
+# ---------------------------------------------------------------------------
+# Interpreter (LLM-driven) end-to-end coverage is not in scope for Phase 1;
+# a pydantic_ai.TestModel scaffold is tracked in MIGRATION.md as followup.
+# ---------------------------------------------------------------------------
+
+
+class TestInterpretRocrateWrapperSmoke:
+    """The thin wrapper's control flow around the Interpreter construction
+    is exercised without running the LLM pipeline — just verify the
+    task-not-found failure path."""
+
+    def test_missing_task_raises(self):
+        cfg = _mongomock_config()
+        request = FairscapeInterpretationRequest(cfg)
+        with pytest.raises(ValueError, match="not found"):
+            request.interpret_rocrate("nonexistent-task")

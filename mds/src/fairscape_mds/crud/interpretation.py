@@ -1,7 +1,7 @@
 """interpretation.py -- Server-side thin wrapper for the AI-mediated
 interpretation pipeline.
 
-The pipeline itself lives in `fairscape_interpret`. This module only
+The pipeline itself lives in `fairscape_graph_tools`. This module only
 loads the per-task configuration from `asyncCollection`, assembles the
 four Mongo-backed adapters from `crud/interpret_adapters.py`, and hands
 them to the shared `Interpreter`. Keeping
@@ -11,23 +11,23 @@ them to the shared `Interpreter`. Keeping
 Module-level re-exports below preserve the import surface that other
 callers (notably the existing test suite under
 `tests/crud/test_interpretation.py`) expect. The helpers themselves now
-live in `fairscape_interpret`.
+live in `fairscape_graph_tools`.
 """
 
 import logging
 
 import httpx  # noqa: F401 -- kept so `patch("...interpretation.httpx.get")` still resolves
 
-from fairscape_interpret.condenser import Condenser
-from fairscape_interpret.interpreter import Interpreter, InterpretConfig
-from fairscape_interpret.pipeline.github import prefetch_software_code
-from fairscape_interpret.pipeline.graph_utils import (
+from fairscape_graph_tools.condenser import Condenser
+from fairscape_graph_tools.interpreter import Interpreter, InterpretConfig
+from fairscape_graph_tools.pipeline.github import prefetch_software_code
+from fairscape_graph_tools.pipeline.graph_utils import (
     _build_index,
     _is_computation,
     _is_rocrate_root,
     _resolve_refs,
 )
-from fairscape_interpret.pipeline.synthesize import GraphSynthesisResult
+from fairscape_graph_tools.pipeline.synthesize import GraphSynthesisResult
 
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.interpret_adapters import (
@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 
 class FairscapeInterpretationRequest(FairscapeRequest):
     """Thin wrapper: assemble Mongo-backed adapters and dispatch to the
-    shared `fairscape_interpret.Interpreter`."""
+    shared `fairscape_graph_tools.Interpreter`."""
 
     def interpret_rocrate(self, task_guid: str, user_token: str = "") -> str:
         """Run the interpretation pipeline for the RO-Crate recorded in

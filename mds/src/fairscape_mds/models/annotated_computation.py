@@ -1,11 +1,11 @@
-"""Compatibility shim -- re-exports from the shared fairscape_interpret package.
+"""Compatibility shim -- re-exports from the shared fairscape_graph_tools package.
 
-The model definitions now live in fairscape_interpret.models.annotated_computation.
+The model definitions now live in fairscape_graph_tools.models.annotated_computation.
 This module is kept so existing `from fairscape_mds.models.annotated_computation
-import X` paths keep working; new code should import from fairscape_interpret directly.
+import X` paths keep working; new code should import from fairscape_graph_tools directly.
 """
 
-from fairscape_interpret.models.annotated_computation import (
+from fairscape_graph_tools.models.annotated_computation import (
     ANNOTATED_COMPUTATION_TYPE,
     AnnotatedComputation,
     Assumption,
