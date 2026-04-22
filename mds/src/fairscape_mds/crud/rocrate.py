@@ -254,6 +254,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			if isinstance(elem, Dataset):
 				datasetList.append(elem)
 			elif isinstance(elem, GenericMetadataElem) and 'Dataset' in elem.metadataType:
+				# TODO handle the case if GenericMetadataElem has @type as a list of elements
 				datasetList.append(elem)
 
 		for datasetElem in datasetList:
@@ -431,7 +432,6 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						})
 			]
 
-			#
 			if "file:///" in modelElem.contentUrl:
 				modelDistribution = DatasetDistribution.model_validate({})
 
@@ -800,11 +800,10 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 		crateMetadataElem = roCrateModel.getCrateMetadata()
 
-
 		# if a terminating backslash is present on the identifier trim
-		# TODO apply to all identifiers
-		if crateMetadataElem.guid.endswith("/"):
-			crateMetadataElem.guid = crateMetadataElem.guid.rstrip("/")
+		for elem in roCrateModel.metadataGraph:
+			if elem.guid.endswith("/"):
+				elem.guid = elem.guid.rstrip("/")
 
 		roCrateGUID = crateMetadataElem.guid
 
@@ -1333,6 +1332,12 @@ class FairscapeROCrateRequest(FairscapeRequest):
 					success=False, statusCode=500,
 					error={"message": "Failed to clean ROCrate identifiers", "details": str(e)}
 				)
+			
+			# remove trailing slashes from the whole ROCrate
+			for elem in crateModel.metadataGraph:
+				if elem.guid.endswith("/"):
+					elem.guid = elem.guid.rstrip("/")
+
 		
 			validation_errors = self._validateMetadataOnlyCrate(crateModel)
 			if validation_errors:
