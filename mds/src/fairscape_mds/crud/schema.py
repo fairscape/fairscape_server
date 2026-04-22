@@ -14,6 +14,10 @@ class FairscapeSchemaRequest(FairscapeRequest):
 		schemaInstance: Schema
 	):
 
+		# remove trailing slashes from guid
+		if schemaInstance.guid.endswith("/"):
+			schemaInstance.guid = schemaInstance.guid.rstrip("/")
+
 		writeModel = SchemaWriteModel.model_validate({
 			**schemaInstance.model_dump(by_alias=True, mode='json'),
 			"permissions": requestingUser.getPermissions(),

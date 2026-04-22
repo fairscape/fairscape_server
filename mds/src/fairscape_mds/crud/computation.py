@@ -81,6 +81,10 @@ class FairscapeComputationRequest(FairscapeRequest):
 		computationInstance: Computation
 	):
 
+		# remove trailing slashes from guid
+		if computationInstance.guid.endswith("/"):
+			computationInstance.guid = computationInstance.guid.rstrip("/")
+
 		# check if computation already exists
 		identifierMetadata = self.config.identifierCollection.find_one(
 			{"@id": computationInstance.guid},

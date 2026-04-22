@@ -20,6 +20,10 @@ class FairscapeSoftwareRequest(FairscapeRequest):
 			"permissions": requestingUser.getPermissions()
 		})
 
+		# remove trailing slashes from GUID
+		if softwareInstance.guid.endswith("/"):
+			softwareInstance.guid = softwareInstance.guid.rstrip("/")
+
 		insertResult = self.config.identifierCollection.insert_one(
 			writeModel.model_dump(by_alias=True, mode='json')
 		)
