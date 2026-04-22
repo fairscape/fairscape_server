@@ -3,9 +3,12 @@ import datetime
 import logging
 from fairscape_mds.crud.fairscape_request import FairscapeRequest
 from fairscape_mds.crud.fairscape_response import FairscapeResponse
+from fairscape_mds.crud.interpret_adapters import MongoGraphSource, MongoResultSink
 from fairscape_mds.models.user import UserWriteModel, Permissions
 from fairscape_mds.models.evidence_graph import EvidenceGraph, EvidenceGraphCreate
 from fairscape_mds.models.identifier import StoredIdentifier, PublicationStatusEnum, MetadataTypeEnum
+
+from fairscape_graph_tools.evidence_graph_builder import EvidenceGraphBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -102,11 +105,8 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
         requesting_user: UserWriteModel,
         naan: str,
         postfix: str,
-        condense: bool = True,
-        condense_threshold: int = 5,
     ) -> FairscapeResponse:
         node_id = f"ark:{naan}/{postfix}"
-        evidence_graph_id = f"ark:{naan}/evidence-graph-{postfix}"
 
         source_node_data = self.config.identifierCollection.find_one({"@id": node_id})
         if not source_node_data:
@@ -122,37 +122,36 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
             .get("@id")
         )
         if existing_graph_id:
-            existing_graph_data = self.config.identifierCollection.find_one(
-                {"@id": existing_graph_id}, {"_id": 0}
-            )
-            if existing_graph_data:
-                try:
-                    logger.debug("Returning existing graph for %s", existing_graph_id)
-                    stored_identifier = StoredIdentifier.model_validate(existing_graph_data)
-                    return FairscapeResponse(
-                        success=True,
-                        statusCode=200,
-                        model=stored_identifier
-                    )
-                except Exception as e:
-                    return FairscapeResponse(
-                        success=False,
-                        statusCode=500,
-                        error={"message": f"Error validating existing EvidenceGraph {existing_graph_id}: {str(e)}"}
-                    )
+            existing_response = self.get_evidence_graph(existing_graph_id)
+            if existing_response.success:
+                logger.debug("Returning existing graph for %s", existing_graph_id)
+                return existing_response
+            # Stale back-pointer -- fall through and rebuild. The builder
+            # doesn't short-circuit on `hasEvidenceGraph` (Phase 5 decision),
+            # so the new derived id will be written and the back-pointer
+            # will be overwritten as part of the sink's upsert.
 
-        evidence_graph_data_to_validate = {
-            "@id": evidence_graph_id,
-            "name": f"Evidence Graph for {node_id}",
-            "description": f"Automatically generated Evidence Graph for node {node_id}",
-            "owner": requesting_user.email,
-            "@type": "evi:EvidenceGraph",
-            "graph": None
-        }
+        source = MongoGraphSource(self.config)
+        sink = MongoResultSink(
+            self.config,
+            owner_email=requesting_user.email,
+            owner_groups=requesting_user.groups or [],
+        )
+        builder = EvidenceGraphBuilder(source, sink)
 
         try:
-            evidence_graph = EvidenceGraph.model_validate(evidence_graph_data_to_validate)
-            evidence_graph.build_graph(node_id, self.config.identifierCollection, condense=condense, condense_threshold=condense_threshold)
+            evidence_graph_id = builder.build(
+                node_id,
+                owner_email=requesting_user.email,
+                name=f"Evidence Graph for {node_id}",
+                description=f"Automatically generated Evidence Graph for node {node_id}",
+            )
+        except pymongo.errors.DuplicateKeyError:
+            return FairscapeResponse(
+                success=False,
+                statusCode=409,
+                error={"message": f"EvidenceGraph for '{node_id}' already exists (race condition)."}
+            )
         except Exception as e:
             return FairscapeResponse(
                 success=False,
@@ -160,53 +159,7 @@ class FairscapeEvidenceGraphRequest(FairscapeRequest):
                 error={"message": f"Error building evidence graph: {str(e)}"}
             )
 
-        default_permissions = Permissions(
-            owner=requesting_user.email,
-            group=requesting_user.groups[0] if requesting_user.groups else None
-        )
-
-        now = datetime.datetime.utcnow()
-        stored_identifier = StoredIdentifier(
-            guid=evidence_graph.guid,
-            metadataType=MetadataTypeEnum.EVIDENCE_GRAPH,
-            metadata=evidence_graph,
-            publicationStatus=PublicationStatusEnum.PUBLISHED,
-            permissions=default_permissions,
-            distribution=None,
-            descriptiveStatistics={},
-            dateCreated=now,
-            dateModified=now
-        )
-
-        try:
-            insert_data = stored_identifier.model_dump(by_alias=True, mode="json")
-            self.config.identifierCollection.insert_one(insert_data)
-        except pymongo.errors.DuplicateKeyError:
-            return FairscapeResponse(
-                success=False,
-                statusCode=409,
-                error={"message": f"EvidenceGraph with @id '{evidence_graph_id}' already exists (race condition)."}
-            )
-        except Exception as e:
-            return FairscapeResponse(
-                success=False,
-                statusCode=500,
-                error={"message": f"Error storing new evidence graph: {str(e)}"}
-            )
-
-        try:
-            self.config.identifierCollection.update_one(
-                {"@id": node_id},
-                {"$set": {"metadata.hasEvidenceGraph": {"@id": stored_identifier.guid}}}
-            )
-        except Exception as e:
-            return FairscapeResponse(
-                success=False,
-                statusCode=500,
-                model=stored_identifier,
-                error={
-                    "message": f"EvidenceGraph created but failed to link to source node {node_id}: {str(e)} (graph @id: {stored_identifier.guid})"
-                }
-            )
-
-        return FairscapeResponse(success=True, statusCode=201, model=stored_identifier)
+        response = self.get_evidence_graph(evidence_graph_id)
+        if response.success:
+            return FairscapeResponse(success=True, statusCode=201, model=response.model)
+        return response

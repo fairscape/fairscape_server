@@ -94,7 +94,7 @@ def processROCrate(transactionGUID: str):
 
 #Are the guids supposed to be @id?
 @celeryApp.task(name='fairscape_mds.worker.build_evidence_graph_task', bind=True)
-def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, postfix: str, condense: bool = True, condense_threshold: int = 5):
+def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, postfix: str):
     print(f"Starting Evidence Graph Build Job: Task GUID {task_guid} for ark:{naan}/{postfix}")
 
     try:
@@ -123,8 +123,6 @@ def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, 
             requesting_user=requesting_user,
             naan=naan,
             postfix=postfix,
-            condense=condense,
-            condense_threshold=condense_threshold,
         )
 
         if response.success:
