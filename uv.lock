@@ -1063,6 +1063,26 @@ wheels = [
 ]
 
 [[package]]
+name = "fairscape-interpret"
+version = "0.1.0"
+source = { editable = "../fairscape_graph_tools" }
+dependencies = [
+    { name = "fairscape-models" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pydantic-ai", version = "0.8.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "pydantic-ai", version = "1.67.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fairscape-models", specifier = ">=1.1.1" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydantic", specifier = ">=2.5.1" },
+    { name = "pydantic-ai", specifier = ">=0.1.0" },
+]
+
+[[package]]
 name = "fairscape-mds"
 version = "0.1.0"
 source = { virtual = "." }
@@ -1070,6 +1090,7 @@ dependencies = [
     { name = "boto3" },
     { name = "celery", extra = ["redis"] },
     { name = "docker" },
+    { name = "fairscape-interpret" },
     { name = "fairscape-models" },
     { name = "fastapi" },
     { name = "google-genai", version = "1.47.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
@@ -1111,6 +1132,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.34.26" },
     { name = "celery", extras = ["redis"], specifier = ">=5.3.6" },
     { name = "docker", specifier = ">=7.0.0" },
+    { name = "fairscape-interpret", editable = "../fairscape_graph_tools" },
     { name = "fairscape-models", specifier = ">=1.1.1" },
     { name = "fastapi", specifier = ">=0.109.0" },
     { name = "google-genai", specifier = ">=1.0.0" },

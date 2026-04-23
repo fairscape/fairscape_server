@@ -13,11 +13,12 @@ RUN sh /uv-installer.sh && rm /uv-installer.sh
 ENV PATH="/root/.local/bin/:$PATH"
 
 # copy source code
-COPY mds/src/ /fairscape/src/
+COPY fairscape_server/mds/src/ /fairscape/src/
+COPY fairscape_graph_tools/ /fairscape/fairscape_graph_tools/
 WORKDIR /fairscape/src/
 
-COPY pyproject.toml .
-COPY uv.lock .
+COPY fairscape_server/pyproject.toml .
+COPY fairscape_server/uv.lock .
 RUN uv sync --locked
 
 

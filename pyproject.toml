@@ -9,6 +9,7 @@ authors = [
         { name = "Tim Clark",       email = "twc8q@virginia.edu"}
 ]
 license = {file= "LICENSE"}
+requires-python = ">=3.9"
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
