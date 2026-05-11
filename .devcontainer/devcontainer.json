@@ -2,11 +2,11 @@
 	"name": "Images Devcontainer",
 	"mounts": [
     // Mount the local project root into the container at /workspace
-		//{
-		//	"source": ".",
-		//	"target": "/mnt/mds",
-		//	"type": "bind"
-		//}
+		{
+			"source": "/mnt/e/Work/Data",
+			"target": "/mnt/data/",
+			"type": "bind"
+		}
   ],
 	"forwardPorts": [8080],
 	"image": "mcr.microsoft.com/devcontainers/python:3",
