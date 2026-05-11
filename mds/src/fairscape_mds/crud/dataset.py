@@ -139,6 +139,12 @@ class FairscapeDatasetRequest(FairscapeRequest):
 		inputDataset: Dataset,
 		datasetContent: Optional[UploadFile]=None
 	)->FairscapeResponse:
+
+		# remove trailing slashes from guid
+		if inputDataset.guid.endswith("/"):
+			inputDataset.guid = inputDataset.guid.rstrip("/")
+
+
 		# check if guid already exists
 		foundMetadata = self.getMetadata(inputDataset.guid)
 
