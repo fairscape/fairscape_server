@@ -121,14 +121,16 @@ mongoAuthDatabaseName = settings.FAIRSCAPE_MONGO_AUTH_DATABASE
 # TODO add to config for connection options i.e. 'retryWrites=true' or 'tls=true'
 # if settings.FAIRSCAPE_MONGO_CONNECTION_OPTIONS:
 # 
-# if settings.FAIRSCAPE_MONGO_AUTH_DATABASE:
-# 
-# connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{settings.FAIRSCAPE_MONGO_DATABASE}?retryWrites=true"
-
-connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}"
 
 # local overwrite
 if "localhost" in settings.FAIRSCAPE_BASE_URL:
+    connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}"
+
+# handle mongo database
+elif settings.FAIRSCAPE_MONGO_AUTH_DATABASE:
+    connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}/{mongoAuthDatabaseName}?retryWrites=true"
+
+else:
     connection_string = f"mongodb://{quote_plus(mongoUser)}:{quote_plus(mongoPassword)}@{mongoHost}:{mongoPort}"
 
 
