@@ -167,3 +167,5 @@ tests/model-tests/ppi_gene_node_attributes.tsv
 .env
 *.ipynb
 mds/src/fairscape_mds/tests/descriptive_statistics.ipynb
+/.devcontainer
+.devcontainer/devcontainer.json
