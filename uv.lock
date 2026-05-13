@@ -1063,7 +1063,7 @@ wheels = [
 ]
 
 [[package]]
-name = "fairscape-interpret"
+name = "fairscape-graph-tools"
 version = "0.1.0"
 source = { editable = "../fairscape_graph_tools" }
 dependencies = [
@@ -1090,7 +1090,7 @@ dependencies = [
     { name = "boto3" },
     { name = "celery", extra = ["redis"] },
     { name = "docker" },
-    { name = "fairscape-interpret" },
+    { name = "fairscape-graph-tools" },
     { name = "fairscape-models" },
     { name = "fastapi" },
     { name = "google-genai", version = "1.47.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
@@ -1132,7 +1132,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.34.26" },
     { name = "celery", extras = ["redis"], specifier = ">=5.3.6" },
     { name = "docker", specifier = ">=7.0.0" },
-    { name = "fairscape-interpret", editable = "../fairscape_graph_tools" },
+    { name = "fairscape-graph-tools", editable = "../fairscape_graph_tools" },
     { name = "fairscape-models", specifier = ">=1.1.1" },
     { name = "fastapi", specifier = ">=0.109.0" },
     { name = "google-genai", specifier = ">=1.0.0" },
