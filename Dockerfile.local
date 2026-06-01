@@ -1,0 +1,27 @@
+FROM python:3.12-slim-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
+
+ADD https://astral.sh/uv/install.sh /uv-installer.sh
+RUN sh /uv-installer.sh && rm /uv-installer.sh
+ENV PATH="/root/.local/bin/:$PATH"
+
+COPY fairscape_server/mds/src/ /fairscape/src/
+COPY fairscape_graph_tools/ /fairscape/fairscape_graph_tools/
+COPY fairscape_models/ /fairscape/fairscape_models/
+
+WORKDIR /fairscape/src/
+
+COPY fairscape_server/pyproject.toml .
+COPY fairscape_server/uv.lock .
+RUN uv sync --locked
+RUN uv pip install --editable /fairscape/fairscape_models/
+
+ENV PYTHONPATH="/fairscape/src"
+ENV PATH="/fairscape/src/.venv/bin:$PATH"
+# Prevent uv run from re-syncing on startup (which would overwrite the editable install above)
+ENV UV_NO_SYNC=1
+
+WORKDIR /fairscape/src/
+
+CMD ["uv", "run", "uvicorn", "fairscape_mds.main:app", "--no-access-log", "--host", "0.0.0.0", "--port", "8080"]
