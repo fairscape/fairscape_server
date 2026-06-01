@@ -20,6 +20,11 @@ from fairscape_models.instrument import Instrument
 from fairscape_models.medical_condition import MedicalCondition
 from fairscape_models.annotation import Annotation
 from fairscape_models.activity import Activity
+from fairscape_models.person import Person
+from fairscape_models.defined_term import DefinedTerm
+from fairscape_models.container import Container
+from fairscape_models.claim import Claim
+from fairscape_models.article import Article
 from fairscape_models.conversion.models.AIReady import AIReadyScore
 from fairscape_models.model_card import ModelCard
 from fairscape_models.fairscape_base import IdentifierValue
@@ -55,6 +60,11 @@ class MetadataTypeEnum(Enum):
 	ML_MODEL = ["prov:Entity","https://w3id.org/EVI#MLModel"]
 	ACTIVITY = ["prov:Activity"]
 	ANNOTATION = "https://w3id.org/EVI#Annotation"
+	PERSON = "Person"
+	DEFINED_TERM = "DefinedTerm"
+	CONTAINER = ["prov:Entity", "https://w3id.org/EVI#Container"]
+	CLAIM = ["prov:Entity", "https://w3id.org/EVI#Claim"]
+	ARTICLE = ["prov:Entity", "https://w3id.org/EVI#Article"]
 	EVIDENCE_GRAPH = "evi:EvidenceGraph"
 	ANNOTATED_EVIDENCE_GRAPH = ["prov:Entity", "https://w3id.org/EVI#EvidenceGraph", "https://w3id.org/EVI#AnnotatedEvidenceGraph"]
 	ANNOTATED_COMPUTATION = ["prov:Entity", "https://w3id.org/EVI#Annotation", "https://w3id.org/EVI#AnnotatedComputation"]
@@ -79,6 +89,11 @@ MetadataUnion = Union[
 	EvidenceGraph,
 	AIReadyScore,
 	ModelCard,
+	Person,
+	DefinedTerm,
+	Container,
+	Claim,
+	Article,
 	GenericMetadataElem
 	]
 
@@ -165,6 +180,16 @@ def determineMetadataType(inputType)->MetadataTypeEnum:
 		return MetadataTypeEnum.ANNOTATION
 	elif 'Activity' in inputType:
 		return MetadataTypeEnum.ACTIVITY
+	elif 'Person' in inputType:
+		return MetadataTypeEnum.PERSON
+	elif 'DefinedTerm' in inputType:
+		return MetadataTypeEnum.DEFINED_TERM
+	elif 'Container' in inputType:
+		return MetadataTypeEnum.CONTAINER
+	elif 'Claim' in inputType:
+		return MetadataTypeEnum.CLAIM
+	elif 'Article' in inputType:
+		return MetadataTypeEnum.ARTICLE
 	else:
 		raise Exception(f"Type not found for value {inputType}")
 	
