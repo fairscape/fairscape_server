@@ -1,5 +1,5 @@
 {
-	"name": "Images Devcontainer",
+	"name": "Fairscape Devcontainer",
 	"mounts": [
     // Mount the local project root into the container at /workspace
 		{
