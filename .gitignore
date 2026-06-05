@@ -169,3 +169,4 @@ tests/model-tests/ppi_gene_node_attributes.tsv
 mds/src/fairscape_mds/tests/descriptive_statistics.ipynb
 /.devcontainer
 .devcontainer/devcontainer.json
+CLAUDE.md
