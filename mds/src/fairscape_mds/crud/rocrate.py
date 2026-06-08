@@ -32,8 +32,99 @@ import datetime
 import re
 import botocore
 import mimetypes
+import io
+import zipfile
 
 # ROCrate Helper Functions
+
+
+class _S3SeekableFile(io.RawIOBase):
+    """Seekable file-like object backed by S3 range requests.
+
+    Implements only the methods zipfile.ZipFile needs so it can navigate
+    the ZIP central directory without downloading the whole object.
+    """
+
+    def __init__(self, s3_client, bucket: str, key: str):
+        self._client = s3_client
+        self._bucket = bucket
+        self._key = key
+        self._pos = 0
+        self._size: int | None = None
+
+    def _object_size(self) -> int:
+        if self._size is None:
+            resp = self._client.head_object(Bucket=self._bucket, Key=self._key)
+            self._size = resp["ContentLength"]
+        return self._size
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        size = self._object_size()
+        if whence == 0:
+            self._pos = offset
+        elif whence == 1:
+            self._pos += offset
+        elif whence == 2:
+            self._pos = size + offset
+        self._pos = max(0, min(self._pos, size))
+        return self._pos
+
+    def tell(self) -> int:
+        return self._pos
+
+    def read(self, n: int = -1) -> bytes:
+        size = self._object_size()
+        if self._pos >= size:
+            return b""
+        end = (size - 1) if n < 0 else min(self._pos + n - 1, size - 1)
+        resp = self._client.get_object(
+            Bucket=self._bucket,
+            Key=self._key,
+            Range=f"bytes={self._pos}-{end}",
+        )
+        data = resp["Body"].read()
+        self._pos += len(data)
+        return data
+
+    def readable(self) -> bool:
+        return True
+
+    def seekable(self) -> bool:
+        return True
+
+
+def get_s3_zip_infolist(s3_client, bucket: str, key: str) -> list[zipfile.ZipInfo]:
+    """Return ZipFile.infolist() for a ZIP stored in S3 using range requests.
+
+    Makes ~3 S3 API calls regardless of ZIP size:
+      1. HeadObject to get file size
+      2. GetObject(Range) for the last ~64 KB (EOCD + any comment)
+      3. GetObject(Range) for the central directory
+    """
+    with zipfile.ZipFile(_S3SeekableFile(s3_client, bucket, key)) as zf:
+        return zf.infolist()
+
+
+def read_s3_zip_member(s3_client, bucket: str, key: str, member: str) -> bytes:
+    """Read a single member from a ZIP stored in S3 without downloading the whole file.
+
+    Fetches the central directory (via range requests) to locate the member's
+    local header, then downloads only that member's compressed bytes.
+
+    Args:
+        s3_client: boto3 S3 client
+        bucket: S3 bucket name
+        key: S3 object key for the ZIP file
+        member: path of the member inside the ZIP (as it appears in infolist)
+
+    Raises:
+        KeyError: if the member is not found in the archive
+    """
+    with zipfile.ZipFile(_S3SeekableFile(s3_client, bucket, key)) as zf:
+        with zf.open(member) as f:
+            return f.read()
+
+
 
 def userPath(inputEmail):
 	searchResults = re.search("(^[a-zA-Z-1-9_.+-]+)@", inputEmail) 
@@ -141,11 +232,124 @@ def buildContentSummary(rocrateInstance: ROCrateV1_2) -> ROCrateContentSummary:
 	)
 
 
+class ROCrateUploadException(Exception):
+	def __init__(self, message: str):
+		super().__init__(message)
+
+
+class ROCrateUploadCrateNotFound(ROCrateUploadException):
+	def __init__(self, message: str, job: ROCrateUploadRequest):
+		super().__init__(message)
+		self.job = job
+
+
+
+def findRootCrate(infolist: list[zipfile.ZipInfo]) -> tuple[str | None, list[str]]:
+	""" Given an Infolist from a Zip Archive, find all `ro-crate-metadata.json` files and return a tuple with the first member as the path for the root crate and the second as the list of all subcrates 
+	"""
+
+	metadataFiles = [
+		elem.filename for elem in 
+		filter(lambda x: 'ro-crate-metadata.json' in x.filename, infolist)
+	]
+
+	# No ROCrate Metadata Found
+	if len(metadataFiles) == 0:
+		return None, []
+
+	# Exactly one rocrate found
+	elif len(metadataFiles) == 1:
+		return metadataFiles[0], []
+
+	# multiple rocrates found
+	elif len(metadataFiles) > 1:
+		subdirectoryCount = [ elem.count("/") for elem in metadataFiles	]
+
+		# TODO if there are multiple root crates
+		if subdirectoryCount.count(min(subdirectoryCount)) > 1:
+			raise Exception()
+
+		rootCrate = metadataFiles[subdirectoryCount.index(min(subdirectoryCount))]	
+
+		metadataFiles.pop[metadataFiles.index(rootCrate)]
+
+		return rootCrate, metadataFiles
+
+
+def getROCrateMetadata(
+	uploadJob: ROCrateUploadRequest,
+	s3Client,
+	s3Bucket: str
+	) -> tuple[bytes, list[bytes], bool]:
+
+	infolist = get_s3_zip_infolist(
+		s3Client, 
+		s3Bucket, 
+		uploadJob.uploadPath
+	)
+
+	# find root crate from zipfile
+	rootCratePath, subcrates = findRootCrate(infolist)
+
+	try:
+		rootCrateMetadata = read_s3_zip_member(
+			s3Client,
+			s3Bucket,
+			uploadJob.uploadPath,
+			rootCratePath
+		)
+	
+	# TODO handle errors for rocrate not found
+	except KeyError:
+		raise ROCrateUploadCrateNotFound(
+			message="ROCrateException: Root Crate Not Found",
+			job=uploadJob
+		)
+
+	subcrateMetadata = []
+
+	for subcratePath in subcrates:
+		try:
+			subcrateMetadataElem = read_s3_zip_member(
+				s3Client,
+				s3Bucket,
+				uploadJob.uploadPath,
+				subcratePath
+			)
+			subcrateMetadata.append(subcrateMetadataElem)
+
+		except KeyError:
+			raise ROCrateUploadCrateNotFound(
+				message="ROCrateException: Sub Crate Not Found",
+				job=uploadJob
+			)
+
+
+	return rootCrateMetadata, subcrateMetadata
+
+
+
+
 class FairscapeROCrateRequest(FairscapeRequest):
 
 	def __init__(self, config):
 		super().__init__(config)
 		self.config = config
+
+	def updateJobStatus(
+		self, 
+		uploadJobGUID: str,
+		update: dict
+		)-> None:
+
+		updateResponse = self.config.asyncCollection.update_one(
+			{"guid": uploadJobGUID}, 
+			update
+		)
+
+		assert updateResponse.matched_count == 1
+		assert updateResponse.modified_count == 1
+
 
 	def uploadROCrate(
 		self, 
@@ -740,7 +944,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		return objectList
 
 
-	def processTaskGetInitialJobMetadata(self, transactionGUID: str):
+	def processTaskGetInitialJobMetadata(self, transactionGUID: str) -> tuple[ UserWriteModel, ROCrateUploadRequest]:
 		uploadMetadata = self.config.asyncCollection.find_one(
 			{"guid": transactionGUID}, 
 			{"_id": 0}
@@ -807,14 +1011,10 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 		now = datetime.datetime.now()
 
-		self.config.asyncCollection.update_one(
-        	{"guid": transactionGUID},
-        	{"$set": 
-            	{
-                	"stage": "starting job"
-            	}
-        	}
-    	)
+		self.updateJobStatus(
+			transactionGUID,
+			{"$set": {"stage": "starting job"}}
+		)
 
 		foundUser, uploadInstance = self.processTaskGetInitialJobMetadata(transactionGUID)
 		zippedCratePath = uploadInstance.uploadPath
@@ -829,76 +1029,89 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		uploadPathString = uploadInstance.uploadPath
 
 		if not uploadPathString:
-			raise Exception(
-				"ROCrate Upload Job Missing Upload Path Property"
-				)
+			self.updateJobStatus(
+				transactionGUID,
+				{"$set": {
+					"stage": "job failed",
+					"timeFinished": datetime.datetime.now(),
+					"success": False,
+					"completed": True,
+					"error": "ROCrate Upload Job Missing Upload Path Property"
+					}}
+			)
+			return False
+
 
 
 		jobUploadPath = pathlib.PurePosixPath(uploadInstance.uploadPath)
 		baseDirectory = uploadInstance.uploadPath 
-		metadataKey = baseDirectory + "/ro-crate-metadata.json"
-		metadataFound = False
-		stem = jobUploadPath.stem
-		includeStem = False
 
+		# determine if path requires stem
+		infolist = get_s3_zip_infolist(
+			self.config.minioClient,
+			self.config.minioBucket,
+			uploadInstance.uploadPath
+		)
 
-		try: 
-			s3Response = self.config.minioClient.get_object(
-				Bucket = self.config.minioBucket,
-				Key = metadataKey
-			)
-			metadataFound = True
-		except self.config.minioClient.exceptions.NoSuchKey:
-			metadataFound = False
+		rootCrate, subcrates = findRootCrate(infolist)
 
-		if not metadataFound:
-
-			metadataKey = f"{baseDirectory}/{jobUploadPath.stem}/ro-crate-metadata.json"
-
-			try: 
-				s3Response = self.config.minioClient.get_object(
-					Bucket = self.config.minioBucket,
-					Key = metadataKey
-				)
-				metadataFound = True
-			except self.config.minioClient.exceptions.NoSuchKey:
-				metadataFound = False
-
-		if metadataFound:
+		if rootCrate.count("/") > 0:
+			stem = pathlib.Path(rootCrate).parent._str
 			includeStem = True
-			try:
-				content = s3Response['Body']
-				roCrateJSON = json.loads(content.read())
-
-			except json.JSONDecodeError as e:
-
-				self.config.asyncCollection.update_one(
-					{"guid": transactionGUID},
-					{"$set": 
-						{
-							"stage": "reading metadata",
-							"error": str(e),
-							"timeFinished": datetime.datetime.now(),
-							"success": False,
-							"completed": True
-						}
-					}
-				)	
-				raise Exception("Failed to Decode Metadata JSON")
-
 		else:
-			raise Exception("Metadata Not Found in RO-Crate")
+			stem = ""
+			includeStem = False
 
-		# validate
+
+		# get rocrate metadata
 		try:
-			roCrateModel = ROCrateV1_2.model_validate(roCrateJSON)
+			roCrateJSON, subcrateJSON = getROCrateMetadata(
+				uploadInstance,
+				self.config.minioClient,	
+				self.config.minioBucket
+			)
+
+			self.updateJobStatus(
+				transactionGUID,
+				{"$set": {"stage": "found ro-crate-metadata"}}
+			)
+
+		# TODO 
+		except ROCrateUploadException as e:
+			self.updateJobStatus(
+				transactionGUID,
+				{"$set": {
+					"status": "job failed",
+					"timeFinished": datetime.datetime.now(),
+					"success": False,
+					"completed": True,
+					"error": str(e)
+					}}
+			)
+			return False
+
+		except Exception as e:
+			self.updateJobStatus(
+				transactionGUID,
+				{"$set": {
+					"status": "job failed",
+					"timeFinished": datetime.datetime.now(),
+					"success": False,
+					"completed": True,
+					"error": str(e)
+					}}
+			)
+			return False
+
+		try:
+			roCrateModel = ROCrateV1_2.model_validate_json(roCrateJSON)
 		except pydantic.ValidationError as e:
 			print(f"ValidationError: {str(e)}")
 			traceback.print_exc()
 
 			# update job as failure
-			self.config.asyncCollection.update_one(
-				{"guid": transactionGUID},
+			self.updateJobStatus(
+				transactionGUID,
 				{"$set": 
 					{
 						"stage": "reading metadata",
@@ -910,7 +1123,7 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				}
 			)	
 
-			return None
+			return False
 
 		crateMetadataElem = roCrateModel.getCrateMetadata()
 
@@ -921,22 +1134,13 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 		roCrateGUID = crateMetadataElem.guid
 
-		self.config.asyncCollection.update_one(
-			{"guid": transactionGUID},
-			{"$set": 
-				{
-					"stage": "found metadata",
-					"rocrateGUID": roCrateGUID
-				}
-			}
-		)	
-
 		# check identifier conflicts	
-		self.config.asyncCollection.update_one(
-			{"guid": transactionGUID},
+		self.updateJobStatus(
+			transactionGUID,
 			{"$set": 
 				{
-					"stage": "checking for identifier conflicts",
+					"stage": "processing metadata",
+					"rocrateGUID": roCrateGUID
 				}
 			}
 		)	
@@ -948,8 +1152,8 @@ class FairscapeROCrateRequest(FairscapeRequest):
 
 		if foundROCrateMetadata:
 			# check identifier conflicts	
-			self.config.asyncCollection.update_one(
-				{"guid": transactionGUID},
+			self.updateJobStatus(
+				transactionGUID,
 				{"$set": 
 					{
 						"timeFinished": datetime.datetime.now(),
@@ -966,11 +1170,11 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				Key=uploadInstance.uploadPath
 			)
 
-			raise Exception(f"ROCrate Identifier Conflict: {roCrateGUID}")
+			return False
 
 
-		self.config.asyncCollection.update_one(
-			{"guid": transactionGUID},
+		self.updateJobStatus(
+			transactionGUID,
 			{"$set": 
 				{
 					"stage": "minting datasets",
@@ -1059,22 +1263,11 @@ class FairscapeROCrateRequest(FairscapeRequest):
 				) 
 			)
 
-		# TODO check insert result is correct
+		assert insertResult.inserted_id
 
-		# TODO documents too large causes errors 
-		# write the whole ROCrateV1_2 model into the rocrate collection
-		#rocrate_doc_for_collection = {
-		#	"@id": metadataElem.guid,
-		#	"@type": ['Dataset', "https://w3id.org/EVI#ROCrate"], 
-		#	"owner": foundUser.email,
-		#	"permissions": foundUser.getPermissions().model_dump(mode='json', by_alias=True),
-		#	"metadata": roCrateModel.model_dump(mode='json', by_alias=True) 
-		#}
-		#self.config.rocrateCollection.insert_one(rocrate_doc_for_collection)
-  
 		# update process as success
-		updateResult = self.config.asyncCollection.update_one(
-				{"guid": uploadInstance.guid},
+		self.updateJobStatus(
+				uploadInstance.guid,
 				{"$set": {
 						"completed": True,
 						"identifiersMinted": len(datasetGUIDS + nonDatasetGUIDS)+1,
@@ -1085,10 +1278,6 @@ class FairscapeROCrateRequest(FairscapeRequest):
 						"stage": "completed all tasks successfully"
 				}}
 		)
-
-		# check update result
-		if updateResult.modified_count != 1:
-			raise Exception(f"Failed to Update Job Metadata: {uploadInstance.guid}")
 
 		return metadataElem.guid
 
