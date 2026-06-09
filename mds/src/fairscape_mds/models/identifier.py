@@ -28,7 +28,7 @@ from fairscape_models.article import Article
 from fairscape_models.conversion.models.AIReady import AIReadyScore
 from fairscape_models.model_card import ModelCard
 from fairscape_models.fairscape_base import IdentifierValue
-from fairscape_mds.models.annotated_evidence_graph import AnnotatedEvidenceGraph
+from fairscape_graph_tools.models.annotated_evidence_graph import AnnotatedEvidenceGraph
 
 import datetime
 

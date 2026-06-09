@@ -37,8 +37,8 @@ from fairscape_mds.crud.interpret_adapters import (
     MongoResultSink,
     MongoTaskTracker,
 )
-from fairscape_mds.models.annotated_computation import AnnotatedComputation
-from fairscape_mds.models.annotated_evidence_graph import AnnotatedEvidenceGraph
+from fairscape_graph_tools.models.annotated_computation import AnnotatedComputation
+from fairscape_graph_tools.models.annotated_evidence_graph import AnnotatedEvidenceGraph
 
 from fairscape_graph_tools.condenser import Condenser
 from fairscape_graph_tools.interpreter import Interpreter, InterpretConfig
