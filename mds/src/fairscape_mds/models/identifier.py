@@ -19,9 +19,16 @@ from fairscape_models.experiment import Experiment
 from fairscape_models.instrument import Instrument
 from fairscape_models.medical_condition import MedicalCondition
 from fairscape_models.annotation import Annotation
+from fairscape_models.activity import Activity
+from fairscape_models.person import Person
+from fairscape_models.defined_term import DefinedTerm
+from fairscape_models.container import Container
+from fairscape_models.claim import Claim
+from fairscape_models.article import Article
 from fairscape_models.conversion.models.AIReady import AIReadyScore
 from fairscape_models.model_card import ModelCard
 from fairscape_models.fairscape_base import IdentifierValue
+from fairscape_graph_tools.models.annotated_evidence_graph import AnnotatedEvidenceGraph
 
 import datetime
 
@@ -51,8 +58,16 @@ class MetadataTypeEnum(Enum):
 	MEDICAL_CONDITION = "https://schema.org/MedicalCondition"
 	CREATIVE_WORK = "https://schema.org/CreativeWork"
 	ML_MODEL = ["prov:Entity","https://w3id.org/EVI#MLModel"]
+	ACTIVITY = ["prov:Activity"]
 	ANNOTATION = "https://w3id.org/EVI#Annotation"
+	PERSON = "Person"
+	DEFINED_TERM = "DefinedTerm"
+	CONTAINER = ["prov:Entity", "https://w3id.org/EVI#Container"]
+	CLAIM = ["prov:Entity", "https://w3id.org/EVI#Claim"]
+	ARTICLE = ["prov:Entity", "https://w3id.org/EVI#Article"]
 	EVIDENCE_GRAPH = "evi:EvidenceGraph"
+	ANNOTATED_EVIDENCE_GRAPH = ["prov:Entity", "https://w3id.org/EVI#EvidenceGraph", "https://w3id.org/EVI#AnnotatedEvidenceGraph"]
+	ANNOTATED_COMPUTATION = ["prov:Entity", "https://w3id.org/EVI#Annotation", "https://w3id.org/EVI#AnnotatedComputation"]
 	AI_READY_SCORE = "evi:AIReadyScore"
 
 
@@ -60,6 +75,7 @@ MetadataUnion = Union[
 	Dataset,
 	Software,
 	Computation,
+	AnnotatedEvidenceGraph,
 	ROCrateV1_2,
 	ROCrateMetadataElem,
 	Schema,
@@ -69,9 +85,15 @@ MetadataUnion = Union[
 	Instrument,
 	MedicalCondition,
 	Annotation,
+	Activity,
 	EvidenceGraph,
 	AIReadyScore,
 	ModelCard,
+	Person,
+	DefinedTerm,
+	Container,
+	Claim,
+	Article,
 	GenericMetadataElem
 	]
 
@@ -85,6 +107,7 @@ class StoredIdentifier(BaseModel):
 	permissions: Permissions
 	distribution: Optional[DatasetDistribution]
 	descriptiveStatistics: Optional[Dict[str, DescriptiveStatistics]] = Field(default = {})
+	splitStatistics: Optional[Dict[str, Dict]] = Field(default=None)
 	contentSummary: Optional[Dict] = Field(default=None)
 	dateCreated: datetime.datetime
 	dateModified: datetime.datetime
@@ -104,11 +127,13 @@ class StoredIdentifier(BaseModel):
 					MetadataTypeEnum.EVIDENCE_GRAPH: EvidenceGraph,
 					'evi:AIReadyScore': AIReadyScore,
 					MetadataTypeEnum.AI_READY_SCORE: AIReadyScore,
+					MetadataTypeEnum.ANNOTATED_EVIDENCE_GRAPH: AnnotatedEvidenceGraph,
+					tuple(MetadataTypeEnum.ANNOTATED_EVIDENCE_GRAPH.value): AnnotatedEvidenceGraph,
 				}
 
 				lookup_key = tuple(metadata_type) if isinstance(metadata_type, list) else metadata_type
 				if lookup_key in type_map:
-					model_class = type_map[metadata_type]
+					model_class = type_map[lookup_key]
 					data['metadata'] = model_class.model_validate(metadata_dict)
 
 		return data
@@ -153,6 +178,18 @@ def determineMetadataType(inputType)->MetadataTypeEnum:
 		return MetadataTypeEnum.ML_MODEL
 	elif 'Annotation' in inputType:
 		return MetadataTypeEnum.ANNOTATION
+	elif 'Activity' in inputType:
+		return MetadataTypeEnum.ACTIVITY
+	elif 'Person' in inputType:
+		return MetadataTypeEnum.PERSON
+	elif 'DefinedTerm' in inputType:
+		return MetadataTypeEnum.DEFINED_TERM
+	elif 'Container' in inputType:
+		return MetadataTypeEnum.CONTAINER
+	elif 'Claim' in inputType:
+		return MetadataTypeEnum.CLAIM
+	elif 'Article' in inputType:
+		return MetadataTypeEnum.ARTICLE
 	else:
 		raise Exception(f"Type not found for value {inputType}")
 	

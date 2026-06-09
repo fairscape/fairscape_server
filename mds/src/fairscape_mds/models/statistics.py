@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Union, Optional, Annotated
+from typing import List, Union, Optional, Annotated
 
 # TODO context for STATO values
 StatoContext = {
@@ -22,6 +22,10 @@ class NumericalStatistics(BaseModel):
 	second_quartile: Optional[Union[float,str]] = Field(default=None)
 	third_quartile: Optional[Union[float,str]] = Field(default=None)
 	max: Optional[Union[float,str]] = Field(default=None)
+	missing_count: Optional[int] = Field(default=None)
+	missing_percentage: Optional[float] = Field(default=None)
+	histogram_bins: Optional[List[float]] = Field(default=None)
+	histogram_counts: Optional[List[int]] = Field(default=None)
 
 	def serializeStato(self):
 		""" """ 
@@ -32,6 +36,8 @@ class CategoricalStatistics(BaseModel):
 	unique: Optional[Union[int, str]] = Field(default=None)
 	top: Optional[Union[str,bool]] = Field(default=None)
 	freq: Optional[Union[int, str]] = Field(default=None)
+	missing_count: Optional[int] = Field(default=None)
+	missing_percentage: Optional[float] = Field(default=None)
 
 	def serializeStato(self):
 		""" """ 

@@ -6,7 +6,8 @@ from fairscape_models.software import Software
 
 from typing import Annotated
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+import mimetypes
 
 softwareRequest = FairscapeSoftwareRequest(appConfig)
 
@@ -29,6 +30,44 @@ def createSoftware(
 		return JSONResponse(
 			status_code = response.statusCode,
 			content = response.error
+		)
+
+
+@softwareRouter.get("/software/download/ark:{naan}/{postfix}")
+def getSoftwareContent(
+	naan: str,
+	postfix: str,
+	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)]
+):
+	softwareGUID = f"ark:{naan}/{postfix}"
+	softwareResponse = softwareRequest.getSoftwareContent(
+		userInstance=currentUser,
+		softwareGUID=softwareGUID
+	)
+
+	if softwareResponse.success:
+		software_instance = softwareResponse.model
+		object_key = software_instance.distribution.location.path
+		filename = object_key.split("/")[-1]
+
+		content_type, _ = mimetypes.guess_type(filename)
+		if content_type is None:
+			content_type = "application/octet-stream"
+
+		download_headers = {
+			"Content-Type": content_type,
+			"Content-Disposition": f'attachment; filename="{filename}"'
+		}
+
+		return StreamingResponse(
+			softwareResponse.fileResponse['Body'],
+			headers=download_headers
+		)
+
+	else:
+		return JSONResponse(
+			status_code=softwareResponse.statusCode,
+			content=softwareResponse.error
 		)
 
 

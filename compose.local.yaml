@@ -1,0 +1,15 @@
+# Local development override — builds from the local fairscape_graph_tools and
+# fairscape_models checkouts (editable).
+# Usage: docker compose -f compose.yaml -f compose.local.yaml up --build
+services:
+  fairscape-worker:
+    image: fairscape/mds_python:local
+    build:
+      context: "../"
+      dockerfile: "fairscape_server/Dockerfile.local"
+
+  fairscape-api:
+    image: fairscape/mds_python:local
+    build:
+      context: "../"
+      dockerfile: "fairscape_server/Dockerfile.local"

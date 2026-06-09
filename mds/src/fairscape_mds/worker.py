@@ -16,6 +16,8 @@ from fairscape_mds.crud.identifier import IdentifierRequest
 from fairscape_mds.crud.evidence_graph import FairscapeEvidenceGraphRequest
 from fairscape_mds.crud.AIReady import FairscapeAIReadyScoreRequest
 from fairscape_mds.crud.llm_assist import FairscapeLLMAssistRequest
+from fairscape_mds.crud.condensation import FairscapeCondensationRequest
+from fairscape_mds.crud.interpretation import FairscapeInterpretationRequest
 
 from fairscape_models.conversion.models.AIReady import AIReadyScore
 from fairscape_models.conversion.mapping.AIReady import (
@@ -28,6 +30,8 @@ rocrateRequests = FairscapeROCrateRequest(appConfig)
 evidenceGraphRequests = FairscapeEvidenceGraphRequest(appConfig)
 llmAssistRequests = FairscapeLLMAssistRequest(appConfig)
 identifierRequestFactory = IdentifierRequest(appConfig)
+condensationRequests = FairscapeCondensationRequest(appConfig)
+interpretationRequests = FairscapeInterpretationRequest(appConfig)
 
 # add support for logfire worker token
 @worker_init.connect()
@@ -118,7 +122,7 @@ def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, 
         response = evidenceGraphRequests.build_evidence_graph_for_node(
             requesting_user=requesting_user,
             naan=naan,
-            postfix=postfix
+            postfix=postfix,
         )
 
         if response.success:
@@ -263,6 +267,66 @@ def score_ai_ready_task(self, task_guid: str, rocrate_id: str):
         )
         return {"status": "FAILURE", "error": {"message": "An unexpected server error occurred"}}
 
+@celeryApp.task(name='fairscape_mds.worker.condense_rocrate_task', bind=True)
+def condense_rocrate_task(self, task_guid: str, rocrate_id: str, threshold: int = 5, max_member_ids: int = 0, user_email: str = "system@fairscape.org"):
+    print(f"Starting Condensation Task: {task_guid} for {rocrate_id}")
+
+    try:
+        appConfig.asyncCollection.update_one(
+            {"guid": task_guid},
+            {"$set": {
+                "status": "PROCESSING",
+                "time_started": datetime.datetime.utcnow()
+            }}
+        )
+
+        response = condensationRequests.condense_rocrate(
+            rocrate_id=rocrate_id,
+            threshold=threshold,
+            max_member_ids=max_member_ids,
+            owner_email=user_email,
+        )
+
+        if response.success:
+            result = response.model if isinstance(response.model, dict) else {"condensed_id": str(response.model)}
+            print(f"Successfully condensed ROCrate for Task GUID {task_guid}")
+            appConfig.asyncCollection.update_one(
+                {"guid": task_guid},
+                {"$set": {
+                    "status": "SUCCESS",
+                    "result": result,
+                    "time_finished": datetime.datetime.utcnow()
+                }}
+            )
+            return {"status": "SUCCESS", "result": result}
+        else:
+            error_detail = response.error if isinstance(response.error, dict) else {"message": str(response.error)}
+            print(f"Failed to condense ROCrate for Task GUID {task_guid}: {error_detail}")
+            appConfig.asyncCollection.update_one(
+                {"guid": task_guid},
+                {"$set": {
+                    "status": "FAILURE",
+                    "error": error_detail,
+                    "time_finished": datetime.datetime.utcnow()
+                }}
+            )
+            return {"status": "FAILURE", "error": error_detail}
+
+    except Exception as e:
+        import traceback
+        error_msg = f"Unexpected error in condense_rocrate_task: {str(e)}"
+        print(error_msg)
+        traceback.print_exc()
+        appConfig.asyncCollection.update_one(
+            {"guid": task_guid},
+            {"$set": {
+                "status": "FAILURE",
+                "error": {"message": "An unexpected error occurred", "details": str(e)},
+                "time_finished": datetime.datetime.utcnow()
+            }}
+        )
+        return {"status": "FAILURE", "error": {"message": "An unexpected server error occurred"}}
+
 @celeryApp.task(name='fairscape_mds.worker.process_llm_assist_task', bind=True)
 def process_llm_assist_task(self, task_guid: str):
     print(f"Starting LLM Assist Processing Task: {task_guid}")
@@ -289,6 +353,34 @@ def process_llm_assist_task(self, task_guid: str):
         )
         return {"status": "FAILURE", "error": error_msg}
     
+@celeryApp.task(name='fairscape_mds.worker.interpret_rocrate_task', bind=True, rate_limit='6/m')
+def interpret_rocrate_task(self, task_guid: str, rocrate_id: str, llm_model: str = "google-gla:gemini-2.5-flash", temperature: float = 0.2, user_token: str = ""):
+    print(f"Starting Interpretation Task: {task_guid} for {rocrate_id}")
+
+    try:
+        aeg_id = interpretationRequests.interpret_rocrate(task_guid, user_token=user_token)
+
+        print(f"Successfully interpreted ROCrate for Task GUID {task_guid}: {aeg_id}")
+        return {"status": "SUCCESS", "annotated_evidence_graph_id": aeg_id}
+
+    except Exception as e:
+        import traceback
+        error_msg = f"Unexpected error in interpret_rocrate_task: {str(e)}"
+        print(error_msg)
+        traceback.print_exc()
+
+        # The CRUD class already updates the task to FAILURE, but ensure it's set
+        appConfig.asyncCollection.update_one(
+            {"guid": task_guid},
+            {"$set": {
+                "status": "FAILURE",
+                "error": {"message": "An unexpected error occurred", "details": str(e)},
+                "time_finished": datetime.datetime.utcnow()
+            }}
+        )
+        return {"status": "FAILURE", "error": {"message": "An unexpected server error occurred"}}
+
+
 if __name__ == '__main__':
-    args = ['worker', '--loglevel=INFO']
+    args = ['worker', '--loglevel=INFO', '--concurrency=1']
     celeryApp.worker_main(argv=args)

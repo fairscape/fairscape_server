@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     FAIRSCAPE_ADMIN_GROUP: str
 
     FAIRSCAPE_BASE_URL: str
+    FAIRSCAPE_INTERNAL_URL: Optional[str] = Field(default=None)
     FAIRSCAPE_DESCRIPTIVE_STATISTICS_MAX_COLUMNS: int = 100
 
     FAIRSCAPE_LOGFIRE_ENV: Optional[str] = Field(default=None)
@@ -67,7 +68,8 @@ class FairscapeConfig():
 			tokensCollection,
 			jwtSecret: str,
 			adminGroup: str,
-			baseUrl: str
+			baseUrl: str,
+			internalUrl: Optional[str] = None
 	):
 		self.minioClient=minioClient
 		self.minioBucket=minioBucket
@@ -80,6 +82,7 @@ class FairscapeConfig():
 		self.jwtSecret = jwtSecret
 		self.adminGroup = adminGroup
 		self.baseUrl = baseUrl
+		self.internalUrl = internalUrl
   
 
 		
@@ -167,8 +170,7 @@ celeryApp.conf.result_backend = "redis://" + settings.FAIRSCAPE_REDIS_HOST + ":"
 
 
 celeryApp.conf.update(
-    task_concurrency=4,  # Use 4 threads for concurrency
-    worker_prefetch_multiplier=4  # Prefetch one task at a time
+    worker_prefetch_multiplier=1  # Process one task at a time
 )
 
 
@@ -183,5 +185,6 @@ appConfig = FairscapeConfig(
 	tokensCollection=tokensCollection,
     jwtSecret=settings.FAIRSCAPE_JWT_SECRET,
 	adminGroup=settings.FAIRSCAPE_ADMIN_GROUP,
-    baseUrl=settings.FAIRSCAPE_BASE_URL
+    baseUrl=settings.FAIRSCAPE_BASE_URL,
+    internalUrl=settings.FAIRSCAPE_INTERNAL_URL
 )

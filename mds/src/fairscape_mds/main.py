@@ -13,6 +13,7 @@ from fairscape_mds.routers.publish import publishRouter
 from fairscape_mds.routers.llm_assist import router as llm_assist_router
 from fairscape_mds.routers.github import router as github_router
 from fairscape_mds.routers.mlmodel import mlModelRouter
+from fairscape_mds.routers.interpretation import router as interpretation_router
 
 from fairscape_mds.core.logging import requestLogger
 from fairscape_mds.core.config import settings
@@ -77,6 +78,7 @@ app.include_router(publishRouter)
 app.include_router(mlModelRouter)
 app.include_router(llm_assist_router)
 app.include_router(github_router)
+app.include_router(interpretation_router)
 
 
 @app.get("/healthz")

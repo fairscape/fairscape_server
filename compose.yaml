@@ -9,11 +9,11 @@ services:
       - fairscape-api
       - mongo
   fairscape-worker:
-    build: "./"
-    # image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-21.v1
+    image: ghcr.io/fairscape/mds_python:RELEASE.2026-06-09.v1
     env_file: "./deploy/docker_compose.env"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
     command:
       - "uv"
@@ -23,25 +23,24 @@ services:
       - mongo
       - minio
   fairscape-api:
-    build: "./"
-    # image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-21.v1
+    image: ghcr.io/fairscape/mds_python:RELEASE.2026-06-09.v1
     env_file: "./deploy/docker_compose.env"
     ports:
       - 8080:8080
     depends_on:
       - mongo
       - minio
-  fairscape-frontend:
-    image: ghcr.io/fairscape/fairscapefrontendlocal:RELEASE.2026-02-24
-    ports:
-      - "5173:80"
-    environment:
-      VITE_FAIRSCAPE_API_URL: "http://localhost:8080/api"
-      SEMANTIC_SEARCH_ENABLED: "false"
-    depends_on:
-      - fairscape-api
-      - mongo
-      - minio
+  # fairscape-frontend:
+  #   image: ghcr.io/fairscape/fairscapefrontendlocal:RELEASE.2026-02-24
+  #   ports:
+  #     - "5173:80"
+  #   environment:
+  #     VITE_FAIRSCAPE_API_URL: "http://localhost:8080/api"
+  #     SEMANTIC_SEARCH_ENABLED: "false"
+  #   depends_on:
+  #     - fairscape-api
+  #     - mongo
+  #     - minio
 
   redis:
     image: redis:7.2.4
@@ -74,8 +73,8 @@ services:
     image: minio/minio:latest
     restart: always
     ports:
-      - 9000:9000
-      - 9001:9001
+      - 9010:9000
+      - 9011:9001
     environment:
       MINIO_ROOT_USER: miniotestadmin
       MINIO_ROOT_PASSWORD: miniotestsecret

@@ -18,7 +18,8 @@ WORKDIR /fairscape/src/
 
 COPY pyproject.toml .
 COPY uv.lock .
-RUN uv sync --locked
+# --no-sources ignores the [tool.uv.sources] local-path overrides in pyproject,
+RUN uv sync --no-sources
 
 
 #RUN export PYTHONPATH="$PYTHONPATH:/fairscape/src"
