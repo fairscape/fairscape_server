@@ -1,4 +1,5 @@
-VERSION = RELEASE.2026-06-05.v1
+VERSION = RELEASE.2026-06-09.v1
+IMAGE = ghcr.io/fairscape/mds_python
 
 run:
 	cd src/ && python -m fairscape_mds
@@ -23,7 +24,10 @@ clean:
 	rm -rf __pycache__
 
 build:
-	docker build --no-cache -t ghcr.io/fairscape/mds_python:${VERSION} .
+	docker build --no-cache -f Dockerfile -t $(IMAGE):$(VERSION) .
+
+build-local:
+	cd .. && docker build --no-cache -f fairscape_server/Dockerfile.local -t $(IMAGE):$(VERSION) .
 
 push:
 	docker push ghcr.io/fairscape/mds_python:${VERSION}

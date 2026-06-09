@@ -170,3 +170,4 @@ mds/src/fairscape_mds/tests/descriptive_statistics.ipynb
 /.devcontainer
 .devcontainer/devcontainer.json
 CLAUDE.md
+preflight.sh

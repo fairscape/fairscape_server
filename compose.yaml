@@ -9,10 +9,7 @@ services:
       - fairscape-api
       - mongo
   fairscape-worker:
-    build:
-      context: "../"
-      dockerfile: "fairscape_server/Dockerfile"
-    # image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-21.v1
+    image: ghcr.io/fairscape/mds_python:RELEASE.2026-06-09.v1
     env_file: "./deploy/docker_compose.env"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
@@ -26,10 +23,7 @@ services:
       - mongo
       - minio
   fairscape-api:
-    build:
-      context: "../"
-      dockerfile: "fairscape_server/Dockerfile"
-    # image: ghcr.io/fairscape/mds_python:RELEASE.2025-05-21.v1
+    image: ghcr.io/fairscape/mds_python:RELEASE.2026-06-09.v1
     env_file: "./deploy/docker_compose.env"
     ports:
       - 8080:8080

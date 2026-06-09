@@ -1133,7 +1133,7 @@ requires-dist = [
     { name = "celery", extras = ["redis"], specifier = ">=5.3.6" },
     { name = "docker", specifier = ">=7.0.0" },
     { name = "fairscape-graph-tools", editable = "../fairscape_graph_tools" },
-    { name = "fairscape-models", specifier = ">=1.1.1" },
+    { name = "fairscape-models", specifier = ">=1.1.2" },
     { name = "fastapi", specifier = ">=0.109.0" },
     { name = "google-genai", specifier = ">=1.0.0" },
     { name = "httpx", specifier = ">=0.28.1" },
