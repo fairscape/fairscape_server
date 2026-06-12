@@ -1,4 +1,4 @@
-VERSION = RELEASE.2026-06-09.v1
+VERSION = RELEASE.2026-06-11.v1
 IMAGE = ghcr.io/fairscape/mds_python
 
 run:
@@ -9,7 +9,7 @@ run-docker:
 
 run-local:
 	# need to import environment variables
-	# source deploy/local.env
+# source deploy/local.env
 
 	# run all backend services
 	# docker compose up --build -d ldap mongo minio redis fairscape-worker

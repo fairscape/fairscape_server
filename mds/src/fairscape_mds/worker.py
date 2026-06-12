@@ -104,20 +104,16 @@ def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, 
         )
 
         user_data = appConfig.userCollection.find_one({"email": user_email})
-        if not user_data:
-            error_msg = f"User {user_email} not found."
-            print(error_msg)
-            appConfig.asyncCollection.update_one(
-                {"guid": task_guid},
-                {"$set": {
-                    "status": "FAILURE",
-                    "error": {"message": error_msg},
-                    "time_finished": datetime.datetime.utcnow()
-                }}
+        if user_data:
+            requesting_user = UserWriteModel.model_validate(user_data)
+        else:
+            print(f"User {user_email} not found; building EvidenceGraph as anonymous system user.")
+            requesting_user = UserWriteModel(
+                email=user_email,
+                firstName="Anonymous",
+                lastName="User",
+                password="",
             )
-            return {"status": "FAILURE", "error": error_msg}
-
-        requesting_user = UserWriteModel.model_validate(user_data)
 
         response = evidenceGraphRequests.build_evidence_graph_for_node(
             requesting_user=requesting_user,

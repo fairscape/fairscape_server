@@ -22,13 +22,19 @@ router = APIRouter(
 
 evidence_graph_request_handler = FairscapeEvidenceGraphRequest(appConfig)
 
+SYSTEM_USER = UserWriteModel(
+    email="system@fairscape.org",
+    firstName="System",
+    lastName="User",
+    password="",
+)
+
 @router.post("", status_code=201, response_model=StoredIdentifier, summary="Create a new EvidenceGraph record")
 def create_evidence_graph_route(
     evidence_graph_data: EvidenceGraphCreate,
-    current_user: Annotated[UserWriteModel, Depends(getCurrentUser)],
 ):
     response = evidence_graph_request_handler.create_evidence_graph(
-        requesting_user=current_user,
+        requesting_user=SYSTEM_USER,
         evi_graph_create_model=evidence_graph_data
     )
     if response.success:
@@ -105,13 +111,13 @@ def list_evidence_graphs_route():
 def initiate_build_evidence_graph_for_node_route(
     NAAN: Annotated[str, Path(description="NAAN of the node to build graph for")],
     postfix: Annotated[str, Path(description="Postfix of the node to build graph for")],
-    current_user: Annotated[UserWriteModel, Depends(getCurrentUser)],
 ):
+    owner_email = SYSTEM_USER.email
     task_guid = str(uuid.uuid4())
 
     task_request_data = {
         "guid": task_guid,
-        "owner_email": current_user.email,
+        "owner_email": owner_email,
         "naan": NAAN,
         "postfix": postfix,
         "status": "PENDING",
@@ -129,7 +135,7 @@ def initiate_build_evidence_graph_for_node_route(
 
     build_evidence_graph_task.delay(
         task_guid=task_guid,
-        user_email=current_user.email,
+        user_email=owner_email,
         naan=NAAN,
         postfix=postfix,
     )
