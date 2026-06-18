@@ -1,4 +1,4 @@
-VERSION = RELEASE.2026-06-11.v1
+VERSION = RELEASE.2026-06-18.v1
 IMAGE = ghcr.io/fairscape/mds_python
 
 run:
