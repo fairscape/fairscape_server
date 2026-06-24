@@ -5,9 +5,10 @@ from fairscape_mds.crud.identifier import getMetadata
 
 from fairscape_mds.models.user import UserWriteModel, Permissions, checkPermissions
 from fairscape_mds.models.software import SoftwareWriteModel
-from fairscape_mds.models.identifier import StoredIdentifier
+from fairscape_mds.models.identifier import StoredIdentifier, PublicationStatusEnum, MetadataTypeEnum
 from fairscape_mds.models.dataset import DistributionTypeEnum
 from fairscape_models.software import Software
+import datetime
 
 class FairscapeSoftwareRequest(FairscapeRequest):
 
@@ -26,8 +27,24 @@ class FairscapeSoftwareRequest(FairscapeRequest):
 		if softwareInstance.guid.endswith("/"):
 			softwareInstance.guid = softwareInstance.guid.rstrip("/")
 
+		now = datetime.datetime.now()
+
+		# convert to stored identifier
+		outputModel = StoredIdentifier.model_validate({
+			"@id": softwareInstance.guid,
+			"@type": MetadataTypeEnum.SOFTWARE,
+			"metadata": softwareInstance,
+			"permissions": requestingUser.getPermissions(),
+			"distribution": None,
+			"publicationStatus": PublicationStatusEnum.DRAFT,
+			"descriptiveStatistics": {}, 
+			"isPartOf": softwareInstance.isPartOf if softwareInstance.isPartOf else None,
+			"dateCreated": now,
+			"dateModified": now
+			})
+
 		insertResult = self.config.identifierCollection.insert_one(
-			writeModel.model_dump(by_alias=True, mode='json')
+			outputModel.model_dump(by_alias=True, mode='json')
 		)
 
 		return FairscapeResponse(
