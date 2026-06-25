@@ -107,6 +107,7 @@ class FairscapeComputationRequest(FairscapeRequest):
 			"permissions": requestingUser.getPermissions(),
 			"publicationStatus": PublicationStatusEnum.DRAFT,
 			"distribution": None,
+			"isPartOf": computationInstance.isPartOf if computationInstance.isPartOf else None,
 			"dateCreated": createdDatetime,
 			"dateModified": createdDatetime
 		})
