@@ -59,3 +59,8 @@ pythonpath = [
 ]
 log_cli = true
 log_level = "INFO"
+
+[dependency-groups]
+dev = [
+    "mongomock>=4.3.0",
+]
