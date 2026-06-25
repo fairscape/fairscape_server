@@ -18,7 +18,8 @@ from fairscape_mds.routers.interpretation import router as interpretation_router
 from fairscape_mds.core.logging import requestLogger
 from fairscape_mds.core.config import settings
 
-from fastapi.middleware.cors import CORSMiddleware 
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi import FastAPI, Request
 
 import logfire
@@ -36,11 +37,13 @@ if settings.FAIRSCAPE_LOGFIRE_ENV and settings.FAIRSCAPE_LOGFIRE_TOKEN:
     )
     logfire.instrument_fastapi(app)
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
     allow_credentials=True,
-    allow_methods=["*"], 
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 

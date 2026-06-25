@@ -1347,28 +1347,32 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			"@graph": graph
 		}
 
-	def getROCrateMetadata(self, rocrateGUID: str):
+	def getROCrateMetadata(self, rocrateGUID: str, expand: bool = True):
 		root_doc = self.flexibleFind(rocrateGUID)
-		
+
 		if not root_doc:
 			return FairscapeResponse(
 				success=False,
 				statusCode=404,
 				error={"message": "rocrate not found"}
 			)
-		
+
 		root_metadata = root_doc.get("metadata", {})
-		
+
 		has_part = root_metadata.get("hasPart", [])
-		
-		if not has_part:
-			rocrate_doc = self._build_rocrate_structure(rocrateGUID, root_metadata, [])
+
+		# When expand is False, return a lightweight crate containing only the
+		# metadata descriptor and root entity. 
+		if not has_part or not expand:
+			light_root = {k: v for k, v in root_metadata.items() if k != "hasPart"}
+			light_root["hasPartCount"] = len(has_part) if isinstance(has_part, list) else 0
+			rocrate_doc = self._build_rocrate_structure(rocrateGUID, light_root, [])
 			return FairscapeResponse(
 				success=True,
 				statusCode=200,
 				model=rocrate_doc
 			)
-		
+
 		part_guids = [part.get("@id") for part in has_part if part.get("@id")]
 		
 		parts_cursor = self.config.identifierCollection.find(
@@ -1516,6 +1520,129 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			success=True,
 			statusCode=200,
 			model=paginated_summary
+		)
+
+
+	def getROCrateEntities(
+		self,
+		rocrateGUID: str,
+		category: str,
+		limit: int = 50,
+		offset: int = 0
+	) -> FairscapeResponse:
+		"""
+		Return one page of fully-resolved entity metadata for a single
+		category of an RO-Crate's contents.
+
+		Uses the pre-computed contentSummary for ordering and totals, then
+		resolves only the page's entities (at most `limit`) to their full
+		metadata. This keeps the query small regardless of crate size.
+
+		Args:
+			rocrateGUID: The ARK identifier of the RO-Crate
+			category: One of datasets/software/computations/schemas/samples/
+				mlModels/rocrates/other
+			limit: Maximum number of items to return (default 50)
+			offset: Starting index for pagination (default 0)
+
+		Returns:
+			FairscapeResponse with the resolved page of entity metadata.
+		"""
+
+		valid_categories = {
+			"datasets", "software", "computations", "schemas",
+			"samples", "mlModels", "rocrates", "other"
+		}
+		if category not in valid_categories:
+			return FairscapeResponse(
+				success=False,
+				statusCode=400,
+				error={"message": f"Invalid category '{category}'. Must be one of: {sorted(valid_categories)}"}
+			)
+
+		# Only fetch the contentSummary field (mirrors getROCrateContentSummary)
+		rocrate_doc = self.flexibleFind(
+			rocrateGUID,
+			projection={
+				"_id": False,
+				"contentSummary": 1,
+				"@type": 1
+			}
+		)
+
+		if not rocrate_doc:
+			return FairscapeResponse(
+				success=False,
+				statusCode=404,
+				error={"message": "RO-Crate not found"}
+			)
+
+		# Verify this is an ROCrate
+		doc_type = rocrate_doc.get("@type", [])
+		if isinstance(doc_type, str):
+			doc_type = [doc_type]
+
+		is_rocrate = any("ROCrate" in str(t) for t in doc_type)
+		if not is_rocrate:
+			return FairscapeResponse(
+				success=False,
+				statusCode=400,
+				error={"message": "Identifier is not an RO-Crate"}
+			)
+
+		content_summary = rocrate_doc.get("contentSummary")
+
+		if not content_summary:
+			# RO-Crate exists but has no summary (uploaded before this feature).
+			# Signal the client to fall back to the full-crate path.
+			return FairscapeResponse(
+				success=True,
+				statusCode=200,
+				model={
+					"items": [],
+					"category": category,
+					"total": 0,
+					"offset": offset,
+					"limit": limit,
+					"summaryAvailable": False
+				}
+			)
+
+		category_items = content_summary.get(category, [])
+		total = content_summary.get("counts", {}).get(category, len(category_items))
+
+		page_items = category_items[offset:offset + limit]
+		page_guids = [item.get("@id") for item in page_items if item.get("@id")]
+
+		# Resolve the page's entities to their full metadata in a single query.
+		metadata_by_guid = {}
+		if page_guids:
+			parts_cursor = self.config.identifierCollection.find(
+				{"@id": {"$in": page_guids}},
+				projection={"_id": False}
+			)
+			for part_doc in parts_cursor:
+				part_metadata = part_doc.get("metadata", {})
+				guid = part_metadata.get("@id") or part_doc.get("@id")
+				if guid and part_metadata:
+					metadata_by_guid[guid] = part_metadata
+
+		# Preserve the contentSummary ordering ($in does not guarantee order).
+		resolved_items = [
+			metadata_by_guid[guid] for guid in page_guids if guid in metadata_by_guid
+		]
+
+		return FairscapeResponse(
+			success=True,
+			statusCode=200,
+			model={
+				"items": resolved_items,
+				"category": category,
+				"total": total,
+				"offset": offset,
+				"limit": limit,
+				"summaryAvailable": True
+			}
 		)
 
 

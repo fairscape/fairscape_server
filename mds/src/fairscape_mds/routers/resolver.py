@@ -79,6 +79,50 @@ def resolveARKWithSlash(
     return resolveARK(NAAN, postfix, accept)
 
 
+@resolverRouter.get("/rocrate/view/ark:/{NAAN}/{postfix}")
+@resolverRouter.get("/rocrate/view/ark:{NAAN}/{postfix}")
+def resolveARKView(
+    NAAN: str,
+    postfix: str
+):
+    """
+    Front-end optimized view of an ARK: identical to the canonical resolver
+    (`/ark:{NAAN}/{postfix}`) but drops the root `hasPart` array, which on large
+    crates is tens of thousands of refs and dominates the payload. The viewer
+    gets per-category counts from `/rocrate/summary` and rows from
+    `/rocrate/entities`, so it never needs the full list. JSON only; for
+    spec-valid RO-Crate / RDF / Turtle use the canonical resolver instead.
+    """
+    guid = f"ark:{NAAN}/{postfix}"
+    response = resolverRequest.resolveIdentifier(guid)
+
+    if not response.success:
+        return JSONResponse(
+            status_code=response.statusCode,
+            content=response.error
+        )
+    metadata = response.model.model_dump(mode='json', by_alias=True)
+
+    if isinstance(metadata, dict) and not metadata.get("metadata", {}).get("@context"):
+        if metadata.get('metadata', {}) == {}:
+            metadata['metadata'] = {}
+        metadata['metadata']["@context"] = {
+            "@vocab": "https://schema.org/",
+            "EVI": "https://w3id.org/EVI#"
+        }
+
+    inner = metadata.get("metadata")
+    if isinstance(inner, dict):
+        hasPart = inner.pop("hasPart", None)
+        inner["hasPartCount"] = len(hasPart) if isinstance(hasPart, list) else 0
+
+    return JSONResponse(
+        content=metadata,
+        status_code=response.statusCode,
+        media_type="application/json"
+    )
+
+
 @resolverRouter.put("/ark:/{NAAN}/{postfix}")
 @resolverRouter.put("/ark:{NAAN}/{postfix}")
 def updateARK(

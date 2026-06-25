@@ -243,21 +243,73 @@ def getROCrateContentSummary(
 		)
 
 
+@rocrateRouter.get(
+	"/rocrate/entities/ark:/{NAAN}/{postfix}",
+	summary="Get one page of fully-resolved entities for a category",
+	response_description="A page of full entity metadata for the requested category, with total count"
+)
+@rocrateRouter.get(
+	"/rocrate/entities/ark:{NAAN}/{postfix}",
+	summary="Get one page of fully-resolved entities for a category",
+	response_description="A page of full entity metadata for the requested category, with total count"
+)
+def getROCrateEntities(
+	NAAN: str,
+	postfix: str,
+	category: str = Query(description="Category to page through: datasets, software, computations, schemas, samples, mlModels, rocrates, other"),
+	limit: int = Query(default=50, ge=1, le=200, description="Max items per page"),
+	offset: int = Query(default=0, ge=0, description="Starting index for pagination")
+):
+	"""
+	Page through a single category of an RO-Crate's contents, returning the
+	full metadata for each entity on the page.
+
+	Backed by the pre-computed contentSummary, so only the page's entities
+	(at most `limit`) are resolved. Use `offset`/`limit` to paginate.
+
+	If the RO-Crate has no contentSummary, `summaryAvailable` is `false` and
+	`items` is empty (the client should fall back to the full-crate endpoint).
+	"""
+	guid = f"ark:{NAAN}/{postfix}"
+
+	response = rocrateRequest.getROCrateEntities(
+		rocrateGUID=guid,
+		category=category,
+		limit=limit,
+		offset=offset
+	)
+
+	if response.success:
+		return JSONResponse(
+			status_code=200,
+			content=response.model
+		)
+	else:
+		return JSONResponse(
+			status_code=response.statusCode,
+			content=response.error
+		)
+
+
 @rocrateRouter.get("/rocrate/ark:/{NAAN}/{postfix}")
 @rocrateRouter.get("/rocrate/ark:{NAAN}/{postfix}")
 def getROCrateMetadata(
 	request: Request,
 	NAAN: str,
 	postfix: str,
+	expand: bool = Query(default=True, description="Resolve every hasPart entity into the @graph. Set false for a lightweight crate (descriptor + root only)."),
 ):
 	"""
-	Retrieve RO-Crate metadata.  
-	Supports content negotiation:  
-	- `application/json` (default, raw RO-Crate JSON)  
-	- `application/vnd.mlcommons-croissant+json` (Croissant JSON-LD)  
+	Retrieve RO-Crate metadata.
+	Supports content negotiation:
+	- `application/json` (default, raw RO-Crate JSON)
+	- `application/vnd.mlcommons-croissant+json` (Croissant JSON-LD)
+
+	Use `expand=false` to skip resolving the (potentially thousands of)
+	hasPart entities; paginate them via `/rocrate/entities/{ark}` instead.
 	"""
 	guid = f"ark:{NAAN}/{postfix}"
-	response = rocrateRequest.getROCrateMetadata(guid)
+	response = rocrateRequest.getROCrateMetadata(guid, expand=expand)
 
 	if not response.success:
 		return JSONResponse(
