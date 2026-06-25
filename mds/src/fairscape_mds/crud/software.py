@@ -52,7 +52,7 @@ class FairscapeSoftwareRequest(FairscapeRequest):
 		return FairscapeResponse(
 			success=True,
 			statusCode=201,
-			model=writeModel
+			model=outputModel
 		)
 
 	def getSoftware(self, guid: str):
