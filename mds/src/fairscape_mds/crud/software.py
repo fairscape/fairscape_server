@@ -18,11 +18,6 @@ class FairscapeSoftwareRequest(FairscapeRequest):
 		softwareInstance: Software
 	):
 
-		writeModel = SoftwareWriteModel.model_validate({
-			**softwareInstance.model_dump(by_alias=True, mode='json'),
-			"permissions": requestingUser.getPermissions()
-		})
-
 		# remove trailing slashes from GUID
 		if softwareInstance.guid.endswith("/"):
 			softwareInstance.guid = softwareInstance.guid.rstrip("/")
@@ -46,6 +41,13 @@ class FairscapeSoftwareRequest(FairscapeRequest):
 		insertResult = self.config.identifierCollection.insert_one(
 			outputModel.model_dump(by_alias=True, mode='json')
 		)
+		
+		if not insertResult.inserted_id:
+			return FairscapeResponse(
+				success=False,
+				statusCode=500,
+				error={"error": "error writing identifier"}
+			)
 
 		return FairscapeResponse(
 			success=True,
