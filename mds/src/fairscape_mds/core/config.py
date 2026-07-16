@@ -47,6 +47,8 @@ class Settings(BaseSettings):
 
     FAIRSCAPE_BASE_URL: str
     FAIRSCAPE_INTERNAL_URL: Optional[str] = Field(default=None)
+    FAIRSCAPE_SEMANTIC_SEARCH_URL: str = Field(default="http://test-fairscape-search-service:5050")
+    FAIRSCAPE_SEMANTIC_SEARCH_COLLECTION: Optional[str] = Field(default=None)
     FAIRSCAPE_DESCRIPTIVE_STATISTICS_MAX_COLUMNS: int = 100
 
     FAIRSCAPE_LOGFIRE_ENV: Optional[str] = Field(default=None)
@@ -69,7 +71,9 @@ class FairscapeConfig():
 			jwtSecret: str,
 			adminGroup: str,
 			baseUrl: str,
-			internalUrl: Optional[str] = None
+			internalUrl: Optional[str] = None,
+			semanticSearchUrl: Optional[str] = None,
+			semanticSearchCollection: Optional[str] = None
 	):
 		self.minioClient=minioClient
 		self.minioBucket=minioBucket
@@ -83,6 +87,8 @@ class FairscapeConfig():
 		self.adminGroup = adminGroup
 		self.baseUrl = baseUrl
 		self.internalUrl = internalUrl
+		self.semanticSearchUrl = semanticSearchUrl
+		self.semanticSearchCollection = semanticSearchCollection
   
 
 		
@@ -186,5 +192,7 @@ appConfig = FairscapeConfig(
     jwtSecret=settings.FAIRSCAPE_JWT_SECRET,
 	adminGroup=settings.FAIRSCAPE_ADMIN_GROUP,
     baseUrl=settings.FAIRSCAPE_BASE_URL,
-    internalUrl=settings.FAIRSCAPE_INTERNAL_URL
+    internalUrl=settings.FAIRSCAPE_INTERNAL_URL,
+    semanticSearchUrl=settings.FAIRSCAPE_SEMANTIC_SEARCH_URL,
+    semanticSearchCollection=settings.FAIRSCAPE_SEMANTIC_SEARCH_COLLECTION
 )

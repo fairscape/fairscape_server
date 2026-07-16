@@ -80,53 +80,60 @@ class FairscapeAIReadyScoreRequest(FairscapeRequest):
         self,
         rocrate_id: str
     ) -> List[Dict[str, Any]]:
+        # BFS with batched $in queries: round trips scale with hasPart depth
+        BATCH_SIZE = 10000
         metadata_graph = []
         processed_ids = set()
-        
-        def fetch_entity(entity_id: str):
-            if entity_id in processed_ids:
-                return
-            
-            processed_ids.add(entity_id)
-            entity = self.config.identifierCollection.find_one({"@id": entity_id}, {"_id": 0})
-            
-            if not entity:
-                return
-            
-            if "metadata" in entity:
-                flattened = {k: v for k, v in entity.items() if k != "metadata"}
-                if isinstance(entity["metadata"], dict):
-                    flattened.update(entity["metadata"])
-                entity = flattened
-            
-            metadata_graph.append(entity)
-            
-            entity_type = entity.get("@type", [])
-            if isinstance(entity_type, str):
-                entity_type = [entity_type]
-            
-            is_rocrate = any("ROCrate" in t for t in entity_type)
-            
-            if entity.get("hasPart"):
-                parts = entity["hasPart"]
-                if not isinstance(parts, list):
-                    parts = [parts]
-                
-                for part in parts:
-                    if isinstance(part, dict) and part.get("@id"):
-                        part_id = part["@id"]
-                        fetch_entity(part_id)
-            
-            if is_rocrate and entity.get("outputs"):
-                outputs = entity["outputs"]
-                if not isinstance(outputs, list):
-                    outputs = [outputs]
-                
-                for output in outputs:
-                    if isinstance(output, dict) and output.get("@id"):
-                        fetch_entity(output["@id"])
-        
-        fetch_entity(rocrate_id)
+        frontier = [rocrate_id]
+
+        while frontier:
+            batch_ids = []
+            for entity_id in frontier:
+                if entity_id not in processed_ids:
+                    processed_ids.add(entity_id)
+                    batch_ids.append(entity_id)
+            frontier = []
+
+            entities = []
+            for start in range(0, len(batch_ids), BATCH_SIZE):
+                chunk = batch_ids[start:start + BATCH_SIZE]
+                entities.extend(self.config.identifierCollection.find(
+                    {"@id": {"$in": chunk}}, {"_id": 0}
+                ))
+
+            for entity in entities:
+                if "metadata" in entity:
+                    flattened = {k: v for k, v in entity.items() if k != "metadata"}
+                    if isinstance(entity["metadata"], dict):
+                        flattened.update(entity["metadata"])
+                    entity = flattened
+
+                metadata_graph.append(entity)
+
+                entity_type = entity.get("@type", [])
+                if isinstance(entity_type, str):
+                    entity_type = [entity_type]
+
+                is_rocrate = any("ROCrate" in t for t in entity_type)
+
+                if entity.get("hasPart"):
+                    parts = entity["hasPart"]
+                    if not isinstance(parts, list):
+                        parts = [parts]
+
+                    for part in parts:
+                        if isinstance(part, dict) and part.get("@id"):
+                            frontier.append(part["@id"])
+
+                if is_rocrate and entity.get("outputs"):
+                    outputs = entity["outputs"]
+                    if not isinstance(outputs, list):
+                        outputs = [outputs]
+
+                    for output in outputs:
+                        if isinstance(output, dict) and output.get("@id"):
+                            frontier.append(output["@id"])
+
         return metadata_graph
     
     def delete_ai_ready_score(

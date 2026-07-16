@@ -48,6 +48,39 @@ def _flexible_find(guid: str, projection=None):
 	return result
 
 
+TASK_STALE_AFTER = datetime.timedelta(hours=1)
+
+def _find_active_task(task_type: str, ark_id: str):
+	"""Find an in-progress async task for an entity, failing it if stale.
+
+	A task stuck in PENDING/PROCESSING past TASK_STALE_AFTER means the worker
+	died mid-job or the broker message was lost; mark it FAILURE so a new task
+	can be launched, and return None."""
+	task_doc = appConfig.asyncCollection.find_one({
+		"task_type": task_type,
+		"rocrate_id": ark_id,
+		"status": {"$in": ["PENDING", "PROCESSING"]}
+	}, {"_id": 0})
+
+	if not task_doc:
+		return None
+
+	started = task_doc.get("time_started") or task_doc.get("time_created")
+	if started and datetime.datetime.utcnow() - started > TASK_STALE_AFTER:
+		# status filter guards the race where the worker finishes concurrently
+		appConfig.asyncCollection.update_one(
+			{"guid": task_doc["guid"], "status": {"$in": ["PENDING", "PROCESSING"]}},
+			{"$set": {
+				"status": "FAILURE",
+				"error": {"message": f"Task exceeded {TASK_STALE_AFTER}; presumed dead worker"},
+				"time_finished": datetime.datetime.utcnow()
+			}}
+		)
+		return None
+
+	return task_doc
+
+
 @rocrateRouter.post("/rocrate/upload-async")
 def uploadROCrate(
 	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
@@ -405,12 +438,8 @@ def get_or_create_ai_ready_score(
 					content={"error": f"Error validating existing AIReadyScore: {str(e)}"}
 				)
 	
-	task_doc = appConfig.asyncCollection.find_one({
-		"task_type": "AIReadyScoring",
-		"rocrate_id": ark_id,
-		"status": {"$in": ["PENDING", "PROCESSING"]}
-	}, {"_id": 0})
-	
+	task_doc = _find_active_task("AIReadyScoring", ark_id)
+
 	if task_doc:
 		return JSONResponse(
 			status_code=202,
@@ -510,22 +539,10 @@ def rescore_ai_ready_score(
 			content={"error": f"No existing AI-Ready Score found for {ark_id}"}
 		)
 	
-	from fairscape_mds.crud.AIReady import FairscapeAIReadyScoreRequest
-	ai_ready_request = FairscapeAIReadyScoreRequest(appConfig)
-	
-	delete_response = ai_ready_request.delete_ai_ready_score(ark_id)
-	if not delete_response.success:
-		return JSONResponse(
-			status_code=delete_response.statusCode,
-			content=delete_response.error
-		)
-	
-	task_doc = appConfig.asyncCollection.find_one({
-		"task_type": "AIReadyScoring",
-		"rocrate_id": ark_id,
-		"status": {"$in": ["PENDING", "PROCESSING"]}
-	}, {"_id": 0})
-	
+	# check for an in-progress task before deleting the existing score, so a
+	# wedged task can't leave the crate score-less
+	task_doc = _find_active_task("AIReadyScoring", ark_id)
+
 	if task_doc:
 		return JSONResponse(
 			status_code=202,
@@ -535,6 +552,16 @@ def rescore_ai_ready_score(
 				"status": task_doc["status"],
 				"status_endpoint": f"/rocrate/ai-ready-score/status/{task_doc['guid']}"
 			}
+		)
+
+	from fairscape_mds.crud.AIReady import FairscapeAIReadyScoreRequest
+	ai_ready_request = FairscapeAIReadyScoreRequest(appConfig)
+
+	delete_response = ai_ready_request.delete_ai_ready_score(ark_id)
+	if not delete_response.success:
+		return JSONResponse(
+			status_code=delete_response.statusCode,
+			content=delete_response.error
 		)
 	
 	task_guid = str(uuid.uuid4())
@@ -626,11 +653,7 @@ def trigger_condense_rocrate(
 		condensation_req.delete_condensed_rocrate(ark_id)
 
 	# Check for in-progress task
-	task_doc = appConfig.asyncCollection.find_one({
-		"task_type": "CondensedROCrateBuild",
-		"rocrate_id": ark_id,
-		"status": {"$in": ["PENDING", "PROCESSING"]}
-	}, {"_id": 0})
+	task_doc = _find_active_task("CondensedROCrateBuild", ark_id)
 
 	if task_doc:
 		return JSONResponse(
@@ -744,11 +767,7 @@ def get_condensed_rocrate(
 			)
 
 	# Check for in-progress task
-	task_doc = appConfig.asyncCollection.find_one({
-		"task_type": "CondensedROCrateBuild",
-		"rocrate_id": ark_id,
-		"status": {"$in": ["PENDING", "PROCESSING"]}
-	}, {"_id": 0})
+	task_doc = _find_active_task("CondensedROCrateBuild", ark_id)
 
 	if task_doc:
 		return JSONResponse(

@@ -1235,6 +1235,12 @@ class FairscapeROCrateRequest(FairscapeRequest):
 		# Build content summary
 		contentSummary = buildContentSummary(roCrateModel)
 
+		# Mirror the crate's own isPartOf onto the stored identifier's top-level
+		rootIsPartOf = [
+			partOf.model_dump(by_alias=True, mode="json")
+			for partOf in (metadataElem.isPartOf or [])
+		]
+
 		# TODO needs to be stored identifier
 		storedMetadataElem = StoredIdentifier.model_validate({
 			"@id": metadataElem.guid,
@@ -1248,7 +1254,8 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			"contentSummary": contentSummary.model_dump(mode='json', by_alias=True),
 			"publicationStatus": PublicationStatusEnum.DRAFT,
 			"dateCreated": now,
-			"dateModified": now
+			"dateModified": now,
+			"isPartOf": rootIsPartOf
 		})
 
 		# suppresses warnings from serializer handling nested models

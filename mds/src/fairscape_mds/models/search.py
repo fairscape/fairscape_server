@@ -9,6 +9,7 @@ class SearchResultItem(BaseModel):
     description: Optional[str] = None
     keywords: List[str] = Field(default_factory=list)
     score: float
+    category: Optional[str] = None
 
 class SearchResults(BaseModel):
     query: str

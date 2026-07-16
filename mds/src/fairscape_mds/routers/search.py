@@ -15,29 +15,48 @@ search_request_handler = FairscapeSearchRequest(appConfig)
 
 @router.get("/basic", response_model=SearchResults, summary="Perform a basic keyword search")
 def basic_search_route(
-    query: Annotated[str, Query(description="The search query string.")]
+    query: Annotated[str, Query(description="The search query string.")],
+    limit: Annotated[int, Query(ge=1, le=200, description="Maximum number of results to return.")] = 50,
+    offset: Annotated[int, Query(ge=0, description="Number of results to skip, for pagination.")] = 0
 ):
     if not query:
         raise HTTPException(status_code=400, detail="Query parameter cannot be empty.")
-    
-    response = search_request_handler.basic_search(query_string=query)
+
+    response = search_request_handler.basic_search(query_string=query, limit=limit, offset=offset)
     if response.success:
         return response.model
     else:
         raise HTTPException(status_code=response.statusCode, detail=response.error)
 
+@router.post("/backfill-summaries", summary="Backfill contentSummary for RO-Crates that predate it")
+def backfill_summaries_route():
+    """Rebuild the stored contentSummary (from metadata.hasPart) for every
+    RO-Crate identifier missing one, so pre-contentSummary crates rank and
+    label correctly (Release vs RO-Crate) in basic search. Idempotent."""
+    response = search_request_handler.backfill_content_summaries()
+    if response.success:
+        return response.model
+    else:
+        raise HTTPException(status_code=response.statusCode, detail=response.error)
+
+
 @router.get("/semantic", response_model=SearchResults, summary="Perform a semantic search")
 async def semantic_search_route(
-    query: Annotated[str, Query(description="The search query string.")]
+    query: Annotated[str, Query(description="The search query string.")],
+    limit: Annotated[int, Query(ge=1, le=200, description="Maximum number of results to return.")] = 50
 ):
     if not query:
         raise HTTPException(status_code=400, detail="Query parameter cannot be empty.")
-    
+
+    params = {"query": query, "n_results": limit}
+    if appConfig.semanticSearchCollection:
+        params["collection"] = appConfig.semanticSearchCollection
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                "http://test-fairscape-search-service:5050/api/search/semantic",
-                params={"query": query},
+                f"{appConfig.semanticSearchUrl}/api/search/semantic",
+                params=params,
                 timeout=30.0
             )
             response.raise_for_status()

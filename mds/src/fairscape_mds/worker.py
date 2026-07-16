@@ -161,7 +161,7 @@ def build_evidence_graph_task(self, task_guid: str, user_email: str, naan: str, 
         )
         return {"status": "FAILURE", "error": {"message": "An unexpected server error occurred."}}
 
-@celeryApp.task(name='fairscape_mds.worker.score_ai_ready_task', bind=True)
+@celeryApp.task(name='fairscape_mds.worker.score_ai_ready_task', bind=True, soft_time_limit=3300)
 def score_ai_ready_task(self, task_guid: str, rocrate_id: str):
     print(f"Starting AI-Ready Scoring Task: {task_guid} for {rocrate_id}")
     

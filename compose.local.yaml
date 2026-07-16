@@ -13,3 +13,34 @@ services:
     build:
       context: "../"
       dockerfile: "fairscape_server/Dockerfile.local"
+    environment:
+      - FAIRSCAPE_SEMANTIC_SEARCH_URL=http://fairscape-search:5050
+
+  # Semantic search stack for full local testing. Populate chroma with
+  #   curl -X POST localhost:5050/api/populate
+  # and check how populated it is with
+  #   curl localhost:5050/api/status
+  chroma:
+    image: chromadb/chroma:1.0.12
+    ports:
+      - 8010:8000
+
+  fairscape-search:
+    build: "../search/container"
+    restart: on-failure
+    ports:
+      - 5050:5050
+    environment:
+      FAIRSCAPE_MONGO_HOST: mongo
+      FAIRSCAPE_MONGO_PORT: "27017"
+      FAIRSCAPE_MONGO_ACCESS_KEY: mongotestaccess
+      FAIRSCAPE_MONGO_SECRET_KEY: mongotestsecret
+      FAIRSCAPE_MONGO_DATABASE: fairscape
+      FAIRSCAPE_MONGO_AUTH_DATABASE: admin
+      FAIRSCAPE_MONGO_IDENTIFIER_COLLECTION: mds
+      FAIRSCAPE_CHROMA_HOST: chroma
+      FAIRSCAPE_CHROMA_PORT: "8000"
+      FAIRSCAPE_CHROMA_COLLECTION: fairscape_vectors
+    depends_on:
+      - mongo
+      - chroma
