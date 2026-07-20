@@ -28,7 +28,7 @@ authors:
     email: twclark@virginia.edu
     affiliation: University of Virginia
     orcid: 'https://orcid.org/0000-0003-4060-7360'
-repository-code: 'https://github.com/fairscape/mds_python'
+repository-code: 'https://github.com/fairscape/fairscape_server'
 url: 'https://fairscape.net'
 abstract: >-
   FAIRSCAPE is a FAIRness and AI-readiness service providing
@@ -63,4 +63,4 @@ keywords:
   - EVI
   - Ontology
   - Provenance
-license: MIT
+license: Apache-2.0
