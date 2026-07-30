@@ -22,6 +22,7 @@ from fairscape_models import ROCrateV1_2, ROCrateMetadataElem, Dataset, GenericM
 from fairscape_models.fairscape_base import DEFAULT_ARK_NAAN
 import traceback
 
+import zoneinfo
 import pydantic
 import pymongo
 import fastapi
@@ -335,6 +336,146 @@ class FairscapeROCrateRequest(FairscapeRequest):
 	def __init__(self, config):
 		super().__init__(config)
 		self.config = config
+
+	def replaceROCrateMetadata(
+		self,
+		userInstance: UserWriteModel,
+		updateROCrate: ROCrateV1_2, 
+		)->FairscapeResponse:
+
+		crateMetadata = updateROCrate.getCrateMetadata()
+		updatedGUIDS = []
+		crateGUID = crateMetadata.guid
+		crateType = crateMetadata.metadataType
+		crateName = crateMetadata.name
+
+		# get the metadata for the root ROCrate
+		crateContent = self.config.identifierCollection.find_one({
+			"@id": crateGUID
+		})
+
+		if not crateContent:
+			return FairscapeResponse(
+				success=False,
+				statusCode=404,
+				jsonResponse={"error": "ROCrate not found", "@id": crateGUID}
+			)
+
+		identifier = StoredIdentifier.model_validate(crateContent)
+		
+		# check permissions
+		allowedAccess = checkPermissions(
+			permissionsInstance=identifier.permissions,
+			requestingUser=userInstance
+		)
+
+		if not allowedAccess:
+			return FairscapeResponse(
+				success=False,
+				statusCode=401,
+				jsonResponse={
+					"error": "user not authorized to overwrite RO-Crate"
+				}
+			)
+
+		# time to set for dateModified all identifiers	
+		now = datetime.datetime.now(zoneinfo.ZoneInfo("America/New_York"))
+
+		# permissions for created elements
+		propertyPermissions = Permissions.model_validate({
+			"owner": userInstance.email,
+			"group": None
+		})
+
+		for updateElem in updateROCrate.metadataGraph:
+			if 'ro-crate-metadata.json' in updateElem.guid:
+				continue
+			
+			# see if element exists 
+			query = self.config.identifierCollection.find_one(
+				{"@id": updateElem.guid},
+				projection={"@id": True}
+			)
+
+			# if element already exists
+			if query:
+				updateResult = self.config.identifierCollection.update_one(
+					{"@id": updateElem.guid},
+					{
+						"$set": {
+							"metadata": updateElem.model_dump(
+								by_alias=True, 
+								exclude_none=True
+							),
+							"dateModified": now,
+							}
+					},
+				)
+
+				if updateResult.matched_count == 1 and updateResult.modified_count == 1:
+					updatedGUIDS.append(updateElem.guid)
+				else:
+					# TODO log error
+					pass
+
+			# if the updated elem doesn't exist create a new stored identifier
+			else:
+				# get data together 
+				propertyIsPartOf = [
+					IdentifierValue.model_validate(
+						{
+						"@id": crateGUID, 
+						"@type": crateType, 
+						"name": crateName
+						}
+					)
+				]
+				
+				# create a new stored identifier
+				storedIdentifierMetadata = {
+					"@id": updateElem.guid,
+					"@type": determineMetadataType(updateElem.metadataType).value,
+					"dateCreated": now,
+					"dateModified": now,
+					"permissions": propertyPermissions,
+					"metadata": updateElem,
+					"isPartOf": propertyIsPartOf,
+					# TODO deal with distribution
+					"distribution": None,
+					"publicationStatus": PublicationStatusEnum.DRAFT 
+				}
+
+
+				# create new identifier
+				newIdentifier = StoredIdentifier.model_validate(
+					storedIdentifierMetadata
+				)
+
+				insertResult = self.config.identifierCollection.insert_one(
+					newIdentifier.model_dump(by_alias=True)
+				)
+
+				# check success of insert result
+				if insertResult.inserted_id:
+					updatedGUIDS.append(updateElem.guid)
+
+		# TODO reorganize try catch around updating logic
+		try:
+			response = FairscapeResponse(
+				success=True,
+				statusCode=201,	
+				jsonResponse={"updated": [updatedGUIDS]}
+			)
+
+			return response
+		except Exception as e:	
+			response =  FairscapeResponse(
+				success=False,
+				statusCode=500,
+				error={"message": f"Error listing RO-Crates: {str(e)}"}
+			)
+
+			return response
 
 	def updateJobStatus(
 		self, 
@@ -1347,7 +1488,11 @@ class FairscapeROCrateRequest(FairscapeRequest):
 			"@graph": graph
 		}
 
-	def getROCrateMetadata(self, rocrateGUID: str, expand: bool = True):
+	def getROCrateMetadata(
+		self, 
+		rocrateGUID: str, 
+		expand: bool = True
+	)->ROCrateV1_2:
 		root_doc = self.flexibleFind(rocrateGUID)
 
 		if not root_doc:

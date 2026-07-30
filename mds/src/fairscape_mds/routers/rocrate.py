@@ -47,6 +47,26 @@ def _flexible_find(guid: str, projection=None):
 			result = appConfig.identifierCollection.find_one(query, projection)
 	return result
 
+@rocrateRouter.put(
+	"/rocrate/replace",
+	summary="",
+	status_code=201
+)
+def replaceROCrateMetadata(
+	currentUser: Annotated[UserWriteModel, Depends(getCurrentUser)],
+	crateMetadata: ROCrateV1_2
+):
+	
+	response = rocrateRequest.replaceROCrateMetadata(
+		userInstance = currentUser,
+		updateROCrate=crateMetadata
+	)
+
+	return JSONResponse(
+		status_code=response.status_code,
+		content=response.jsonResponse
+	)
+
 
 @rocrateRouter.post("/rocrate/upload-async")
 def uploadROCrate(
@@ -73,7 +93,8 @@ def uploadROCrate(
 			status_code=400,
 			content={"error": uploadOperation.error}
 		)
-  
+
+
 @rocrateRouter.post(
 	"/rocrate/metadata",
 	summary="Mint metadata-only ROCrate records without file content",
@@ -109,7 +130,8 @@ def publishMetadataOnly(
 			},
 			status_code=500
 		)
-		
+
+
 @rocrateRouter.get(
 	"/rocrate",
 	summary="List all ROCrates accessible by the current user",
@@ -340,6 +362,7 @@ def getROCrateMetadata(
 		content=response.model
 	)
 
+
 @rocrateRouter.get(
 	"/rocrate/ai-ready-score/ark:/{NAAN}/{postfix}",
 	summary="Get or initiate AI-Ready Score for an RO-Crate (Public)",
@@ -447,6 +470,7 @@ def get_or_create_ai_ready_score(
 			"status_endpoint": f"/rocrate/ai-ready-score/status/{task_guid}"
 		}
 	)
+
 
 @rocrateRouter.get(
 	"/rocrate/ai-ready-score/status/{task_id}",
